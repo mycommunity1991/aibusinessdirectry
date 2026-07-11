@@ -1,0 +1,1 @@
+# MyCommunity App Core Package
