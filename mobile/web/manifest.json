@@ -1,6 +1,6 @@
 {
-    "name": "mycommunity_app",
-    "short_name": "mycommunity_app",
+    "name": "ai_marketplace_app",
+    "short_name": "ai_marketplace_app",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

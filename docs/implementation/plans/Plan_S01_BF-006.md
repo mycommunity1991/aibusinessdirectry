@@ -1,6 +1,6 @@
 # Plan for Story BF-006 - API Versioning
 
-Establish a clean, modular, and scalable API versioning infrastructure for the MyCommunity backend.
+Establish a clean, modular, and scalable API versioning infrastructure for the AI Marketplace backend.
 
 ## Goal Description
 

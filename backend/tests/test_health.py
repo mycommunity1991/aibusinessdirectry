@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 from fastapi.testclient import TestClient
 
 from app.core.config import settings
-from app.core.database.session import get_db
+from app.database.session import get_db
 from app.main import app
 
 client = TestClient(app)

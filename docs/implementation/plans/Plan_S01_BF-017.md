@@ -1,7 +1,7 @@
 # Plan: S01 BF-017 - Code Quality Tools Configuration
 
 ## Objective
-Configure Ruff as the official Python linter for the MyCommunity backend project, ensuring consistent code quality, formatting, and import ordering across the codebase without introducing behavioral changes.
+Configure Ruff as the official Python linter for the AI Marketplace backend project, ensuring consistent code quality, formatting, and import ordering across the codebase without introducing behavioral changes.
 
 ## Proposed Changes
 

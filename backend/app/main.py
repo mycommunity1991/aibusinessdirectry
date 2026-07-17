@@ -10,7 +10,7 @@ from app.middleware.logging_middleware import LoggingMiddleware
 # Initialize FastAPI application
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Backend API for the MyCommunity platform",
+    description="Backend API for the AI Marketplace platform",
     version=settings.APP_VERSION,
     debug=settings.DEBUG,
     lifespan=lifespan,

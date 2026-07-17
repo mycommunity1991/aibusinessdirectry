@@ -30,21 +30,21 @@ None.
 
 ### Core Constants
 
-#### [MODIFY] [constants.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/core/constants.py)
+#### [MODIFY] [constants.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/core/constants.py)
 *No further changes required (constants already created).*
 
 ---
 
 ### Schemas
 
-#### [MODIFY] [health.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/schemas/health.py)
+#### [MODIFY] [health.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/schemas/health.py)
 *No further changes required (schemas already created).*
 
 ---
 
 ### Services
 
-#### [MODIFY] [health_service.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/services/health_service.py)
+#### [MODIFY] [health_service.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/services/health_service.py)
 - Maintain modular structure:
   - `get_app_health() -> HealthResponse`
   - `get_db_health(db: AsyncSession) -> DatabaseHealthResponse`
@@ -53,7 +53,7 @@ None.
 
 ### API Routers
 
-#### [MODIFY] [health.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/api/v1/endpoints/health.py)
+#### [MODIFY] [health.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/api/v1/endpoints/health.py)
 - Refactor `get_db_health` endpoint to:
   - Inject `response: Response`.
   - Check `service.get_db_health(db)`.
@@ -65,7 +65,7 @@ None.
 
 ### Automated Tests
 
-#### [MODIFY] [test_health.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/tests/test_health.py)
+#### [MODIFY] [test_health.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/tests/test_health.py)
 - Verify tests cover the updated endpoint implementation (verifying schema compliance on both 200 and 503 responses).
 
 ---

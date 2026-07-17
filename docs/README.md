@@ -1,0 +1,188 @@
+# AI Marketplace
+
+## Project Overview
+AI Marketplace is a mobile-first, location-based directory and AI-mediated conversational-intake marketplace that connects businesses and individual freelancers with nearby customers. Customers describe their need in natural language, the AI asks category-specific follow-up questions, matches the request against real provider data, and the customer contacts the matched provider directly by phone — no in-app quoting, booking, payment, or chat.
+
+The backend is built as a secure, feature-first modular monolith using FastAPI. It is designed to scale and eventually support microservices extraction while remaining highly maintainable.
+
+## Project Goals
+- Let any business or individual freelancer list what they do for free and be found by nearby customers through AI-powered, natural-language search.
+- Keep the AI grounded in real platform data — it must never invent availability, prices, ratings, or capabilities.
+- Create a performant, scalable, and secure API supporting the primary mobile application.
+
+See [`docs/AI/00_PROJECT_CONTEXT.md`](docs/AI/00_PROJECT_CONTEXT.md) for the full product vision and [`docs/AI/03_DOMAIN_MODEL.md`](docs/AI/03_DOMAIN_MODEL.md) for the domain model.
+
+## Technology Stack
+- **Backend Framework**: Python 3.14+ with FastAPI
+- **Data Validation**: Pydantic v2
+- **Database ORM**: SQLAlchemy 2.x (Async)
+- **Database Engine**: PostgreSQL 16
+- **Migrations**: Alembic
+- **Package Manager**: uv
+- **Cache**: Redis
+- **Testing**: Pytest
+- **Linting & Formatting**: Ruff, Black
+
+For the full technology stack and architectural guidelines, see [`docs/AI/12_TECH_STACK.md`](docs/AI/12_TECH_STACK.md).
+
+## Backend Architecture Overview
+The backend adheres to a **Modular Monolith** architecture based on Clean Architecture principles:
+- **Feature-First**: Code is organized around domain boundaries.
+- **Separation of Concerns**: Distinct layers for routing, services, repositories, and models.
+- **Dependency Injection**: Heavy use of FastAPI dependencies for loose coupling.
+- **Async-First**: Fully asynchronous stack from the database driver up to the API routes.
+
+See [`docs/AI/02_ARCHITECTURE.md`](docs/AI/02_ARCHITECTURE.md) for deeper architectural concepts.
+
+## Repository Structure
+```
+.
+├── backend/                 # FastAPI application
+├── docs/                    # Project and AI Assistant documentation
+├── infra/                   # Infrastructure configuration (future)
+├── mobile/                  # Flutter mobile application
+├── scripts/                 # Utility scripts
+└── tools/                   # Development tools
+```
+
+## Prerequisites
+To run the backend locally, you need:
+- **Python**: version `3.14` or higher
+- **uv**: Fast Python package installer and resolver (version `0.11.26+`)
+- **PostgreSQL**: version 16 (for database persistence)
+- **Redis**: (for caching, as configured)
+
+## Local Development Setup
+
+### 1. Environment Configuration
+Configuration is securely managed centrally using Pydantic Settings in `backend/app/core/config.py`.
+
+Create your local `.env` file by copying the provided example:
+```bash
+cp .env.example .env
+```
+Ensure the following required environment variables are set correctly:
+- `ENVIRONMENT`: Typically `development` for local testing.
+- `DATABASE_URL`: e.g., `postgresql://user:password@localhost:5432/ai_marketplace`
+- `SECRET_KEY`: A secure random string for JWT and cryptography.
+
+### 2. Installing Dependencies
+Navigate to the `backend` directory and use `uv` to sync the virtual environment and lock file:
+```bash
+cd backend
+uv sync
+```
+*Note: `uv` automatically creates and manages the virtual environment (`.venv`) for you.*
+
+## Running the Application
+Start the FastAPI development server locally:
+```bash
+cd backend
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+## Health Check Endpoints
+To verify the application is running correctly, access the health checks:
+- **App Health**: [http://127.0.0.1:8000/api/v1/health](http://127.0.0.1:8000/api/v1/health)
+- **Database Health**: [http://127.0.0.1:8000/api/v1/health/db](http://127.0.0.1:8000/api/v1/health/db)
+
+## API Documentation (Swagger/ReDoc)
+Interactive API documentation is generated automatically:
+- **Swagger UI**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+- **ReDoc**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+- **OpenAPI JSON**: [http://127.0.0.1:8000/openapi.json](http://127.0.0.1:8000/openapi.json)
+
+## Database Configuration & Alembic Migration Commands
+Database schemas and migrations are managed using Alembic, integrated securely with the async SQLAlchemy engine.
+
+From the `backend` directory, run:
+- **Apply all migrations** (Upgrade to head):
+  ```bash
+  uv run alembic upgrade head
+  ```
+- **Create a new migration** (After model changes):
+  ```bash
+  uv run alembic revision --autogenerate -m "describe_changes_here"
+  ```
+- **Rollback one revision**:
+  ```bash
+  uv run alembic downgrade -1
+  ```
+*Always verify autogenerated migrations in `backend/alembic/versions/` before applying them.*
+
+## Running Tests (pytest)
+The backend uses `pytest` and `pytest-asyncio` for the test suite. To execute tests:
+```bash
+cd backend
+uv run pytest -v
+```
+
+## Running Ruff Linting
+The project strictly enforces code quality using `ruff`. To verify your code against project standards:
+```bash
+cd backend
+uv run ruff check .
+```
+To automatically fix safe, auto-correctable issues (e.g., import sorting):
+```bash
+cd backend
+uv run ruff check --fix .
+```
+
+## Project Folder Structure (Backend)
+```
+backend/
+├── alembic/                 # Database migrations
+├── app/
+│   ├── api/                 # Endpoint routing and API dependencies (e.g., v1/)
+│   ├── common/              # Shared constants, types, and logic
+│   ├── core/                # Config, DB engine, security, lifespan, logging
+│   ├── middleware/          # FastAPI middleware components
+│   ├── models/              # SQLAlchemy declarative models
+│   ├── repositories/        # Database access (Repository pattern)
+│   ├── schemas/             # Pydantic data validation schemas
+│   ├── services/            # Core business logic layer
+│   └── utils/               # Helper utilities
+├── tests/                   # Pytest suite
+└── pyproject.toml           # Core dependencies and tooling configuration
+```
+
+## Development Workflow
+When contributing a new feature or fix (as followed in Sprint 1):
+1. **Pull latest changes** from the main branch.
+2. **Configure environment**: Copy `.env.example` to `.env` and verify credentials.
+3. **Apply migrations**: Run `uv run alembic upgrade head`.
+4. **Implement**: Add logic adhering to the architecture. Create migrations if DB models change.
+5. **Run tests**: Execute `uv run pytest -v`. Ensure 100% test passing.
+6. **Linting**: Execute `uv run ruff check .` and fix issues.
+7. **Run application**: Start `uv run uvicorn app.main:app` and verify functionality locally.
+8. **Commit changes**: Use semantic commit messages (e.g., `feat(AUTH-001): add user login`).
+9. **Open Pull Request**: Request review from team members.
+
+## Git Workflow
+- Work on feature branches (`feat/ticket-id-description`).
+- Keep commits atomic and descriptive.
+- All PRs must pass automated CI checks (Tests & Linting) before merging into the main branch.
+- Avoid committing secrets or local configuration files (`.env`).
+
+## Coding Standards
+- Strictly adhere to Python 3.14+ typing.
+- Separate data access (Repositories) from business logic (Services).
+- Use dependency injection for database sessions (`Depends(get_db)`).
+- Use modular route prefixes (`API_V1`).
+- See [`docs/AI/08_CODING_STANDARDS.md`](docs/AI/08_CODING_STANDARDS.md) for detailed rules.
+
+## Troubleshooting
+- **Tests Failing due to Event Loop**: Ensure `asyncio_default_fixture_loop_scope = "function"` in `pyproject.toml`.
+- **Database Connection Refused**: Verify PostgreSQL is running locally on port 5432 and the credentials in `.env` match.
+- **Dependency Issues**: Run `uv lock` followed by `uv sync` to ensure the lockfile and virtual environment are fully synchronized.
+- **Lint Errors on Import**: Ensure imports follow standard PEP-8 block ordering and use `uv run ruff check --fix .` to auto-resolve `isort` issues.
+
+## Additional Documentation
+All in-depth technical decisions, product scope, and engineering guidelines are documented in the `docs/AI` directory. This is the single source of truth for the platform's architecture:
+- [`00_PROJECT_CONTEXT.md`](docs/AI/00_PROJECT_CONTEXT.md): Vision and platform overview.
+- [`01_ENGINEERING_PLAYBOOK.md`](docs/AI/01_ENGINEERING_PLAYBOOK.md): General workflows and practices.
+- [`02_ARCHITECTURE.md`](docs/AI/02_ARCHITECTURE.md): Modular Monolith and layers.
+- [`05_API_GUIDELINES.md`](docs/AI/05_API_GUIDELINES.md): REST and response standardization.
+- [`06_SECURITY.md`](docs/AI/06_SECURITY.md): Privacy, zero-trust, and token guidelines.
+- [`09_DECISIONS.md`](docs/AI/09_DECISIONS.md): Architectural Decision Records.

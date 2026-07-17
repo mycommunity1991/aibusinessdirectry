@@ -1,6 +1,6 @@
-# MyCommunity Engineering Playbook
+# AI Marketplace Engineering Playbook
 
-Version: 1.0
+Version: 2.0
 Owner: CTO
 Status: Active
 
@@ -8,13 +8,13 @@ Status: Active
 
 # 1. Project Vision
 
-MyCommunity is a UAE-first verified community platform.
+AI Marketplace is a UAE-first, country-agnostic-by-design directory and AI-mediated contact marketplace connecting businesses and freelancers with nearby customers.
 
 Primary goals:
 
-- Build trust
-- Privacy first
-- Mobile first
+- Utility, not feed — search, match, contact
+- AI intake grounded in real platform data, never invented
+- Mobile first (native Flutter app)
 - High performance
 - Enterprise-grade architecture
 - Production-ready code from Day 1

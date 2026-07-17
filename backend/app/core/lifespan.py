@@ -6,8 +6,8 @@ from fastapi import FastAPI
 
 from app.core.app_state import AppState
 from app.core.config import settings
-from app.core.database.database import engine
 from app.core.logging import get_logger, setup_logging
+from app.database.database import engine
 
 logger = get_logger(__name__)
 

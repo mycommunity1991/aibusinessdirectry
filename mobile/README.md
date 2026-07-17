@@ -1,4 +1,4 @@
-# mycommunity_app
+# ai_marketplace_app
 
 A new Flutter project.
 

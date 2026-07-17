@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import HEALTH_STATUS_UNHEALTHY
-from app.core.database.session import get_db
+from app.database.session import get_db
 from app.schemas.health import DatabaseHealthResponse, HealthResponse
 from app.services.health_service import HealthService
 from app.shared.schemas.response import SuccessResponse
@@ -24,7 +24,7 @@ router = APIRouter(tags=["Health"])
                         "message": "Application health retrieved successfully.",
                         "data": {
                             "status": "healthy",
-                            "service": "mycommunity-api",
+                            "service": "ai-marketplace-api",
                             "version": "1.0.0",
                         },
                     }

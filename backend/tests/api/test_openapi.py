@@ -16,7 +16,7 @@ def test_openapi_json() -> None:
     assert "openapi" in openapi_data
     assert openapi_data["info"]["title"] == settings.APP_NAME
     assert openapi_data["info"]["version"] == settings.APP_VERSION
-    assert openapi_data["info"]["contact"]["name"] == "MyCommunity API Team"
+    assert openapi_data["info"]["contact"]["name"] == "AI Marketplace API Team"
 
     # Check that the health endpoint is included and versioned route is preserved
     paths = openapi_data.get("paths", {})

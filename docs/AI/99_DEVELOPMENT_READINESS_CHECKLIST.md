@@ -1,4 +1,4 @@
-Task: Perform a complete Development Environment Readiness Audit for the MyCommunity project.
+Task: Perform a complete Development Environment Readiness Audit for the AI Marketplace project.
 
 Before making any changes:
 

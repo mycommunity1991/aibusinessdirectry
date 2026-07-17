@@ -1,17 +1,17 @@
-# MyCommunity Architecture
+# AI Marketplace Architecture
 
 **Document ID:** AI-02  
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Status:** Active  
 **Owner:** CTO  
 **Audience:** Engineering Team, AI Assistants  
-**Last Updated:** 2026-07-03
+**Last Updated:** 2026-07-14
 
 ---
 
 # Purpose
 
-This document defines the software architecture of the MyCommunity platform.
+This document defines the software architecture of the AI Marketplace platform.
 
 It serves as the single source of truth for system organization, module boundaries, technology choices, communication patterns, and engineering principles.
 
@@ -60,9 +60,7 @@ No implementation should assume that every module will always execute within the
 # System Overview
 
 ```
-                    +----------------------+
-                    |    Landing Website   |
-                    +----------+-----------+
+                    Flutter Mobile App (iOS / Android)
                                |
                                |
                     HTTPS / REST APIs
@@ -71,15 +69,16 @@ No implementation should assume that every module will always execute within the
 +--------------------------------------------------------------+
 |                    FastAPI Backend                           |
 |--------------------------------------------------------------|
-| Authentication                                                |
-| User Management                                               |
-| Community                                                     |
-| Feed                                                          |
-| Marketplace                                                   |
-| Events                                                        |
+| Identity & Access                                             |
+| Customer                                                      |
+| Provider (Business / Freelancer)                              |
+| Category                                                       |
+| Conversation / AI Intake (LLM-API, RAG-grounded)               |
+| Search Request & Matching                                     |
+| Contact View                                                  |
+| Verification                                                  |
+| Review & Outcome Tag                                          |
 | Notifications                                                 |
-| Moderation                                                    |
-| Search                                                        |
 | Administration                                                 |
 +------------------------+--------------------------------------+
                          |
@@ -89,11 +88,9 @@ No implementation should assume that every module will always execute within the
          v                               v
  PostgreSQL                         Redis
  Primary Database              Cache / Queue / Sessions
-                         |
-                         |
-                         v
-                  Flutter Mobile App
 ```
+
+There is no landing website in this architecture and no Community, Feed, Events, or Messaging module — see `03_DOMAIN_MODEL.md` for the authoritative domain boundaries. The product is a directory/AI-intake/contact utility, not a social platform.
 
 ---
 
@@ -120,6 +117,14 @@ No implementation should assume that every module will always execute within the
 - Pydantic v2
 - Uvicorn
 - uv
+
+---
+
+## AI / Matching Layer
+
+- LLM API (prompt-engineered, RAG-grounded against the platform's own provider database)
+- No custom-trained matching model — see `00_PROJECT_CONTEXT.md` Section 3
+- Manual ("Wizard of Oz") fallback for low-confidence Conversation Sessions
 
 ---
 
@@ -260,69 +265,96 @@ events/
 
 # Core Business Modules
 
-## Authentication
+These modules follow the aggregates defined in `03_DOMAIN_MODEL.md`. There is no Community, Feed, Events, or Messaging module in this architecture — that concept was superseded by the AI Marketplace pivot (see `00_PROJECT_CONTEXT.md` Section 11 for the changelog).
+
+## Identity & Access
 
 Responsibilities
 
+- Registration (Google / Apple / Mobile + OTP) — mandatory, no guest path
 - Login
-- Registration
 - Token Management
-- Password Management
 - Session Management
+- Role (Customer / Provider / Admin)
 
 ---
 
-## User
+## Customer
 
 Responsibilities
 
-- Profiles
-- Preferences
-- Verification
-- Privacy
+- Customer Profile
+- Saved Addresses / Location
+- Notification and language preferences
 
 ---
 
-## Community
+## Provider
 
 Responsibilities
 
-- Communities
-- Membership
-- Roles
-- Announcements
+- Provider profile (Business Profile / Freelancer Profile subtypes)
+- Availability (working hours, emergency/urgent flag)
+- Portfolio (photos)
+- Claim flow for Google-seeded unclaimed listings
 
 ---
 
-## Feed
+## Category
 
 Responsibilities
 
-- Posts
-- Comments
-- Reactions
-- Sharing
+- Category taxonomy
+- Category Question Templates that drive the AI's follow-up questions
 
 ---
 
-## Marketplace
+## Conversation / AI Intake
 
 Responsibilities
 
-- Listings
-- Categories
-- Search
-- Transactions
+- Conversation Session (customer/AI message turns)
+- Confidence scoring, driving Wizard-of-Oz fallback routing
+- Producing a structured Search Request from unstructured customer input
 
 ---
 
-## Events
+## Search Request & Matching
 
 Responsibilities
 
-- Community Events
-- RSVPs
-- Calendar
+- Location + service-area + category matching against Provider data
+- Search Event Log (matched and unmatched queries)
+- Ranked provider results
+
+---
+
+## Contact View
+
+Responsibilities
+
+- Recording a customer viewing a matched provider's phone number
+- Basis for provider visibility analytics and future pay-per-lead billing
+- Eligibility gate for Outcome Tag / Review submission
+
+---
+
+## Verification
+
+Responsibilities
+
+- Verification Record / Document / Status lifecycle
+- Mandatory gate for Freelancer Providers before listing goes live
+- Configurable, lighter-weight gate for Business Providers
+
+---
+
+## Review
+
+Responsibilities
+
+- Anchor-verified Reviews and Ratings (require a "Yes" Outcome Tag)
+- Merit-based provider ranking input
 
 ---
 
@@ -330,29 +362,8 @@ Responsibilities
 
 Responsibilities
 
-- Push Notifications
-- In-App Notifications
-- Email Notifications
-
----
-
-## Search
-
-Responsibilities
-
-- Global Search
-- Filtering
-- Ranking
-
----
-
-## Moderation
-
-Responsibilities
-
-- Reports
-- Content Review
-- Enforcement
+- WhatsApp / SMS / Email delivery
+- Triggered by new Contact View, Verification status change, Outcome Tag prompts
 
 ---
 
@@ -360,10 +371,10 @@ Responsibilities
 
 Responsibilities
 
-- Dashboard
-- System Configuration
-- Audit
-- Monitoring
+- Manual verification review
+- Manual Match Assignment for low-confidence Conversation Sessions
+- Unmatched Query Reports (category/supply-gap analytics)
+- System configuration, audit, monitoring
 
 ---
 

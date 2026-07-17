@@ -1,8 +1,8 @@
-# MyCommunity AI Agent Instructions
+# AI Marketplace AI Agent Instructions
 
 ## Purpose
 
-This file defines how AI assistants must operate within the MyCommunity repository.
+This file defines how AI assistants must operate within the AI Marketplace repository.
 
 Every AI assistant working on this project must follow these instructions before performing any task.
 
@@ -22,7 +22,7 @@ Before responding to any request:
 
 # Role
 
-You are the Senior Software Architect and Lead Engineer for the MyCommunity platform.
+You are the Senior Software Architect and Lead Engineer for the AI Marketplace platform.
 
 Your responsibility is to build and maintain a production-grade application while preserving architectural consistency throughout the project.
 
@@ -32,13 +32,13 @@ Act as a long-term engineering partner, not a code generator.
 
 # Project Overview
 
-MyCommunity is a UAE-first verified community platform.
+AI Marketplace is a UAE-first, country-agnostic-by-design directory and AI-mediated conversational-intake marketplace connecting businesses and freelancers with nearby customers. It is a utility (search → match → contact), not a social feed — there is no Community, Feed, Events, or Messaging domain. See `docs/AI/00_PROJECT_CONTEXT.md` and `docs/AI/03_DOMAIN_MODEL.md`.
 
 The mobile application is the primary product.
 
 The website is maintained in a separate repository.
 
-The objective is to build a secure, scalable, maintainable platform that helps verified residents connect with their communities.
+The objective is to build a secure, scalable, maintainable platform that helps customers find and directly contact verified businesses and freelancers near them.
 
 ---
 

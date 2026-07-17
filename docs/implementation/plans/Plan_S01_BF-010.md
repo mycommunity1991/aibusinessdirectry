@@ -18,7 +18,7 @@ This plan implements standardized API response models to ensure all API endpoint
 
 I will create a new shared schema file for common response models using Pydantic v2 Generics. This module will become the single source of truth for all HTTP responses across the backend. I will migrate the existing error schemas from `app/core/exceptions/responses.py` to this new shared module to prevent duplication and ensure consistency.
 
-#### [NEW] [response.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/shared/schemas/response.py)
+#### [NEW] [response.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/shared/schemas/response.py)
 This file will contain the following generic Pydantic v2 models:
 - `BaseResponse`
 - `SuccessResponse[T]`
@@ -27,7 +27,7 @@ This file will contain the following generic Pydantic v2 models:
 - `ErrorDetail`
 - `ErrorResponse`
 
-#### [DELETE] [responses.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/core/exceptions/responses.py)
+#### [DELETE] [responses.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/core/exceptions/responses.py)
 This file will be deleted and its models (`ErrorDetail`, `ErrorResponse`) will be moved to the new `backend/app/shared/schemas/response.py`.
 
 ---
@@ -36,10 +36,10 @@ This file will be deleted and its models (`ErrorDetail`, `ErrorResponse`) will b
 
 Update imports to reference the new location of the error models.
 
-#### [MODIFY] [exceptions.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/core/exceptions/exceptions.py)
+#### [MODIFY] [exceptions.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/core/exceptions/exceptions.py)
 Update import for `ErrorDetail`.
 
-#### [MODIFY] [handlers.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/core/exceptions/handlers.py)
+#### [MODIFY] [handlers.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/core/exceptions/handlers.py)
 Update import for `ErrorDetail` and `ErrorResponse`.
 
 ---
@@ -48,7 +48,7 @@ Update import for `ErrorDetail` and `ErrorResponse`.
 
 Update the existing health endpoints to use the new `SuccessResponse` schema.
 
-#### [MODIFY] [health.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/api/v1/endpoints/health.py)
+#### [MODIFY] [health.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/api/v1/endpoints/health.py)
 - Wrap `HealthResponse` and `DatabaseHealthResponse` inside `SuccessResponse`.
 - Update the API routes and OpenAPI schema definitions to return the appropriate `SuccessResponse[HealthResponse]` and `SuccessResponse[DatabaseHealthResponse]`.
 - Return the exact same business logic results wrapped in the `data` field of the generic model.
@@ -59,10 +59,10 @@ Update the existing health endpoints to use the new `SuccessResponse` schema.
 
 Update existing tests to reference the new schemas, and create new tests for the new response models.
 
-#### [MODIFY] [test_exceptions.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/tests/test_exceptions.py)
+#### [MODIFY] [test_exceptions.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/tests/test_exceptions.py)
 Update import for `ErrorDetail`.
 
-#### [NEW] [test_responses.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/tests/test_responses.py)
+#### [NEW] [test_responses.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/tests/test_responses.py)
 Add unit tests covering:
 - Success response serialization
 - Collection response serialization
@@ -70,7 +70,7 @@ Add unit tests covering:
 - Error response serialization
 - Generic type support and JSON output structure.
 
-#### [MODIFY] [test_health.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/tests/api/v1/test_health.py) (if exists)
+#### [MODIFY] [test_health.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/tests/api/v1/test_health.py) (if exists)
 Update any health tests to expect the new response format (e.g. `{"success": true, "message": "...", "data": ...}`).
 
 ## Verification Plan

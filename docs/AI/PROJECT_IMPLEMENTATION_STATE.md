@@ -1,42 +1,42 @@
-# MyCommunity
+# AI Marketplace
 ## Project Implementation State
 
-**Project:** MyCommunity
+**Project:** AI Marketplace
 **Current Phase:** MVP Development
-**Current Sprint:** Sprint 1
-**Completed Story:** BF-007 Health Check Endpoints
-**Status:** Foundation Complete
-**Last Updated:** 05 July 2026
+**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Backlog Defined, Not Started)
+**Completed Story:** BF-018 Project Documentation
+**Status:** Backend Foundation Complete — Sprint 2 (Identity & Access) Planned
+**Last Updated:** 15 July 2026
 **Owner:** CTO
 
 ---
 
 # 1. Executive Summary
 
-MyCommunity is a mobile-first, privacy-first, verified community platform designed for residential communities in the UAE, with a long-term vision of expanding across the GCC and international markets. The platform is built around verified identities, trusted community interactions, and secure communication between residents. :contentReference[oaicite:0]{index=0}
+AI Marketplace is a location-based directory and AI-mediated contact marketplace connecting formal businesses and individual freelancers with nearby customers through conversational AI intake, rather than category-tree search. The platform is a task-oriented utility (search → match → contact) — not a social feed.
 
 The engineering team follows a Specification-Driven Development approach where every implementation is driven by approved architecture, engineering standards, security guidelines, API standards, UI guidelines, and sprint stories.
 
 The objective is to build production-quality software from Day One while avoiding architectural drift and unnecessary technical debt.
 
-Current implementation has completed all backend foundation stories up to BF-007.
+Sprint 1 delivered a complete backend foundation (BF-001 through BF-018). No business (domain) modules have been implemented yet.
 
 ---
 
 # 2. Product Vision
 
-The product exists to become the most trusted digital community platform where verified residents can safely communicate, collaborate, help one another, and strengthen local communities.
+Any business or individual freelancer can list what they do for free and be found by nearby customers through AI-powered, natural-language search, in a country-agnostic architecture launching first in the UAE.
 
 Core principles:
 
-- Trust First
-- Privacy First
+- Utility, not feed — no post/comment/reaction loop
+- AI-mediated intake as the differentiated core, RAG-grounded against real platform data
+- Country-agnostic architecture
 - Mobile First
-- Community First
 - Security by Design
 - Simplicity
 
-Technology is only an enabler. Trust is the actual product. :contentReference[oaicite:1]{index=1}
+See `00_PROJECT_CONTEXT.md` for the full product context and `03_DOMAIN_MODEL.md` for entities and business rules.
 
 ---
 
@@ -80,7 +80,7 @@ Development is performed locally on macOS.
 
 Android Studio is intentionally excluded during Phase 1.
 
-All technologies are governed by AI-12 Technology Stack. :contentReference[oaicite:2]{index=2}
+All technologies are governed by AI-12 Technology Stack.
 
 ---
 
@@ -109,24 +109,29 @@ Modules never communicate directly with repositories belonging to another module
 
 Business logic exists only inside services.
 
-Routes remain orchestration only. :contentReference[oaicite:3]{index=3}
+Routes remain orchestration only. See `02_ARCHITECTURE.md`.
 
 ---
 
 # 5. Domain Overview
 
-Current approved business domains:
+Current approved business domains (per `03_DOMAIN_MODEL.md`):
 
 - Identity & Access
-- Resident
-- Community
-- Feed
-- Events
-- Notifications
-- Moderation
+- Customer
+- Provider (Business / Freelancer)
+- Category
+- Service Area
+- Conversation / AI Intake Session
+- Search Request
+- Contact View
+- Outcome Tag
+- Verification
+- Review
+- Notification
 - Administration
 
-Marketplace exists architecturally but is intentionally deferred until Phase 2 and must not be implemented during the MVP. :contentReference[oaicite:4]{index=4}
+There is no Community, Feed, Events, or Messaging domain in this model — that concept belonged to an earlier product direction and was superseded by the AI Marketplace pivot (see `00_PROJECT_CONTEXT.md` Section 11 for the changelog).
 
 ---
 
@@ -151,8 +156,9 @@ Current documents include:
 - AI-10 Glossary
 - AI-11 MVP Scope
 - AI-12 Technology Stack
+- AI-13 Open Decisions
 
-These documents are the authoritative source for all implementation decisions. :contentReference[oaicite:5]{index=5}
+These documents are the authoritative source for all implementation decisions.
 
 ---
 
@@ -166,7 +172,7 @@ Workflow:
 
 1. Architecture approved.
 2. Story created.
-3. AG Developer receives implementation prompt.
+3. AI coding agent receives implementation prompt.
 4. Implementation completed.
 5. Walkthrough generated.
 6. Architecture review performed.
@@ -183,142 +189,48 @@ No story may introduce functionality outside its defined scope.
 
 # 8. Sprint Progress
 
-## Sprint 1
+## Sprint 1 — Backend Foundation (Complete)
 
-### BF-001
-Backend Foundation
+| Story | Description | Status |
+|--------|-------------|--------|
+| BF-001 | Backend Foundation | ✅ |
+| BF-002 | Configuration Management | ✅ |
+| BF-003 | Database Connectivity | ✅ |
+| BF-004 | Database Migrations | ✅ |
+| BF-005 | Application Lifecycle Management | ✅ |
+| BF-006 | API Versioning | ✅ |
+| BF-007 | Health Check Endpoints | ✅ |
+| BF-008 | Structured Logging | ✅ |
+| BF-009 | Global Exception Handling | ✅ |
+| BF-010 | Standardized API Response Models | ✅ |
+| BF-011 | Security Utilities | ✅ |
+| BF-012 | Repository Layer | ✅ |
+| BF-013 | Middleware Foundation | ✅ |
+| BF-014 | Request Logging & Correlation Middleware | ✅ |
+| BF-015 | Automatic API Documentation | ✅ |
+| BF-016 | Testing Framework Configuration | ✅ |
+| BF-017 | Code Quality Configuration | ✅ |
+| BF-018 | Project Documentation | ✅ |
 
-Status:
-Completed
+Full detail in `docs/sprints/sprint_01_summary.md`.
 
-Purpose:
+## Sprint 2 — Identity & Access (Backlog Defined, Not Started)
 
-Established the backend project structure and foundational application scaffolding.
+Verified before planning: Sprint 1 is a clean, domain-agnostic foundation — no business models exist yet (`backend/app/models/` is still an empty package), so nothing here has to unwind old "MyCommunity" assumptions. Scope is limited strictly to the Identity & Access domain (`03_DOMAIN_MODEL.md`) — no Customer/Provider profile creation, which is deferred to its own later sprint even though registration triggers it conceptually in `14_USER_FLOWS.md` Flow 1.
 
----
+| Story | Description | Status |
+|--------|-------------|--------|
+| AUTH-001 | Identity Domain Models & Migration (`users`, `roles`, `permissions`, `role_permissions`, `user_roles`) | 🔲 Not Started |
+| AUTH-002 | OTP Verification Service (shared across registration/login/arrival-verification/claim-listing) | 🔲 Not Started |
+| AUTH-003 | Mobile Number + OTP Registration & Login | 🔲 Not Started |
+| AUTH-004 | Google & Apple OAuth Registration & Login | 🔲 Not Started |
+| AUTH-005 | JWT Access & Refresh Token Issuance | 🔲 Not Started |
+| AUTH-006 | Device & Session Management | 🔲 Not Started |
+| AUTH-007 | RBAC Authorization Foundation | 🔲 Not Started |
+| AUTH-008 | Auth Rate Limiting & Brute-Force Protection | 🔲 Not Started |
+| AUTH-009 | Auth Audit Logging | 🔲 Not Started |
 
-### BF-002
-
-Configuration
-
-Status:
-
-Completed
-
-Purpose:
-
-Implemented centralized configuration using environment variables with validation and configuration management.
-
----
-
-### BF-003
-
-Database Connectivity
-
-Status:
-
-Completed
-
-Purpose:
-
-Configured asynchronous SQLAlchemy connectivity with PostgreSQL.
-
-Completed:
-
-- Async SQLAlchemy engine
-- Async session management
-- Database dependency injection
-- Connection testing
-- Repository-ready infrastructure
-
----
-
-### BF-004
-
-Database Migrations
-
-Status:
-
-Completed
-
-Purpose:
-
-Integrated Alembic migration framework.
-
-Completed:
-
-- Alembic configuration
-- Initial migration workflow
-- Migration environment
-- Version control for schema evolution
-
----
-
-### BF-005
-
-Application Lifecycle Management
-
-Status:
-
-Completed
-
-Purpose:
-
-Implemented application startup and shutdown lifecycle.
-
-Completed:
-
-- Lifespan events
-- Startup validation
-- Graceful shutdown
-- Resource cleanup
-- Structured lifecycle logging
-
----
-
-### BF-006
-
-API Versioning
-
-Status:
-
-Completed
-
-Purpose:
-
-Established versioned API routing.
-
-Completed:
-
-- /api/v1
-- Centralized router registration
-- Version separation
-- Future API evolution support
-
----
-
-### BF-007
-
-Health Check Endpoints
-
-Status:
-
-Completed
-
-Purpose:
-
-Implemented production-ready health monitoring.
-
-Completed:
-
-- Health endpoint
-- Readiness endpoint
-- Liveness endpoint
-- Database connectivity verification
-- Structured health responses
-- Monitoring support
-
-Foundation backend is now operational.
+Sequenced in this order — each story builds on the previous one (models → OTP mechanism → auth endpoints → tokens → sessions → authorization → hardening → audit). Full spec for each story in `docs/implementation/plans/Plan_S02_AUTH-00{1-9}.md`.
 
 ---
 
@@ -327,25 +239,19 @@ Foundation backend is now operational.
 The backend currently provides:
 
 ✓ Application startup
-
 ✓ Configuration loading
-
 ✓ Environment validation
-
 ✓ Database connectivity
-
 ✓ Async session management
-
 ✓ Alembic migrations
-
 ✓ API versioning
-
-✓ Health monitoring
-
-✓ Readiness checks
-
-✓ Liveness checks
-
+✓ Health / readiness / liveness monitoring
+✓ Structured logging with correlation IDs
+✓ Global exception handling
+✓ Standardized API response models
+✓ Security utilities (Argon2id hashing, JWT foundation)
+✓ Generic repository layer
+✓ Automatic OpenAPI documentation
 ✓ Production-ready project structure
 
 No business modules have been implemented yet.
@@ -370,7 +276,7 @@ Highlights:
 - Integration testing
 - Production-ready code only
 
-These standards apply equally to human developers and AI assistants. :contentReference[oaicite:6]{index=6}
+These standards apply equally to human developers and AI assistants.
 
 ---
 
@@ -391,7 +297,7 @@ Current standards include:
 - Secrets managed through environment variables
 - Structured security logging
 
-Security shortcuts are prohibited. :contentReference[oaicite:7]{index=7}
+Security shortcuts are prohibited.
 
 ---
 
@@ -410,7 +316,7 @@ Every API follows:
 - OpenAPI documentation
 - Stateless authentication
 
-Future versions will evolve using additive changes where possible. :contentReference[oaicite:8]{index=8}
+Future versions will evolve using additive changes where possible.
 
 ---
 
@@ -428,7 +334,7 @@ Important approved decisions include:
 - JWT authentication
 - AI-first development workflow
 
-All architectural decisions are recorded as ADRs and remain append-only. :contentReference[oaicite:9]{index=9}
+All architectural decisions are recorded as ADRs in `09_DECISIONS.md` and remain append-only.
 
 ---
 
@@ -444,8 +350,13 @@ Implemented layers include:
 - API routing
 - Lifecycle management
 - Health monitoring
+- Logging & exception handling
+- Repository layer
+- Testing & code quality tooling
 
 Business modules are intentionally deferred until their corresponding sprint stories.
+
+The Flutter mobile app has not been started beyond the default project scaffold.
 
 ---
 
@@ -453,84 +364,62 @@ Business modules are intentionally deferred until their corresponding sprint sto
 
 Not yet implemented:
 
-- Authentication
-- User management
-- Community
-- Feed
-- Events
+- Authentication / Identity & Access
+- Customer profile
+- Provider profile (Business / Freelancer)
+- Category taxonomy
+- Conversation / AI Intake
+- Search & Matching
+- Contact View
+- Verification
+- Review / Outcome Tag
 - Notifications
-- Moderation
-- Search
-- Marketplace
-- Flutter application
+- Administration
+- Flutter application (beyond scaffold)
 
-These will be implemented according to the approved sprint backlog.
+These will be implemented according to the approved sprint backlog, gated by the open decisions in `13_OPEN_DECISIONS.md` — category taxonomy in particular blocks the AI intake work.
 
 ---
 
 # 16. Overall Progress
 
-Project Planning
+Project Planning — 100%
 
-100%
+Architecture — 100%
 
-Architecture
+Engineering Standards — 100%
 
-100%
+AI Knowledge Base — 100%
 
-Engineering Standards
+Backend Foundation — 100%
 
-100%
+Identity & Access — Not Started
 
-AI Knowledge Base
+Provider / Customer Profiles — Not Started
 
-100%
+Conversation / AI Intake — Not Started
 
-Backend Foundation
+Flutter Application — Not Started
 
-100%
+Deployment — Not Started
 
-Authentication
-
-Not Started
-
-Community Module
-
-Not Started
-
-Feed Module
-
-Not Started
-
-Flutter Application
-
-Not Started
-
-Deployment
-
-Not Started
-
-Overall Estimated Project Completion
-
-Approximately 10-15%
+Overall Estimated Project Completion: Approximately 10-15%
 
 ---
 
 # 17. Next Planned Story
 
-Sprint 1
+Sprint 2 — AUTH-001 (Identity Domain Models & Migration), first of nine stories in the backlog defined in Section 8.
 
-BF-008
+Identity & Access domain — registration (Google / Apple / Mobile + OTP), login, token management, session management.
 
-Authentication Foundation
-
-The next phase begins implementation of the Identity & Access domain, building upon the completed backend foundation.
+This is the first business module and unblocks Customer and Provider profile work, per the build sequence in `11_MVP_SCOPE.md` Section 3 (Stage 1).
 
 ---
 
 # 18. Key Achievements
 
-By completion of BF-007, the project has achieved:
+By completion of Sprint 1 (BF-018), the project has achieved:
 
 - Stable backend foundation
 - Production-grade architecture
@@ -540,6 +429,8 @@ By completion of BF-007, the project has achieved:
 - Database migration capability
 - Versioned API infrastructure
 - Health monitoring endpoints
+- Structured logging and exception handling
+- Repository layer and testing/code-quality tooling
 - Specification-driven development workflow
 - AI-assisted implementation process
 - Clean Git history after each story

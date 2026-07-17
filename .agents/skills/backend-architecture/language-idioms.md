@@ -1,7 +1,7 @@
 # Rule: Python / FastAPI Tech Stack Idioms
 
 ## Directive
-You must strictly adhere to the official MyCommunity technology stack. You are writing Python 3.14+ and must utilize the specific approved frameworks. Do not introduce competing technologies or outdated idioms.
+You must strictly adhere to the official AI Marketplace technology stack. You are writing Python 3.14+ and must utilize the specific approved frameworks. Do not introduce competing technologies or outdated idioms.
 
 ## Core Rules
 

@@ -1,7 +1,7 @@
 # Walkthrough for Story BF-006 - API Versioning
 
 ## Overview
-This story implements the API versioning infrastructure for the MyCommunity backend. It establishes URI-based versioning with `/api/v1` as the initial active API path, centralizes path constants, creates a modular router structure, registers a lightweight health check endpoint (`GET /api/v1/health`), and integrates a startup route verification sequence (`verify_routes`) in the application lifespan.
+This story implements the API versioning infrastructure for the AI Marketplace backend. It establishes URI-based versioning with `/api/v1` as the initial active API path, centralizes path constants, creates a modular router structure, registers a lightweight health check endpoint (`GET /api/v1/health`), and integrates a startup route verification sequence (`verify_routes`) in the application lifespan.
 
 ## Work Completed
 

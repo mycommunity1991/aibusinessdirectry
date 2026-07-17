@@ -1,17 +1,19 @@
-# MyCommunity UI/UX Guidelines
+# AI Marketplace UI/UX Guidelines
 
 **Document ID:** AI-07  
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Status:** Active  
 **Owner:** CTO & Product Owner  
 **Audience:** UI/UX Designers, Flutter Developers, AI Assistants  
-**Last Updated:** 2026-07-03
+**Last Updated:** 2026-07-15
+
+**Change note (v1.0.0 → v1.1.0):** Pointed the Color System section to `15_SCREEN_INVENTORY.md`, which now carries the concrete palette (seed values) and the full MVP screen inventory that this document's principles apply to.
 
 ---
 
 # Purpose
 
-This document defines the design system, UI principles, interaction patterns, accessibility standards, and implementation guidelines for the MyCommunity mobile application.
+This document defines the design system, UI principles, interaction patterns, accessibility standards, and implementation guidelines for the AI Marketplace mobile application.
 
 Every screen, component, and interaction must follow these standards to ensure consistency across the application.
 
@@ -19,7 +21,7 @@ Every screen, component, and interaction must follow these standards to ensure c
 
 # Design Philosophy
 
-MyCommunity is built around one fundamental principle:
+AI Marketplace is built around one fundamental principle:
 
 **Trust through simplicity.**
 
@@ -118,7 +120,7 @@ Material Typography
 The application's visual identity should communicate:
 
 - Trust
-- Community
+- Utility
 - Modern technology
 - Simplicity
 - Professionalism
@@ -161,7 +163,7 @@ Background
 
 Material Background
 
-The exact color palette is maintained in the Design Tokens document.
+The exact color palette (concrete seed values for `ColorScheme.fromSeed()`) is maintained in `15_SCREEN_INVENTORY.md`.
 
 Colors should never be hardcoded.
 
@@ -658,6 +660,9 @@ AI must never introduce inconsistent UI patterns.
 - 08_CODING_STANDARDS.md
 - 09_DECISIONS.md
 - 10_GLOSSARY.md
+- 14_USER_FLOWS.md
+- 15_SCREEN_INVENTORY.md
+- 16_UX_GUIDELINES.md
 
 ---
 

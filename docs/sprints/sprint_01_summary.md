@@ -1,6 +1,6 @@
 # Sprint 1 Summary
 
-**Project:** MyCommunity  
+**Project:** AI Marketplace  
 **Sprint:** 1  
 **Status:** ✅ Completed  
 **Current Phase:** Backend Foundation  
@@ -127,6 +127,6 @@ The objectives achieved during Sprint 1 include:
 
 ## Overall Sprint Outcome
 
-Sprint 1 successfully established the foundational architecture and infrastructure required for the MyCommunity platform. By prioritizing a secure, scalable, and highly observable backend environment, we have solidified the project's technical baseline. 
+Sprint 1 successfully established the foundational architecture and infrastructure required for the AI Marketplace platform. By prioritizing a secure, scalable, and highly observable backend environment, we have solidified the project's technical baseline. 
 
 This sprint is a crucial milestone because it shifts the engineering focus away from boilerplate setup, tooling configuration, and database wiring. With all core patterns—such as the repository layer, dependency injection, logging, and error handling—now standardized and enforced by CI-ready tooling, the project is fully prepared for Sprint 2. Future development can now focus exclusively on delivering domain-specific business functionality with high confidence and minimal architectural friction.

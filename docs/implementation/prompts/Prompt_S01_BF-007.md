@@ -49,7 +49,7 @@ This endpoint should **not** perform any database access.
 ```json
 {
   "status": "healthy",
-  "service": "mycommunity-api",
+  "service": "ai-marketplace-api",
   "version": "1.0.0"
 }
 ```

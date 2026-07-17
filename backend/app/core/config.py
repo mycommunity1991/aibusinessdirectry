@@ -24,7 +24,7 @@ class LogLevel(StrEnum):
 
 class Settings(BaseSettings):
     # Application Settings
-    APP_NAME: str = "MyCommunity API"
+    APP_NAME: str = "AI Marketplace API"
     APP_VERSION: str = "1.0.0"
     ENVIRONMENT: Environment = Environment.DEVELOPMENT
     DEBUG: bool = True

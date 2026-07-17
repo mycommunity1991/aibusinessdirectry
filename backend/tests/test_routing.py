@@ -15,7 +15,7 @@ def test_health_endpoint() -> None:
     data = response.json()
     assert data["success"] is True
     assert data["data"]["status"] == "healthy"
-    assert data["data"]["service"] == "mycommunity-api"
+    assert data["data"]["service"] == "ai-marketplace-api"
     assert data["data"]["version"] == "1.0.0"
 
 

@@ -3,7 +3,7 @@
 Configure Alembic as the project's database migration framework using the existing SQLAlchemy models and application configuration. This story is strictly limited to migration infrastructure.
 
 ## Goal Description
-Configure Alembic database migration infrastructure for the MyCommunity platform. It integrates with existing SQLAlchemy models and centralized Settings, detects schema changes automatically, and supports all standard migration commands (upgrade, downgrade, history, current, generate).
+Configure Alembic database migration infrastructure for the AI Marketplace platform. It integrates with existing SQLAlchemy models and centralized Settings, detects schema changes automatically, and supports all standard migration commands (upgrade, downgrade, history, current, generate).
 
 ## Architecture Decisions
 - Add `alembic` package to python dependencies.

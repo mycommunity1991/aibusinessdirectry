@@ -4,9 +4,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import settings
-from app.core.database.base import Base
-from app.core.database.database import check_database_connection, engine
-from app.core.database.session import async_session, get_db
+from app.database.base import Base
+from app.database.database import check_database_connection, engine
+from app.database.session import async_session, get_db
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ async def test_get_db_lifecycle() -> None:
     mock_session.__aenter__.return_value = mock_session
 
     with patch(
-        "app.core.database.session.async_session", return_value=mock_session
+        "app.database.session.async_session", return_value=mock_session
     ) as mock_factory:
         sessions = []
         async for session in get_db():
@@ -67,7 +67,7 @@ async def test_check_database_connection_success() -> None:
     mock_engine = MagicMock()
     mock_engine.connect.return_value.__aenter__.return_value = mock_conn
 
-    with patch("app.core.database.database.engine", mock_engine):
+    with patch("app.database.database.engine", mock_engine):
         result = await check_database_connection()
         assert result is True
         mock_engine.connect.assert_called_once()
@@ -83,6 +83,6 @@ async def test_check_database_connection_failure() -> None:
     mock_engine = MagicMock()
     mock_engine.connect.side_effect = Exception("Connection refused")
 
-    with patch("app.core.database.database.engine", mock_engine):
+    with patch("app.database.database.engine", mock_engine):
         result = await check_database_connection()
         assert result is False

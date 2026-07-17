@@ -1,17 +1,17 @@
-# MyCommunity Glossary
+# AI Marketplace Glossary
 
 **Document ID:** AI-10  
-**Version:** 1.0.0  
+**Version:** 2.0.0  
 **Status:** Active  
 **Owner:** CTO  
 **Audience:** Engineering Team, Product Team, QA, AI Assistants  
-**Last Updated:** 2026-07-03
+**Last Updated:** 2026-07-14
 
 ---
 
 # Purpose
 
-This glossary defines the official terminology used throughout the MyCommunity platform.
+This glossary defines the official terminology used throughout the AI Marketplace platform.
 
 All engineering, product, design, QA, documentation, and AI-generated content must use these definitions consistently.
 
@@ -21,205 +21,121 @@ If a term is not defined here, it should not become part of the project's vocabu
 
 # General Terms
 
-## Community
+## Customer
 
-A verified residential group where residents communicate, collaborate, and participate in local activities.
-
-Examples:
-
-- Apartment Building
-- Residential Tower
-- Villa Community
-- Gated Community
+The person seeking a service. Must hold a registered Account — there is no guest path.
 
 ---
 
-## Resident
+## Provider
 
-A verified individual who belongs to one or more communities and uses the MyCommunity platform.
+Represents supply on the platform. A single aggregate with two subtypes: Business or Freelancer. See `03_DOMAIN_MODEL.md`.
 
 ---
 
-## User
+## Business (Provider subtype)
 
-A system account capable of authentication.
+A formal, fixed-location Provider — cafe, repair shop, salon, and similar.
 
-Every Resident is a User, but future system users (administrators, moderators, service providers) are also Users.
+---
+
+## Freelancer (Provider subtype)
+
+An individual, mobile, one-to-one service Provider — plumber, electrician, tutor, car-washer, and similar. Mandatory ID/license verification before the listing goes live.
+
+---
+
+## User / Account
+
+A system identity capable of authentication. Every Customer and every Provider owner is backed by an Account; future Admin users are also Accounts.
 
 ---
 
 ## Profile
 
-The public information associated with a User.
+The public-facing information associated with a Provider (or a Customer's private saved details).
 
-Examples
+Provider profile examples:
 
 - Name
-- Profile Picture
-- Bio
-- Interests
+- Services offered
+- Areas covered
+- Price ranges
+- Portfolio photos
 
 ---
 
 ## Verification
 
-The process of confirming that a user, resident, or organization is genuine.
+The process of confirming a Provider is genuine before it can go live (Freelancer, mandatory) or be claimed (Business, Freelancer).
 
 Verification may include:
 
-- Email
+- Government ID / license document
 - Phone
-- Community
-- Identity
+- Address / trade registration
 
 ---
 
-# Community Terms
+# Discovery & Matching Terms
 
-## Membership
+## Category
 
-Represents the relationship between a Resident and a Community.
-
----
-
-## Community Administrator
-
-A resident responsible for managing a community.
-
-Responsibilities include:
-
-- Approving members
-- Managing announcements
-- Moderation
-- Community settings
+The taxonomy that structures Provider listings and the AI's category-specific question flows.
 
 ---
 
-## Moderator
+## Service Area
 
-A trusted user responsible for enforcing community rules.
-
-Moderators have limited administrative privileges.
+Where a Provider can be discovered and matched — a fixed-location radius (Business) or a mobile travel radius (Freelancer).
 
 ---
 
-## Community Rules
+## Conversation Session (AI Intake)
 
-Guidelines governing acceptable behavior inside a community.
-
----
-
-# Feed Terms
-
-## Feed
-
-The primary timeline displaying community activity.
+The chat between a Customer and the platform's AI that understands an unstructured need, asks follow-up questions, and produces a Search Request. Not a public/social artifact, and not customer-provider messaging (which does not exist in this product).
 
 ---
 
-## Post
+## Confidence Score
 
-Content published by a resident inside a community.
-
----
-
-## Comment
-
-A response attached to a post.
+A per-Conversation-Session score that determines whether a request is auto-matched or routed to admin-assisted (Wizard-of-Oz) matching.
 
 ---
 
-## Reaction
+## Search Request
 
-A lightweight interaction expressing sentiment toward a post or comment.
-
-Examples
-
-- Like
-- Love
-- Helpful
+The structured, matchable representation of a Customer's need, produced by a Conversation Session.
 
 ---
 
-## Mention
+## Search Event Log
 
-A reference to another user within content.
-
----
-
-## Attachment
-
-Media associated with a post or comment.
-
-Examples
-
-- Image
-- Video
-- Document
+A record of every Search Request, matched or not — feeds provider visibility analytics and admin unmatched-query analytics.
 
 ---
 
-# Marketplace Terms
+## Contact View
 
-## Marketplace
-
-The feature that allows residents to buy and sell items locally.
+A Customer viewing a matched Provider's phone number. Shown directly and immediately — no staged disclosure, no quote-acceptance gate. The basis for provider lead analytics and the eligibility gate for Outcome Tag / Review.
 
 ---
 
-## Listing
+## Outcome Tag
 
-An item or service published in the Marketplace.
-
----
-
-## Listing Owner
-
-The resident who created a listing.
+The Customer's self-reported "Did you hire them?" signal tied to a Contact View. The platform's only conversion signal.
 
 ---
 
-## Inquiry
+## Review / Rating
 
-A conversation initiated regarding a marketplace listing.
-
----
-
-## Listing Status
-
-Possible states:
-
-- Draft
-- Published
-- Reserved
-- Sold
-- Archived
+Anchor-verified feedback — can only be created against a Contact View with a "Yes" Outcome Tag. Drives merit-based Provider ranking.
 
 ---
 
-# Event Terms
+## Claim Flow
 
-## Event
-
-A scheduled activity within a community.
-
----
-
-## RSVP
-
-A resident's response to an event invitation.
-
-Possible responses:
-
-- Going
-- Interested
-- Not Going
-
----
-
-## Attendance
-
-The confirmed participation of a resident in an event.
+The process by which a Provider owner takes ownership of a Google-seeded, unclaimed listing by passing the Verification gate.
 
 ---
 
@@ -227,57 +143,27 @@ The confirmed participation of a resident in an event.
 
 ## Notification
 
-A message informing users about platform activity.
+A message informing Customers or Providers about platform activity (new lead, verification status change, Outcome Tag prompt).
 
 ---
 
-## Push Notification
+## Notification Channel
 
-A notification delivered to a mobile device.
-
----
-
-## In-App Notification
-
-A notification displayed within the application.
+WhatsApp, SMS, or Email — the delivery channel, configurable per user.
 
 ---
 
-## Notification Preference
+# Administration Terms
 
-User-defined settings controlling notification delivery.
+## Manual Match Assignment
 
----
-
-# Moderation Terms
-
-## Report
-
-A complaint submitted regarding content or user behavior.
+Admin-assisted matching for a low-confidence Conversation Session (Wizard-of-Oz fallback).
 
 ---
 
-## Moderation Case
+## Unmatched Query Report
 
-The investigation created from a report.
-
----
-
-## Warning
-
-A formal notice issued to a user.
-
----
-
-## Suspension
-
-Temporary removal of platform access.
-
----
-
-## Ban
-
-Permanent removal of platform access.
+Admin-facing analytics surfacing Search Requests that produced no good match — used to guide category and supply-gap decisions.
 
 ---
 
@@ -319,7 +205,7 @@ A record of an authenticated login on a specific device.
 
 Role-Based Access Control.
 
-Permissions are granted through assigned roles.
+Permissions are granted through assigned roles (Customer / Provider / Admin).
 
 ---
 
@@ -357,9 +243,10 @@ A self-contained business capability.
 
 Examples
 
-- Community
-- Marketplace
-- Events
+- Identity & Access
+- Provider
+- Conversation / AI Intake
+- Search Request
 
 ---
 
@@ -393,9 +280,12 @@ A business event representing something that has already happened.
 
 Examples
 
-- UserRegistered
-- CommunityJoined
-- ListingPublished
+- CustomerRegistered
+- SearchRequestSubmitted
+- ContactViewCreated
+- OutcomeTagSubmitted
+
+See `03_DOMAIN_MODEL.md` for the full event list.
 
 ---
 
@@ -447,9 +337,11 @@ The fundamental UI building block in Flutter.
 
 ---
 
-## Provider
+## Provider (Riverpod)
 
 A Riverpod object responsible for managing application state.
+
+Not to be confused with the domain term **Provider** (a Business or Freelancer supplier) above — the same word is used by Riverpod's state-management API and by the product's domain model; context disambiguates.
 
 ---
 
@@ -513,12 +405,6 @@ All technical debt must be:
 
 An AI coding assistant that contributes to the project.
 
-Examples
-
-- Antigravity
-- ChatGPT
-- GitHub Copilot
-
 AI assistants must follow all documents within:
 
 ```
@@ -539,18 +425,31 @@ This directory is the authoritative source for project standards, architecture, 
 
 ---
 
+## RAG-Grounded
+
+Describes the constraint that the AI intake/matching layer must never assert availability, prices, ratings, or capabilities not backed by real platform data. See `00_PROJECT_CONTEXT.md` Section 3.
+
+---
+
+## Wizard of Oz Fallback
+
+Manual, admin-assisted matching used for low-confidence Conversation Sessions instead of blocking on full automation.
+
+---
+
 # Official Naming
 
 | Term | Official Usage |
 |------|----------------|
-| MyCommunity | Product Name |
-| Resident | Primary User |
-| Community | Residential Group |
-| Listing | Marketplace Item |
-| Event | Community Activity |
+| AI Marketplace | Product Name (working title — see `13_OPEN_DECISIONS.md` item 8) |
+| Customer | Person seeking a service |
+| Provider | Business or Freelancer supplier |
+| Conversation Session | AI intake chat |
+| Search Request | Structured, matchable customer need |
+| Contact View | Customer viewing a matched Provider's phone number |
+| Outcome Tag | Customer's self-reported hire confirmation |
+| Verification | Trust gate before a Provider goes live |
 | Notification | User Alert |
-| Report | Moderation Submission |
-| Moderator | Community Safety Role |
 | Administrator | Platform Management Role |
 | Module | Business Capability |
 | Service | Business Logic Layer |

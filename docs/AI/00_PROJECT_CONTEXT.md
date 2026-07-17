@@ -1,304 +1,172 @@
-# MyCommunity Project Context
+# AI Marketplace — Project Context
 
 **Document ID:** AI-00
-**Version:** 1.0.0
-**Status:** Active
-**Owner:** CTO
-**Audience:** Engineering, Product, AI Assistants
-**Last Updated:** 2026-07-03
+**Version:** 0.8.0
+**Status:** Draft — Aligned to MVP Scope v0.8.0
+**Owner:** Founder / CTO
+**Audience:** Engineering Team, AI Assistants
+**Source:** Consolidated from *AI-Powered Directory & Booking Marketplace — Master Concept*, superseded by MVP scope iterations through v0.8.0
+**Last Updated:** 14 July 2026
 
 ---
 
 # Purpose
 
-This document defines the vision, business context, technical direction, and engineering objectives for the MyCommunity platform.
+This document defines the product vision, scope boundaries, and guiding principles for the AI Marketplace platform. It is the entry point for all engineering, product, and AI-assisted implementation work.
 
-It is the primary context document for every engineer and AI assistant working on the project.
+All development must align with this document. Any conflict between this document and a sprint story must be raised before implementation continues.
 
-Every architectural, implementation, and design decision must align with this document.
-
----
-
-# Product Overview
-
-MyCommunity is a mobile-first, verified community platform designed to help residents safely connect with people living around them.
-
-Unlike traditional social networks, MyCommunity is built around real communities, verified identities, trust, privacy, and meaningful local engagement.
-
-The platform combines community communication, local discovery, events, marketplace, and resident services into a single trusted ecosystem.
+**Change note (v0.1.0 → v0.8.0):** Several foundational assumptions from the original concept have been explicitly overturned during scoping. See Section 10 for a full changelog. The most important reversals: this is now a **native mobile app**, not web-only; registration is **mandatory**, not guest-optional; and contact is **direct and immediate** after a match, not staged behind a quote-acceptance step.
 
 ---
 
-# Vision
+# 1. What This Product Is
 
-Build the most trusted community platform where residents can safely communicate, collaborate, support each other, and strengthen their local communities.
+A location-based directory and AI-mediated conversational-intake marketplace connecting two supply types with nearby customers, rather than category-tree search:
 
-Trust is the product.
+- **Formal businesses** — cafes, repair shops, salons, and similar fixed-location operations
+- **Individual freelancers** — plumbers, electricians, tutors, car-washers, and similar mobile, one-to-one service providers
 
-Technology exists to enable trust.
+This is a deliberate pivot away from a social-feed model toward a task-oriented, transactional utility. The product is a **utility** (search → match → contact), not a **feed** (post → like → comment). Feeds are a moderation and engagement-chasing business; a directory product with a lightweight contact flow is a simpler, more directly monetizable loop.
 
----
-
-# Mission
-
-Provide residents with a secure, verified, privacy-first platform that improves everyday community life through meaningful digital interactions.
+**Core flow (current):** Customer describes their need in natural language → AI asks category-specific follow-ups → AI matches against real provider data → customer views a matched provider's profile → customer sees the provider's phone number directly and contacts them off-platform to arrange the job. There is no in-app booking, quoting, payment, or chat step between match and contact.
 
 ---
 
-# Long-Term Vision
+# 2. Vision
 
-Become the default digital community platform for residential communities across:
+Any business or individual freelancer can list what they do for free and be found by nearby customers through AI-powered, natural-language search — because discovery is driven by **location and category**, not by a closed, verified community.
 
-- United Arab Emirates
-- GCC
-- International markets
+Two principles are carried forward as non-negotiable:
 
-The platform should support millions of users while maintaining simplicity, privacy, and high performance.
-
----
-
-# Target Audience
-
-Primary Users
-
-- Apartment residents
-- Villa community residents
-- Families
-- Individuals living in residential communities
-
-Secondary Users
-
-- Community administrators
-- Property managers
-- Building management
-- Moderators
-- Verified local businesses
-- Service providers
+1. **Country-agnostic by design.** The product must not assume a single launch market's identity infrastructure, language, or regulatory environment as a permanent constraint. UAE is the confirmed launch market (see Section 5), but the architecture must not hard-code that assumption.
+2. **Utility, not feed.** No post/comment/reaction loop. Every core interaction moves a customer toward contacting a provider.
 
 ---
 
-# Core Product Principles
+# 3. Why AI Is the Core, Not a Feature
 
-Every feature must reinforce these principles.
+A category-tree directory (JustDial-style) is a commodity — Google Maps and existing directories already do that well. The differentiated value is in understanding an unstructured, plain-language problem and turning it into a structured, matchable request.
 
-## Trust First
+The AI has four distinct jobs:
 
-Trust is the foundation of the platform.
+1. Understand the customer's problem, described in natural language
+2. Ask category-specific follow-up questions
+3. Match the request against real provider data
+4. Explain why a recommendation makes sense
 
-Verification, moderation, and transparency are more important than rapid feature expansion.
+**Hard constraint:** the AI must never invent availability, prices, ratings, or capabilities. Every claim must be grounded in real platform data — a RAG/grounding requirement, not a nice-to-have.
 
----
-
-## Privacy First
-
-Users own their data.
-
-Collect only the information required.
-
-Protect personal information by default.
-
-Follow UAE PDPL requirements and internationally accepted privacy practices.
+**Scope boundary:** "AI is the core" describes the customer/provider *experience*, not a requirement for custom AI/ML infrastructure. The architecture is an **LLM-API-driven, RAG-grounded conversation layer** (prompt-engineered against the platform's own provider database) — not a custom-trained matching model.
 
 ---
 
-## Mobile First
+# 4. Two-Sided Supply
 
-The mobile application is the primary product.
+| Dimension | Formal Business | Individual Freelancer |
+|---|---|---|
+| Examples | Cafe, repair shop, bakery, salon | Plumber, electrician, AC technician, carpenter, tutor, car-washer |
+| Location model | Fixed location, posted hours | Mobile — travels to the customer, service-radius based |
+| Listing centers on | Location, hours, service/menu catalog | Skills, service radius, availability |
+| Verification bar | Lighter (open decision, `13_OPEN_DECISIONS.md`) | Mandatory license/Emirates ID verification before listing goes live (enters customers' homes) |
+| Supply bootstrapping | Seeded from Google listings as unclaimed entries + self-registration, with a claim-your-listing flow | Self-registration, gated on ID/license verification |
+| Off-platform risk | Lower — fixed premises, less incentive to hide | Higher — mobile, one-to-one, easiest to take a repeat customer direct |
 
-The website exists to:
-
-- Build trust
-- Explain the product
-- Support onboarding
-- Drive app downloads
-- Collect early access registrations
-
-The website is not the primary user experience.
-
----
-
-## Community First
-
-The platform exists to strengthen real communities.
-
-Every feature should increase meaningful local engagement.
+These two supply types share search, category, and review infrastructure, but require different profile schemas, trust mechanics, and anti-circumvention pressure. See `03_DOMAIN_MODEL.md` for how this is reflected in the Provider entity.
 
 ---
 
-## Security by Design
+# 5. Platform, Market & Localization
 
-Security is designed into the system from the beginning.
-
-Never sacrifice security for development speed.
-
----
-
-## Simplicity
-
-Simple solutions are preferred.
-
-Avoid unnecessary complexity.
-
-Users should never need documentation to perform common tasks.
+- **Platform:** Native iOS/Android app (pivoted away from responsive-web-only). This extends the build timeline to roughly 12–16 weeks.
+- **Launch market:** UAE (reuses the existing Emirates ID / Ejari-style OCR verification pipeline).
+- **Localization:** Bilingual English/Arabic UI, confirmed for launch — not a post-launch add-on.
+- The product's long-term identity remains country-agnostic in architecture even though UAE is now a confirmed (not tentative) launch market — no domain entity, workflow, or UI copy should hard-assume UAE-only regulatory or cultural context beyond the initial verification integration.
 
 ---
 
-# Product Goals
+# 6. Auth & Contact Model
 
-The platform should enable residents to:
+These are the two biggest reversals from the original concept and must be treated as locked:
 
-- Discover their local community
-- Participate in community discussions
-- Buy and sell locally
-- Discover local events
-- Receive trusted community announcements
-- Find verified service providers
-- Help neighbors
-- Build stronger local relationships
+- **Auth:** Customer registration is **mandatory** — via Google, Apple, or Mobile number + OTP. There is no guest path to submit a request or view a match.
+- **Contact flow:** Once a customer views a matched provider, that provider's **phone number is shown directly** — no post-match contact gating, no quote-acceptance gate, no in-app chat/messaging layer. Contact and negotiation happen off-platform, by phone or WhatsApp, exactly as it would if the customer had gotten the number from a friend.
+- **Booking model:** Single unified contact flow. Instant/predefined-price booking was scoped and dropped — there is no structured Quote object and no in-app booking state machine.
+
+This is a deliberate **growth-first** trade-off: platform lock-in and revenue protection are secondary, at this stage, to making the contact experience frictionless enough that customers and providers actually use the product.
 
 ---
 
-# Non-Goals
+# 7. Revenue Model (Summary)
 
-The platform is NOT intended to become:
+Free listings monetized purely through paid promotion is explicitly rejected — it doesn't generate revenue until search volume is already large.
 
-- A general social media network
-- A WhatsApp replacement
-- A dating application
-- A content creation platform
-- An advertising-first business
-
-Growth should never compromise trust.
+- **MVP-compatible starting point:** pay-per-lead (charging providers per matched contact-view), since it requires no payment/booking infrastructure beyond usage metering.
+- **Long-term target:** commission per completed job — deferred, since it requires payment infrastructure and a reliable transaction-completion signal that the current offline-contact model doesn't naturally produce.
+- No in-app payment or monetization at launch — this is a deliberate growth-first sequencing decision, not an oversight.
 
 ---
 
-# Technical Vision
+# 8. Anti-Circumvention (Summary)
 
-## Mobile
+Because contact information is shown freely and immediately (Section 6), the anti-circumvention posture is necessarily lighter-touch than a staged-disclosure model would allow. Sequencing principle: **start with policy, defer engineering cost until leakage is a demonstrated revenue problem.**
 
-Flutter
+Day-one, no-engineering-cost levers:
+- Terms of Service restriction on off-platform solicitation abuse
+- The "Did you hire them?" customer outcome tag, which doubles as the platform's only conversion signal and an informal leakage indicator
+- Admin-side search analytics surfacing unmatched/failed queries, useful for spotting supply gaps as well as abuse patterns
 
-## Backend
-
-Python
-
-FastAPI
-
-## Database
-
-PostgreSQL
-
-## Cache
-
-Redis
-
-## Architecture
-
-Modular Monolith
-
-The architecture must allow future extraction into independently deployable services without major refactoring.
+Later-phase levers (deferred until leakage is provably costing revenue): masked communication, contact-info detection, reputation value-lock, dedicated leakage-signal monitoring. These are explicitly **not** MVP scope.
 
 ---
 
-# Engineering Principles
+# 9. Value-Layer Features (Confirmed for MVP)
 
-All engineering decisions should prioritize:
+Beyond bare search-and-contact, the following are locked into MVP scope as trust- and engagement-building layers:
 
-- Maintainability
-- Readability
-- Testability
-- Security
-- Performance
-- Scalability
-- Observability
-
-Prefer explicit code over clever code.
-
-Avoid unnecessary abstractions.
-
-Write code intended to live for years.
+- **Arrival-verification OTP** ("Verified Visit" tag) — provider's choice to use, reuses existing OTP infrastructure
+- **Portfolio/photos** on provider profiles
+- **Provider-facing digital storefront framing** — the provider profile is positioned to providers as their free storefront, not just a listing
+- **Basic visibility analytics** for providers (reusing the search event log — no new tracking infrastructure)
+- **Shareable provider profile deep links**, designed for WhatsApp distribution
+- **Admin-side search analytics** surfacing unmatched/failed queries, to guide category and supply expansion
+- **Customer outcome tag** ("Did you hire them?") — the platform's only conversion signal; see Section 8
+- **Claim-your-listing flow** for Google-seeded, unclaimed provider entries
 
 ---
 
-# Quality Standards
+# 10. What This Product Is Not
 
-Every production feature should be:
-
-- Tested
-- Documented
-- Reviewed
-- Observable
-- Secure
-- Maintainable
-
-Technical debt should be intentional, documented, and temporary.
+- Not a resident/community social platform — no membership gating, no feed, no posts/comments/reactions
+- Not a full booking-and-payment product in v1 — see `11_MVP_SCOPE.md` for the explicit exclusion list
+- Not built on custom-trained ML — the AI layer is LLM-API-driven and RAG-grounded
+- Not a web-first product — native app is the confirmed platform, not a stretch goal
+- Not a guest-accessible product — registration is mandatory before a request can be submitted
 
 ---
 
-# Success Metrics
+# 11. Changelog (v0.1.0 → v0.8.0)
 
-The platform is successful when:
-
-- Residents trust the platform.
-- Communities remain active.
-- Moderation is effective.
-- Performance remains fast.
-- The architecture scales without major redesign.
-- New developers can become productive quickly.
-
----
-
-# Decision Ownership
-
-| Area | Owner |
-|-------|-------|
-| Product Vision | Product Owner |
-| Product Roadmap | Product Owner |
-| Architecture | CTO |
-| Technology Stack | CTO |
-| Security | CTO |
-| Engineering Standards | CTO |
-| UI/UX | Shared |
-| Delivery | Engineering |
+| Area | v0.1.0 (original concept) | v0.8.0 (current, locked) |
+|---|---|---|
+| Platform | Responsive web app, web-only for v1 | Native iOS/Android app |
+| Auth | Guest request allowed, no forced signup | Mandatory registration (Google/Apple/Mobile+OTP), no guest path |
+| Contact flow | Staged disclosure — phone hidden until quote accepted | Direct phone visibility immediately after match |
+| Booking model | RFQ → Quote → accept/reject → booked job | Single unified contact flow; no Quote entity, no instant/predefined-price booking |
+| Messaging | In-app Message Thread tied to RFQ Request | Dropped entirely — no in-app chat/messaging layer |
+| Localization | Not specified | English/Arabic bilingual UI confirmed for launch |
+| Launch market | UAE "likely default," open decision | UAE confirmed |
+| Value-layer features | Not specified | Verified Visit OTP, portfolio, storefront framing, visibility analytics, shareable deep links, outcome tag, claim-your-listing |
 
 ---
 
-# AI Development Context
+# 12. Related Documents
 
-AI assistants working on this project must:
-
-- Follow the documented architecture.
-- Reuse existing modules whenever possible.
-- Avoid duplicate implementations.
-- Respect coding standards.
-- Never invent business rules.
-- Never introduce breaking architectural changes without justification.
-- Prefer consistency over novelty.
-
-The documentation inside the `docs/AI` directory is considered authoritative.
-
----
-
-# Related Documents
-
-- 01_ENGINEERING_PLAYBOOK.md
-- 02_ARCHITECTURE.md
-- 03_DOMAIN_MODEL.md
-- 04_DATABASE.md
-- 05_API_GUIDELINES.md
-- 06_SECURITY.md
-- 07_UI_GUIDELINES.md
-- 08_CODING_STANDARDS.md
-- 09_DECISIONS.md
-- 10_GLOSSARY.md
-
----
-
-# Change Policy
-
-Any change to this document must be reviewed by the CTO before implementation.
-
-Major architectural or product decisions should be recorded in `09_DECISIONS.md`.
+- `03_DOMAIN_MODEL.md` — entities, aggregates, business rules
+- `11_MVP_SCOPE.md` — include/exclude scope for v1
+- `13_OPEN_DECISIONS.md` — unresolved product decisions blocking downstream work (category taxonomy is currently critical-path)
+- `14_USER_FLOWS.md` — step-by-step user journeys implementing this vision
+- `16_UX_GUIDELINES.md` — interaction, content, and trust-building patterns implementing this vision
 
 ---
 

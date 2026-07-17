@@ -12,7 +12,7 @@ class HealthResponse(BaseModel):
     service: str = Field(
         ...,
         description="The service name.",
-        examples=["mycommunity-api"],
+        examples=["ai-marketplace-api"],
     )
     version: str = Field(
         ...,

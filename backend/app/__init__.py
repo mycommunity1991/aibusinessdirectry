@@ -1,1 +1,1 @@
-# MyCommunity App Package
+# AI Marketplace App Package

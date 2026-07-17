@@ -1,7 +1,7 @@
 # Sprint 1 | BF-016 | Testing Framework Configuration
 
 ## Overview
-This walkthrough outlines the configuration of `pytest` and `pytest-asyncio` as the standardized testing tools for the backend module of the MyCommunity platform. The work completes the Testing Framework Configuration story.
+This walkthrough outlines the configuration of `pytest` and `pytest-asyncio` as the standardized testing tools for the backend module of the AI Marketplace platform. The work completes the Testing Framework Configuration story.
 
 ## Implemented Changes
 

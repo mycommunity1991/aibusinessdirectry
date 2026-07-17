@@ -14,7 +14,7 @@ I want API versioning established
 
 ## Story Context
 
-Implement API versioning for the MyCommunity backend.
+Implement API versioning for the AI Marketplace backend.
 
 This story establishes the application's API versioning strategy as the foundation for all future REST endpoints. The implementation must provide a clean, maintainable, and scalable versioning mechanism while remaining simple for the MVP.
 

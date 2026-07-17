@@ -5,14 +5,14 @@ This plan details the implementation of centralized HTTP middleware for request 
 ## Proposed Changes
 
 ### Core Context & Logging
-- **[MODIFY] [context.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/core/context.py)**:
+- **[MODIFY] [context.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/core/context.py)**:
   - Rename `request_id_ctx_var` to `correlation_id_ctx_var`.
   - Rename `get_request_id` and `set_request_id` to `get_correlation_id` and `set_correlation_id`.
-- **[MODIFY] [logging.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/core/logging.py)**:
+- **[MODIFY] [logging.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/core/logging.py)**:
   - Update `JSONFormatter.format()` to output `correlation_id` instead of `request_id`.
 
 ### Middleware
-- **[MODIFY] [logging_middleware.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/app/middleware/logging_middleware.py)**:
+- **[MODIFY] [logging_middleware.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/app/middleware/logging_middleware.py)**:
   - Extract `X-Correlation-ID` from incoming headers (generate UUID4 if absent).
   - Store correlation ID in both `request.state.correlation_id` and the context variables.
   - Extract `client_ip` from `request.client.host`.
@@ -20,15 +20,15 @@ This plan details the implementation of centralized HTTP middleware for request 
   - Return the `X-Correlation-ID` in the HTTP response headers.
 
 ### Testing
-- **[NEW] [test_logging_middleware.py](file:///Users/dumbo/Documents/MyCommunity/product/app/backend/tests/middleware/test_logging_middleware.py)**:
+- **[NEW] [test_logging_middleware.py](file:///Users/dumbo/Documents/AI Marketplace/product/app/backend/tests/middleware/test_logging_middleware.py)**:
   - Add tests validating correlation ID extraction and generation.
   - Add tests verifying response header injection.
   - Add tests ensuring execution time and client IP are logged correctly.
 
 ### Documentation Updates
-- **[MODIFY] [02_ARCHITECTURE.md](file:///Users/dumbo/Documents/MyCommunity/product/app/docs/AI/02_ARCHITECTURE.md)**: Replace "Request ID" references with "Correlation ID".
-- **[MODIFY] [05_API_GUIDELINES.md](file:///Users/dumbo/Documents/MyCommunity/product/app/docs/AI/05_API_GUIDELINES.md)**: Replace "Request ID" references with "Correlation ID".
-- **[MODIFY] [08_CODING_STANDARDS.md](file:///Users/dumbo/Documents/MyCommunity/product/app/docs/AI/08_CODING_STANDARDS.md)**: Replace "Request ID" references with "Correlation ID".
+- **[MODIFY] [02_ARCHITECTURE.md](file:///Users/dumbo/Documents/AI Marketplace/product/app/docs/AI/02_ARCHITECTURE.md)**: Replace "Request ID" references with "Correlation ID".
+- **[MODIFY] [05_API_GUIDELINES.md](file:///Users/dumbo/Documents/AI Marketplace/product/app/docs/AI/05_API_GUIDELINES.md)**: Replace "Request ID" references with "Correlation ID".
+- **[MODIFY] [08_CODING_STANDARDS.md](file:///Users/dumbo/Documents/AI Marketplace/product/app/docs/AI/08_CODING_STANDARDS.md)**: Replace "Request ID" references with "Correlation ID".
 
 ## Verification Plan
 

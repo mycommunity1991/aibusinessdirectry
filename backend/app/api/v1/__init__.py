@@ -1,1 +1,1 @@
-# MyCommunity API V1 Package
+# AI Marketplace API V1 Package

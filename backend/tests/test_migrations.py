@@ -39,7 +39,7 @@ def test_migration_upgrade_downgrade_mocked() -> None:
     mock_engine.connect.return_value.__aenter__.return_value = mock_conn
 
     # Patch the global engine imported inside app/core/database/database.py
-    with patch("app.core.database.database.engine", mock_engine):
+    with patch("app.database.database.engine", mock_engine):
         config = Config("alembic.ini")
 
         # Test upgrade

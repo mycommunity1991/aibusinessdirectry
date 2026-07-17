@@ -1,4 +1,4 @@
-# MyCommunity Technology Stack
+# AI Marketplace Technology Stack
 
 **Document ID:** AI-12  
 **Version:** 1.0.0  
@@ -11,7 +11,7 @@
 
 # Purpose
 
-This document defines the official technology stack for the MyCommunity platform.
+This document defines the official technology stack for the AI Marketplace platform.
 
 All development must use the technologies specified in this document.
 

@@ -1,5 +1,5 @@
 ---
-name: MyCommunity Backend Architecture
+name: AI Marketplace Backend Architecture
 description: Enforcing Clean Architecture, Layer boundaries, Modular Monolith rules, and dependency direction.
 ---
 # Skill: Backend Architecture Expert

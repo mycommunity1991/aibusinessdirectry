@@ -1,4 +1,4 @@
-# MyCommunity Security Standards
+# AI Marketplace Security Standards
 
 **Document ID:** AI-06  
 **Version:** 1.0.0  
@@ -11,7 +11,7 @@
 
 # Purpose
 
-This document defines the security architecture, engineering standards, policies, and implementation requirements for the MyCommunity platform.
+This document defines the security architecture, engineering standards, policies, and implementation requirements for the AI Marketplace platform.
 
 Security is not a feature. It is a foundational engineering principle that applies to every component of the platform.
 
@@ -41,7 +41,7 @@ The platform must protect:
 - User identity
 - Personal information
 - Authentication credentials
-- Community data
+- Provider and Customer data
 - Uploaded files
 - Administrative functions
 - API endpoints
@@ -146,8 +146,8 @@ The platform supports:
 
 - Email Verification
 - Phone Verification
-- Community Verification
-- Resident Verification
+- Business Verification
+- Freelancer ID/License Verification
 
 Verification status determines feature availability.
 
@@ -396,8 +396,8 @@ Tracked events include:
 - Logout
 - Registration
 - Password Reset
-- Community Membership
-- Moderation Actions
+- Provider Verification Status Changes
+- Admin Actions
 - Administrative Changes
 
 Audit logs are never deleted.
@@ -453,7 +453,7 @@ Users control:
 
 - Profile visibility
 - Contact visibility
-- Community visibility
+- Provider visibility
 - Notification preferences
 
 Privacy settings must be respected by every API.
@@ -602,6 +602,7 @@ Every production release must verify:
 - 08_CODING_STANDARDS.md
 - 09_DECISIONS.md
 - 10_GLOSSARY.md
+- 16_UX_GUIDELINES.md
 
 ---
 

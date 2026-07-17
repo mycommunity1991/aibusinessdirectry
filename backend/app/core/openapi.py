@@ -12,12 +12,12 @@ tags_metadata: list[dict[str, Any]] = [
 
 # Contact Information
 contact_info: dict[str, str] = {
-    "name": "MyCommunity API Team",
-    "url": "https://mycommunity.com/support",
+    "name": "AI Marketplace API Team",
+    "url": "https://ai-marketplace.example/support",
 }
 
 # License Information
 license_info: dict[str, str] = {
     "name": "Proprietary",
-    "url": "https://mycommunity.com/terms",
+    "url": "https://ai-marketplace.example/terms",
 }

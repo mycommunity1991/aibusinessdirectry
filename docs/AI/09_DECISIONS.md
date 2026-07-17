@@ -1,4 +1,4 @@
-# MyCommunity Architecture Decision Log
+# AI Marketplace Architecture Decision Log
 
 **Document ID:** AI-09  
 **Version:** 1.0.0  
@@ -11,7 +11,7 @@
 
 # Purpose
 
-This document records all significant architectural, technical, and engineering decisions made throughout the MyCommunity project.
+This document records all significant architectural, technical, and engineering decisions made throughout the AI Marketplace project (decisions predating the product's rename from "MyCommunity" are kept verbatim below, per the append-only rule).
 
 Every major decision must be documented here before implementation.
 
@@ -527,6 +527,53 @@ No centralized AI documentation
 - 00_PROJECT_CONTEXT.md
 - 01_ENGINEERING_PLAYBOOK.md
 - 08_CODING_STANDARDS.md
+
+---
+
+# ADR-011
+
+## Title
+
+Product Pivot and Rename: MyCommunity → AI Marketplace
+
+**Date**
+
+2026-07-14
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO / Founder
+
+### Context
+
+The product concept changed from a UAE-first verified resident/community platform (Community, Feed, Events, Moderation modules) to a location-based directory and AI-mediated conversational-intake marketplace connecting businesses and freelancers with customers. There is no Community, Feed, Events, or Messaging domain in the current model — see `00_PROJECT_CONTEXT.md` Section 11 for the full product changelog and `03_DOMAIN_MODEL.md` for the current domain boundaries.
+
+### Decision
+
+Rename the product from "MyCommunity" to "AI Marketplace" (working title — final name is still an open decision, see `13_OPEN_DECISIONS.md` item 8) and update all forward-looking documentation, code identifiers, and infrastructure naming (backend app title, Flutter project/package identifiers, local database/role names) to match.
+
+Prior ADR entries in this log that reference "MyCommunity" or the old repository names (e.g. ADR-006's `mycommunity-app` / `mycommunity-website`) are historical record and are not rewritten. Where a new repository or package name is needed going forward, it should follow the `ai_marketplace` / `ai-marketplace` convention until a final product name is locked.
+
+### Alternatives Considered
+
+- Leave historical naming in place and only rename net-new code (rejected — leaves the codebase in a permanently inconsistent, confusing state for both engineers and AI assistants)
+- Rewrite historical ADR entries in place (rejected — violates this document's own append-only rule)
+
+### Consequences
+
+- All docs under `docs/AI/` now consistently describe the AI Marketplace domain
+- Backend app title, Flutter project name/org, and local Postgres database/role were renamed to match
+- Historical ADRs, sprint records, and implementation-story logs keep their original "MyCommunity" wording as a historical record, since they describe work already completed under that name
+
+### Related Documents
+
+- 00_PROJECT_CONTEXT.md
+- 03_DOMAIN_MODEL.md
+- 13_OPEN_DECISIONS.md
 
 ---
 

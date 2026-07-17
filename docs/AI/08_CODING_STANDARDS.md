@@ -1,4 +1,4 @@
-# MyCommunity Coding Standards
+# AI Marketplace Coding Standards
 
 **Document ID:** AI-08  
 **Version:** 1.0.0  
@@ -11,7 +11,7 @@
 
 # Purpose
 
-This document defines the coding standards for the MyCommunity platform.
+This document defines the coding standards for the AI Marketplace platform.
 
 Its objective is to ensure that every line of code is:
 
@@ -115,9 +115,9 @@ Example
 ```
 user
 
-community
+provider
 
-marketplace
+search_request
 
 notifications
 ```
@@ -273,7 +273,7 @@ Comments should never explain obvious code.
 Good
 
 ```python
-# Community admins may edit archived events.
+# Freelancers must pass verification before their listing can go live.
 ```
 
 Bad
@@ -293,13 +293,13 @@ Python
 
 ```python
 """
-Creates a new community.
+Creates a new search request.
 
 Args:
-    request: Community creation request.
+    request: Search request creation payload.
 
 Returns:
-    Community response.
+    Search request response.
 """
 ```
 
@@ -577,7 +577,7 @@ ci:
 Examples
 
 ```
-feat: add resident verification
+feat: add freelancer verification
 
 fix: resolve token refresh issue
 

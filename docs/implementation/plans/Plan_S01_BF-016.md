@@ -3,7 +3,7 @@
 ## Implementation Plan
 
 ### Overview
-This plan establishes the project's testing foundation by configuring `pytest` and `pytest-asyncio` as the standardized testing tools for the backend module of the MyCommunity platform.
+This plan establishes the project's testing foundation by configuring `pytest` and `pytest-asyncio` as the standardized testing tools for the backend module of the AI Marketplace platform.
 
 ### Requirements
 - Configure `pytest` with `pytest-asyncio` for async tests.

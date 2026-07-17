@@ -1,4 +1,4 @@
-# MyCommunity API Guidelines
+# AI Marketplace API Guidelines
 
 **Document ID:** AI-05  
 **Version:** 1.0.0  
@@ -11,7 +11,7 @@
 
 # Purpose
 
-This document defines the API design standards for MyCommunity.
+This document defines the API design standards for AI Marketplace.
 
 All APIs must follow these guidelines to ensure consistency, maintainability, security, and scalability.
 
@@ -56,13 +56,13 @@ http://localhost:8000/api/v1
 Staging
 
 ```
-https://staging-api.mycommunity.com/api/v1
+https://staging-api.ai-marketplace.example/api/v1
 ```
 
 Production
 
 ```
-https://api.mycommunity.com/api/v1
+https://api.ai-marketplace.example/api/v1
 ```
 
 ---
@@ -187,9 +187,9 @@ Example
 
 ```json
 {
-  "title": "Community Cleanup",
-  "description": "Weekend cleanup event.",
-  "start_date": "2026-07-10T10:00:00Z"
+  "title": "AC Repair Needed",
+  "description": "Split AC unit not cooling, need a technician today.",
+  "category": "ac-repair"
 }
 ```
 
@@ -353,7 +353,7 @@ Useful for mobile optimization.
 Supported
 
 ```
-?expand=community
+?expand=provider
 
 ?expand=author
 

@@ -1,1 +1,1 @@
-# MyCommunity App Core Package
+# AI Marketplace App Core Package
