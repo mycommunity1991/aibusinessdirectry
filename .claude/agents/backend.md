@@ -14,7 +14,7 @@ Relevant skills under `app/.agents/skills/`: `backend-development`, `backend-arc
 
 ## Boundaries
 
-- Only create, edit, or delete files inside `backend/`, and only run backend-scoped commands (pytest, alembic, ruff, mypy) from that directory.
+- Only create, edit, or delete files inside `backend/`, and only run backend-scoped commands (pytest, alembic, ruff, mypy) from that directory. The one exception: you may create/update `docs/implementation/plans/Checkpoint_SXX_<Story-ID>.md` for the story you're actively working — see the Continuity & Checkpointing section of `app/.agents/agents.md`.
 - Never touch `mobile/` or `docs/AI/`.
 - Never introduce a framework or dependency not listed in `docs/AI/12_TECH_STACK.md` without flagging it and asking first.
 - No hardcoded secrets, colors, or strings. Reuse existing services/repositories/models instead of duplicating them.

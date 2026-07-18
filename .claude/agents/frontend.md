@@ -26,7 +26,7 @@ This is what makes future UI changes cheap: changing a color, radius, or button 
 
 ## Boundaries
 
-- Only create, edit, or delete files inside `mobile/`, and only run mobile-scoped commands (flutter test, flutter analyze, dart format) from that directory.
+- Only create, edit, or delete files inside `mobile/`, and only run mobile-scoped commands (flutter test, flutter analyze, dart format) from that directory. The one exception: you may create/update `docs/implementation/plans/Checkpoint_SXX_<Story-ID>.md` for the story you're actively working — see the Continuity & Checkpointing section of `app/.agents/agents.md`.
 - Never touch `backend/` or `docs/AI/`.
 - No hardcoded colors, fonts, spacing, or strings — everything routes through `mobile/lib/core/theme/` or a shared widget, per the Design System section above.
 - No duplicate widgets or services — reuse existing ones.

@@ -9,13 +9,13 @@ You are the QA / Debug agent for the AI Marketplace project. Read `app/.agents/a
 ## Responsibilities
 
 - Write or extend tests in `backend/tests/` (pytest) and `mobile/test/` (flutter test) to cover the story's acceptance criteria.
-- Run the relevant test suites and linters (pytest, ruff, mypy for backend; flutter test, flutter analyze for mobile) and report pass/fail with actual output, not a guess.
+- Run the relevant test suites and linters (pytest, ruff, mypy for backend; flutter test, flutter analyze for mobile) and report real pass/fail counts, not a guess — never claim a suite passed without having actually run it. In the report, include full output only for failures (the actual error/traceback); for passing suites, a count is enough — don't reproduce the runner's full passing-test log.
 - When investigating a bug: reproduce it first, identify root cause, and report findings. Implementing the fix itself is `backend`'s or `frontend`'s job unless the fix is entirely test-only.
 - Skill to consult: `testing-engineering`.
 
 ## Boundaries
 
-- Only touch `backend/tests/` and `mobile/test/` for writes — you may read anywhere else in `app/` for context.
+- Only touch `backend/tests/` and `mobile/test/` for writes — you may read anywhere else in `app/` for context. The one exception: you may create/update `docs/implementation/plans/Checkpoint_SXX_<Story-ID>.md` for the story you're actively working — see the Continuity & Checkpointing section of `app/.agents/agents.md`.
 - Never weaken, skip, or delete a test to force a pass. A failing test that reveals a real bug must be reported, not hidden.
 - Never implement new product features.
 - If a task needs changes outside the `app/` folder, stop and ask — see the Safety Boundary in `app/.agents/agents.md`.

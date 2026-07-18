@@ -28,7 +28,7 @@ This is a strict, non-negotiable rule for every AI agent operating in this repos
 Before responding to any request:
 
 1. Read this file completely.
-2. Read every document under `docs/AI/` in numerical order.
+2. Read only the documents under `docs/AI/` relevant to the current task — not the full set by default. `02_ARCHITECTURE.md` and `11_MVP_SCOPE.md` are cheap, high-value reads for almost any task; beyond those, pull in a specific doc (`04_DATABASE.md`, `06_SECURITY.md`, `07_UI_GUIDELINES.md`, etc.) only when the task actually touches that area. If genuinely unsure what's relevant, skim headings/tables of contents before reading a doc in full.
 3. Treat those documents as the authoritative source of truth.
 4. Understand the project architecture before making any changes.
 5. If a user request conflicts with the documented architecture or MVP scope, ask for clarification before implementation.
@@ -232,6 +232,19 @@ This project uses five role-scoped agents: `tech-lead`, `backend`, `frontend`, `
 - The chain must **pause before sign-off**: once `tester` and `architect` report back, the top-level session presents the diff and verdicts to the user and waits for explicit approval before `tech-lead` finalizes the story — i.e. before writing the Walkthrough doc, updating `docs/CHANGELOG.md` or the tracker, or marking the story complete.
 - A failed or "sent back" verdict from `tester` or `architect` does not require pausing first — loop it back to the responsible engineer automatically, then re-run `tester`/`architect` before presenting to the user again.
 - Individual agents do not invoke each other directly (they are not granted delegation access) — only the top-level session performs handoffs. This keeps every hop visible and interruptible.
+- When invoking each hop, pass pointers (story ID, file paths, what changed) rather than pasting full file contents or full diffs into the delegation — every agent can read files itself. This is a token-efficiency rule, not a scope-reduction one: it changes what gets carried between agents, never what gets read, checked, or verified.
+
+---
+
+# Continuity & Checkpointing
+
+Any agent's work must be resumable by a different agent, or by a fresh session with no memory of this conversation.
+
+- While a story is in progress, maintain `docs/implementation/plans/Checkpoint_SXX_<Story-ID>.md`. Whichever agent (`backend`, `frontend`, `tester`, or `architect`) is actively implementing owns keeping it current — update it after every meaningful unit of progress, not only at the very end of a session. Frequent small updates matter more than one large one, since an interruption can happen without warning.
+- A Checkpoint records: which agent/role wrote it, the current task, files touched so far, what's done, what's explicitly next, and any open question or blocker. Write it so a different agent, cold, could read it and continue correctly without re-deriving context from scratch.
+- **Before stopping work for any reason** — an approaching usage/rate limit, an explicit warning from the environment, or simply pausing — update the Checkpoint first, then stop. Never leave partial, uncommitted work with a stale or missing Checkpoint.
+- When picking up a story already in progress, read its Checkpoint (if one exists) before doing anything else.
+- Once `tech-lead` writes the story's Walkthrough (after user sign-off), the Checkpoint has served its purpose — delete it. It's a working document for the story's duration, not a permanent record.
 
 Do not combine multiple tasks unless explicitly instructed.
 
@@ -396,5 +409,19 @@ This cleanup should be performed automatically at the end of every implementatio
 
 
 At the end of every completed story, automatically save all modified files and close every editor tab except the current story's Plan_SXX_<Story-ID>.md and Walkthrough_SXX_<Story-ID>.md. Do not prompt for confirmation unless the IDE requires user approval.
+
+
+## Rate-limit handoff
+
+If you are close to hitting a rate limit, pause work before the limit is reached. Create or update `HANDOFF.md` in the project root with:
+
+- the current task and intended outcome
+- work completed so far
+- files changed and why
+- what remains to do
+- exact next steps for the next agent
+- relevant commands run, results, errors, and any decisions or assumptions
+
+Keep the handoff clear enough that a new agent can continue without needing prior chat context. Do not make further changes once the rate limit is imminent; save the handoff first.
 
 End of File
