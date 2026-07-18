@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     DB_MAX_OVERFLOW: int = 10
     DB_ECHO: bool = False
 
+    # Redis Settings (caching, rate limiting — 06_SECURITY.md)
+    REDIS_URL: str
+
     # Security Settings
     # Map to SECRET_KEY or fall back to JWT_SECRET_KEY for backward compatibility
     SECRET_KEY: str = Field(
@@ -70,6 +73,16 @@ class Settings(BaseSettings):
             return v.replace("postgresql://", "postgresql+psycopg://", 1)
         if v.startswith("postgres://"):
             return v.replace("postgres://", "postgresql+psycopg://", 1)
+        return v
+
+    @field_validator("REDIS_URL")
+    @classmethod
+    def validate_redis_url(cls, v: str) -> str:
+        if not v.startswith(("redis://", "rediss://", "unix://")):
+            raise ValueError(
+                "REDIS_URL must be a valid Redis connection string starting "
+                "with redis://, rediss://, or unix://"
+            )
         return v
 
     @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES", "REFRESH_TOKEN_EXPIRE_DAYS")

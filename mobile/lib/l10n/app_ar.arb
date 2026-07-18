@@ -1,0 +1,42 @@
+{
+  "@@locale": "ar",
+
+  "appName": "سوق الذكاء الاصطناعي",
+  "loadingLabel": "جارٍ التحميل",
+
+  "languageSelectionTitle": "اختر لغتك",
+  "languageSelectionSubtitle": "يمكنك تغيير هذا في أي وقت من الإعدادات.",
+  "languageOptionEnglish": "English",
+  "languageOptionArabic": "العربية",
+  "continueLabel": "متابعة",
+
+  "phoneEntryTitle": "مرحباً",
+  "phoneEntrySubtitle": "سجّل الدخول أو أنشئ حساباً للبدء.",
+  "continueWithGoogle": "المتابعة عبر Google",
+  "continueWithApple": "المتابعة عبر Apple",
+  "comingSoonLabel": "قريباً",
+  "orDividerLabel": "أو",
+  "countryCodeFieldLabel": "الرمز",
+  "phoneNumberFieldLabel": "رقم الجوال",
+  "phoneNumberFieldHint": "501234567",
+  "continueWithMobileNumber": "المتابعة برقم الجوال",
+  "countryCodeInvalidError": "أدخل رمز دولة صحيحاً، مثل \u200E+971.",
+  "phoneNumberInvalidError": "أدخل رقم جوال صحيحاً.",
+  "termsAndPrivacyNotice": "بالمتابعة، فإنك توافق على شروط الخدمة وسياسة الخصوصية الخاصة بنا.",
+  "otpSentConfirmation": "لقد أرسلنا لك رمز تحقق.",
+
+  "otpEntryTitle": "تحقق من رقمك",
+  "otpEntrySubtitle": "أدخل الرمز المكوّن من 6 أرقام المُرسَل إلى {phone}",
+  "otpCodeFieldLabel": "رمز التحقق",
+  "otpIncompleteError": "أدخل الأرقام الستة كاملة.",
+  "verifyLabel": "تحقق",
+  "resendCodeLabel": "إعادة إرسال الرمز",
+  "resendCodeCountdown": "إعادة إرسال الرمز خلال {time}",
+  "otpChangeNumberLabel": "تغيير الرقم",
+
+  "networkErrorMessage": "تعذّر الاتصال. تحقق من اتصالك بالإنترنت وحاول مرة أخرى.",
+  "genericErrorMessage": "حدث خطأ ما. حاول مرة أخرى.",
+
+  "homePlaceholderTitle": "تم تسجيل الدخول",
+  "homePlaceholderMessage": "الصفحة الرئيسية قادمة قريباً."
+}

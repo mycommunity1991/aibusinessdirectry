@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from app.core.app_state import AppState
 from app.core.config import settings
 from app.core.logging import get_logger, setup_logging
+from app.core.redis import redis_client
 from app.database.database import engine
 
 logger = get_logger(__name__)
@@ -25,6 +26,9 @@ def validate_config() -> None:
 
     if not settings.SECRET_KEY:
         raise ValueError("SECRET_KEY must be configured")
+
+    if not settings.REDIS_URL:
+        raise ValueError("REDIS_URL must be configured")
 
     if settings.ENVIRONMENT not in ["development", "testing", "production"]:
         raise ValueError(f"Invalid environment: {settings.ENVIRONMENT}")
@@ -84,9 +88,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         # Initialize application state container
         app.state.services = AppState(
             db_engine=engine,
-            redis_client=None,
+            redis_client=redis_client,
             background_workers=None,
         )
+
+        # Verify Redis connectivity (connect-on-startup, fail fast like the
+        # DATABASE_URL/SECRET_KEY validation above)
+        logger.info("Verifying Redis connectivity")
+        await redis_client.ping()
+        logger.info("Redis connection verified")
 
         # Verify route registration and uniqueness
         verify_routes(app)
@@ -117,6 +127,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 logger.info("Database engine connection pool disposed successfully")
             except Exception as db_err:
                 logger.error(f"Failed to dispose database engine: {db_err}")
+
+            try:
+                logger.info("Closing Redis client connection")
+                if app.state.services.redis_client:
+                    await app.state.services.redis_client.aclose()
+                logger.info("Redis client connection closed successfully")
+            except Exception as redis_err:
+                logger.error(f"Failed to close Redis client: {redis_err}")
 
             # Future cleanup tasks can be added here
 

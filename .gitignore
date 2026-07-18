@@ -17,3 +17,6 @@ __pycache__/
 
 # MCP config (contains API keys)
 .mcp.json
+
+# Claude local cache
+.claude/settings.json

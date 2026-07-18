@@ -8,6 +8,11 @@ from app.core.config import settings
 from app.database.base import Base
 from app.database.database import engine
 
+# Import all domain models so they register on Base.metadata for
+# autogenerate/DDL purposes. Every new domain module's `models` module
+# must be imported here.
+import app.modules.identity.models  # noqa: E402,F401
+
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -45,6 +50,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_schemas=True,
     )
 
     with context.begin_transaction():
@@ -52,7 +58,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_schemas=True,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

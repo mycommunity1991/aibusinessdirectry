@@ -53,6 +53,28 @@ def test_settings_invalid_database_url(monkeypatch):
     )
 
 
+def test_settings_missing_redis_url(monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(_env_file=None)
+    assert "REDIS_URL" in str(exc_info.value)
+    assert "Field required" in str(exc_info.value)
+
+
+def test_settings_invalid_redis_url(monkeypatch):
+    monkeypatch.setenv("REDIS_URL", "http://localhost:6379")
+    with pytest.raises(ValidationError) as exc_info:
+        Settings(_env_file=None)
+    assert "REDIS_URL" in str(exc_info.value)
+    assert "REDIS_URL must be a valid Redis connection string" in str(exc_info.value)
+
+
+def test_settings_valid_redis_url(monkeypatch):
+    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
+    s = Settings(_env_file=None)
+    assert s.REDIS_URL == "redis://localhost:6379/0"
+
+
 def test_settings_missing_secret_key(monkeypatch):
     monkeypatch.delenv("SECRET_KEY", raising=False)
     monkeypatch.delenv("JWT_SECRET_KEY", raising=False)

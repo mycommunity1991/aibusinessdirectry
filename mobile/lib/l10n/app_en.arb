@@ -1,0 +1,154 @@
+{
+  "@@locale": "en",
+
+  "appName": "AI Marketplace",
+  "@appName": {
+    "description": "The application's brand name, shown on the splash screen."
+  },
+
+  "loadingLabel": "Loading",
+  "@loadingLabel": {
+    "description": "Screen-reader label for a generic loading/progress indicator."
+  },
+
+  "languageSelectionTitle": "Choose your language",
+  "@languageSelectionTitle": {
+    "description": "Title on the Language Selection screen (S-02)."
+  },
+  "languageSelectionSubtitle": "You can change this anytime in settings.",
+  "@languageSelectionSubtitle": {
+    "description": "Subtitle on the Language Selection screen (S-02)."
+  },
+  "languageOptionEnglish": "English",
+  "@languageOptionEnglish": {
+    "description": "Label for the English language option. Language names are shown in their own script regardless of the current locale."
+  },
+  "languageOptionArabic": "العربية",
+  "@languageOptionArabic": {
+    "description": "Label for the Arabic language option. Language names are shown in their own script regardless of the current locale."
+  },
+  "continueLabel": "Continue",
+  "@continueLabel": {
+    "description": "Generic primary-action label used to proceed to the next step."
+  },
+
+  "phoneEntryTitle": "Welcome",
+  "@phoneEntryTitle": {
+    "description": "Title on the Sign In / Sign Up screen (S-03)."
+  },
+  "phoneEntrySubtitle": "Sign in or create an account to get started.",
+  "@phoneEntrySubtitle": {
+    "description": "Subtitle on the Sign In / Sign Up screen (S-03)."
+  },
+  "continueWithGoogle": "Continue with Google",
+  "@continueWithGoogle": {
+    "description": "Disabled Google sign-in option label (wired in AUTH-002, not this story)."
+  },
+  "continueWithApple": "Continue with Apple",
+  "@continueWithApple": {
+    "description": "Disabled Apple sign-in option label (wired in AUTH-002, not this story)."
+  },
+  "comingSoonLabel": "Coming soon",
+  "@comingSoonLabel": {
+    "description": "Badge shown on the disabled Google/Apple sign-in options."
+  },
+  "orDividerLabel": "or",
+  "@orDividerLabel": {
+    "description": "Divider text between the OAuth options and the mobile number form."
+  },
+  "countryCodeFieldLabel": "Code",
+  "@countryCodeFieldLabel": {
+    "description": "Label for the phone country calling code field, e.g. +971."
+  },
+  "phoneNumberFieldLabel": "Mobile number",
+  "@phoneNumberFieldLabel": {
+    "description": "Label for the phone number field."
+  },
+  "phoneNumberFieldHint": "501234567",
+  "@phoneNumberFieldHint": {
+    "description": "Example hint text for the phone number field."
+  },
+  "continueWithMobileNumber": "Continue with Mobile Number",
+  "@continueWithMobileNumber": {
+    "description": "Primary action on the Sign In / Sign Up screen that requests an OTP."
+  },
+  "countryCodeInvalidError": "Enter a valid country code, e.g. +971.",
+  "@countryCodeInvalidError": {
+    "description": "Inline validation message for an invalid country code."
+  },
+  "phoneNumberInvalidError": "Enter a valid mobile number.",
+  "@phoneNumberInvalidError": {
+    "description": "Inline validation message for an invalid phone number."
+  },
+  "termsAndPrivacyNotice": "By continuing, you agree to our Terms of Service and Privacy Policy.",
+  "@termsAndPrivacyNotice": {
+    "description": "Footnote on the Sign In / Sign Up screen."
+  },
+  "otpSentConfirmation": "We've sent you a verification code.",
+  "@otpSentConfirmation": {
+    "description": "Snackbar confirmation shown after an OTP request succeeds."
+  },
+
+  "otpEntryTitle": "Verify your number",
+  "@otpEntryTitle": {
+    "description": "Title on the Mobile OTP Entry screen (S-04)."
+  },
+  "otpEntrySubtitle": "Enter the 6-digit code sent to {phone}",
+  "@otpEntrySubtitle": {
+    "description": "Subtitle on the OTP Entry screen showing the destination phone number.",
+    "placeholders": {
+      "phone": {
+        "type": "String",
+        "example": "+971 501234567"
+      }
+    }
+  },
+  "otpCodeFieldLabel": "Verification code",
+  "@otpCodeFieldLabel": {
+    "description": "Label for the 6-digit OTP input field."
+  },
+  "otpIncompleteError": "Enter all 6 digits.",
+  "@otpIncompleteError": {
+    "description": "Inline validation message shown while the OTP code is incomplete."
+  },
+  "verifyLabel": "Verify",
+  "@verifyLabel": {
+    "description": "Primary action on the OTP Entry screen."
+  },
+  "resendCodeLabel": "Resend code",
+  "@resendCodeLabel": {
+    "description": "Label for the resend-code action, enabled once the countdown reaches zero."
+  },
+  "resendCodeCountdown": "Resend code in {time}",
+  "@resendCodeCountdown": {
+    "description": "Countdown shown while the resend action is disabled, matching the OTP's 5-minute server-side expiry.",
+    "placeholders": {
+      "time": {
+        "type": "String",
+        "example": "4:59"
+      }
+    }
+  },
+  "otpChangeNumberLabel": "Change number",
+  "@otpChangeNumberLabel": {
+    "description": "Link back to the Sign In / Sign Up screen to correct the phone number."
+  },
+
+  "networkErrorMessage": "We couldn't connect. Check your internet connection and try again.",
+  "@networkErrorMessage": {
+    "description": "Plain-language error shown when a request fails with no server response."
+  },
+  "genericErrorMessage": "Something went wrong. Please try again.",
+  "@genericErrorMessage": {
+    "description": "Plain-language fallback error for unexpected/unrecognized failures. Never includes a status code or internal identifier."
+  },
+
+  "homePlaceholderTitle": "You're signed in",
+  "@homePlaceholderTitle": {
+    "description": "Title on the temporary post-authentication placeholder screen."
+  },
+  "homePlaceholderMessage": "Home is coming soon.",
+  "@homePlaceholderMessage": {
+    "description": "Body copy on the temporary post-authentication placeholder screen."
+  }
+}

@@ -28,6 +28,11 @@ def test_migration_upgrade_downgrade_mocked() -> None:
     mock_conn = AsyncMock()
     mock_sync_conn = MagicMock()
     mock_sync_conn.dialect.name = "postgresql"
+    # Alembic's version-bookkeeping UPDATE (used whenever a migration chain
+    # has more than one revision to step through) checks the affected
+    # rowcount and expects exactly 1. A bare MagicMock's default return
+    # value fails that check, so pin it explicitly.
+    mock_sync_conn.execute.return_value.rowcount = 1
 
     # Mock run_sync to execute the migration function immediately
     async def mock_run_sync(fn, *args, **kwargs):

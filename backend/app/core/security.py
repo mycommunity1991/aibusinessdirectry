@@ -38,6 +38,36 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return password_hash.verify(password, hashed_password)
 
 
+def hash_otp_code(code: str) -> str:
+    """
+    Hashes a one-time-password code using the same Argon2id primitive as
+    `hash_password` (BF-011). A dedicated wrapper is used (rather than
+    calling `hash_password` directly) so call sites clearly express intent
+    and never persist a plaintext OTP code (`06_SECURITY.md`).
+
+    Args:
+        code: The plain text OTP code (e.g. a 6-digit string).
+
+    Returns:
+        The hashed OTP code string.
+    """
+    return password_hash.hash(code)
+
+
+def verify_otp_code(code: str, code_hash: str) -> bool:
+    """
+    Verifies a plain text OTP code against its stored hash.
+
+    Args:
+        code: The plain text OTP code supplied by the user.
+        code_hash: The previously hashed OTP code.
+
+    Returns:
+        True if the code matches the hash, False otherwise.
+    """
+    return password_hash.verify(code, code_hash)
+
+
 def create_access_token(
     subject: str,
     expires_delta: timedelta | None = None,

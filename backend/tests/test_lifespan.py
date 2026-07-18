@@ -32,24 +32,29 @@ def test_lifespan_success(caplog: pytest.LogCaptureFixture) -> None:
     # Use a dummy app with our lifespan to isolate testing
     test_app = FastAPI(lifespan=lifespan)
 
-    # Mock engine.dispose to avoid actual DB connection disposal side effects
+    # Mock engine.dispose and the Redis client to avoid actual connection
+    # side effects
     with (
         patch("app.core.lifespan.engine") as mock_engine,
+        patch("app.core.lifespan.redis_client") as mock_redis_client,
         patch("app.core.lifespan.setup_logging"),
     ):
         mock_engine.dispose = AsyncMock()
+        mock_redis_client.ping = AsyncMock(return_value=True)
+        mock_redis_client.aclose = AsyncMock()
 
         with TestClient(test_app):
             # Assert state container is initialized
             assert test_app.state.services is not None
             assert test_app.state.services.db_engine == mock_engine
-            assert test_app.state.services.redis_client is None
+            assert test_app.state.services.redis_client == mock_redis_client
             assert test_app.state.services.background_workers is None
 
             # Assert startup logs are present
             log_messages = [record.message for record in caplog.records]
             assert "Application starting" in log_messages
             assert "Validating application configuration" in log_messages
+            assert "Redis connection verified" in log_messages
             assert "Startup completed" in log_messages
 
         # Assert shutdown was triggered and logs are present
@@ -57,8 +62,11 @@ def test_lifespan_success(caplog: pytest.LogCaptureFixture) -> None:
         assert "Shutdown initiated" in log_messages
         assert "Disposing database engine connection pool" in log_messages
         assert "Database engine connection pool disposed successfully" in log_messages
+        assert "Closing Redis client connection" in log_messages
+        assert "Redis client connection closed successfully" in log_messages
         assert "Shutdown completed" in log_messages
         mock_engine.dispose.assert_awaited_once()
+        mock_redis_client.aclose.assert_awaited_once()
 
 
 def test_lifespan_startup_failure(caplog: pytest.LogCaptureFixture) -> None:
@@ -102,12 +110,15 @@ def test_lifespan_cleanup_failure(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.INFO)
     test_app = FastAPI(lifespan=lifespan)
 
-    # Mock engine.dispose to raise an error
+    # Mock engine.dispose and the Redis client's close to raise errors
     with (
         patch("app.core.lifespan.engine") as mock_engine,
+        patch("app.core.lifespan.redis_client") as mock_redis_client,
         patch("app.core.lifespan.setup_logging"),
     ):
         mock_engine.dispose = AsyncMock(side_effect=Exception("Connection pool error"))
+        mock_redis_client.ping = AsyncMock(return_value=True)
+        mock_redis_client.aclose = AsyncMock(side_effect=Exception("Redis close error"))
 
         with TestClient(test_app):
             pass
@@ -117,8 +128,10 @@ def test_lifespan_cleanup_failure(caplog: pytest.LogCaptureFixture) -> None:
         assert "Shutdown initiated" in log_messages
         assert "Disposing database engine connection pool" in log_messages
         assert any("Failed to dispose database engine" in log for log in log_messages)
+        assert any("Failed to close Redis client" in log for log in log_messages)
         assert "Shutdown completed" in log_messages
         mock_engine.dispose.assert_awaited_once()
+        mock_redis_client.aclose.assert_awaited_once()
 
 
 def test_validate_config_success() -> None:
@@ -129,6 +142,7 @@ def test_validate_config_success() -> None:
             "postgresql+psycopg://localhost:5432/db",
         ),
         patch("app.core.lifespan.settings.SECRET_KEY", "supersecretkey"),
+        patch("app.core.lifespan.settings.REDIS_URL", "redis://localhost:6379/0"),
         patch("app.core.lifespan.settings.ENVIRONMENT", "testing"),
     ):
         # Should not raise any exception
@@ -136,20 +150,46 @@ def test_validate_config_success() -> None:
 
 
 @pytest.mark.parametrize(
-    "db_url,secret_key,env,expected_error",
+    "db_url,secret_key,redis_url,env,expected_error",
     [
-        ("", "key", "testing", "DATABASE_URL must be configured"),
-        ("postgresql://db", "", "testing", "SECRET_KEY must be configured"),
-        ("postgresql://db", "key", "invalid_env", "Invalid environment: invalid_env"),
+        (
+            "",
+            "key",
+            "redis://localhost:6379/0",
+            "testing",
+            "DATABASE_URL must be configured",
+        ),
+        (
+            "postgresql://db",
+            "",
+            "redis://localhost:6379/0",
+            "testing",
+            "SECRET_KEY must be configured",
+        ),
+        (
+            "postgresql://db",
+            "key",
+            "",
+            "testing",
+            "REDIS_URL must be configured",
+        ),
+        (
+            "postgresql://db",
+            "key",
+            "redis://localhost:6379/0",
+            "invalid_env",
+            "Invalid environment: invalid_env",
+        ),
     ],
 )
 def test_validate_config_failures(
-    db_url: str, secret_key: str, env: str, expected_error: str
+    db_url: str, secret_key: str, redis_url: str, env: str, expected_error: str
 ) -> None:
     """Verify validate_config raises ValueError with descriptive messages."""
     with (
         patch("app.core.lifespan.settings.DATABASE_URL", db_url),
         patch("app.core.lifespan.settings.SECRET_KEY", secret_key),
+        patch("app.core.lifespan.settings.REDIS_URL", redis_url),
         patch("app.core.lifespan.settings.ENVIRONMENT", env),
     ):
         with pytest.raises(ValueError, match=expected_error):
