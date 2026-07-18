@@ -39,6 +39,7 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
           return OtpEntryScreen(
             countryCode: args.countryCode,
             phoneNumber: args.phoneNumber,
+            expiresInSeconds: args.expiresInSeconds,
           );
         },
       ),

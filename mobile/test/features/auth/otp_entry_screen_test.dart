@@ -63,27 +63,59 @@ void main() {
       expect(find.textContaining('Resend code in'), findsNothing);
     });
 
-    testWidgets('resending restarts the countdown', (tester) async {
-      final fakeRepository = FakeAuthRepository();
-      await pumpScreen(
-        tester,
-        child: _otpScreen,
-        overrides: [
-          otpCountdownDurationProvider.overrideWithValue(
-            const Duration(seconds: 2),
+    testWidgets(
+      'resending restarts the countdown, resized from the fresh response',
+      (tester) async {
+        // Sized from the fresh resend's own `expires_in_seconds` (FU-2) —
+        // not the same value the initial 2-second countdown started from.
+        final fakeRepository = FakeAuthRepository(
+          requestOtpExpiresInSeconds: 3,
+        );
+        await pumpScreen(
+          tester,
+          child: _otpScreen,
+          overrides: [
+            otpCountdownDurationProvider.overrideWithValue(
+              const Duration(seconds: 2),
+            ),
+            authRepositoryProvider.overrideWithValue(fakeRepository),
+          ],
+        );
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 2));
+
+        await tester.tap(find.widgetWithText(TextButton, 'Resend code'));
+        await tester.pumpAndSettle();
+
+        expect(fakeRepository.requestOtpCallCount, 1);
+        expect(find.text('Resend code in 0:03'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'the initial countdown is sized from OtpEntryArgs.expiresInSeconds, not the fallback default',
+      (tester) async {
+        await pumpScreen(
+          tester,
+          child: const OtpEntryScreen(
+            countryCode: '+971',
+            phoneNumber: '501234567',
+            expiresInSeconds: 7,
           ),
-          authRepositoryProvider.overrideWithValue(fakeRepository),
-        ],
-      );
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 2));
+          overrides: [
+            // The fallback default is deliberately different from 7, so
+            // this only passes if the countdown is sized from the args
+            // value, not the fallback provider.
+            otpCountdownDurationProvider.overrideWithValue(
+              const Duration(minutes: 5),
+            ),
+          ],
+        );
+        await tester.pump();
 
-      await tester.tap(find.widgetWithText(TextButton, 'Resend code'));
-      await tester.pumpAndSettle();
-
-      expect(fakeRepository.requestOtpCallCount, 1);
-      expect(find.text('Resend code in 0:02'), findsOneWidget);
-    });
+        expect(find.text('Resend code in 0:07'), findsOneWidget);
+      },
+    );
   });
 
   group('OtpEntryScreen (S-04) — 6-digit live validation', () {
@@ -127,14 +159,10 @@ void main() {
 
   group('OtpEntryScreen (S-04) — verification outcomes', () {
     testWidgets(
-      'a failed verification shows the backend plain-language message, never a raw code',
+      'a failed verification shows a localized plain-language message, never a raw code or the backend string',
       (tester) async {
         final fakeRepository = FakeAuthRepository(
-          verifyOtpError: const AuthException(
-            type: AuthErrorType.invalidCode,
-            serverMessage:
-                "That code didn't work — check the digits and try again.",
-          ),
+          verifyOtpError: const AuthException(type: AuthErrorType.invalidCode),
         );
         await pumpScreen(
           tester,
@@ -149,7 +177,7 @@ void main() {
 
         expect(find.byType(AppErrorMessage), findsOneWidget);
         expect(
-          find.text("That code didn't work — check the digits and try again."),
+          find.text("That code didn't work. Check the digits and try again."),
           findsOneWidget,
         );
         expect(find.textContaining('400'), findsNothing);
@@ -159,13 +187,11 @@ void main() {
     );
 
     testWidgets(
-      'a locked-out attempt shows the backend lockout message, never a raw code',
+      'a locked-out attempt shows a localized lockout message, never a raw code or the backend string',
       (tester) async {
         final fakeRepository = FakeAuthRepository(
           verifyOtpError: const AuthException(
             type: AuthErrorType.tooManyAttempts,
-            serverMessage:
-                'Too many incorrect attempts. Please request a new code and try again.',
           ),
         );
         await pumpScreen(
@@ -181,7 +207,7 @@ void main() {
 
         expect(
           find.text(
-            'Too many incorrect attempts. Please request a new code and try again.',
+            'Too many attempts. Please wait a moment before trying again.',
           ),
           findsOneWidget,
         );

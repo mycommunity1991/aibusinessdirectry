@@ -68,9 +68,11 @@ void main() {
     });
 
     testWidgets(
-      'submitting a valid number requests an OTP and navigates to OTP Entry with the entered number',
+      'submitting a valid number requests an OTP and navigates to OTP Entry with the entered number and the real expiry (FU-2)',
       (tester) async {
-        final fakeRepository = FakeAuthRepository();
+        final fakeRepository = FakeAuthRepository(
+          requestOtpExpiresInSeconds: 300,
+        );
         await pumpApp(
           tester,
           initialLocation: AppRoutes.phoneEntry,
@@ -97,6 +99,7 @@ void main() {
         );
         expect(otpScreen.countryCode, '+971');
         expect(otpScreen.phoneNumber, '501234567');
+        expect(otpScreen.expiresInSeconds, 300);
       },
     );
 

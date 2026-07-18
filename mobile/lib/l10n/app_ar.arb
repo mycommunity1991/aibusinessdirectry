@@ -34,6 +34,9 @@
   "resendCodeCountdown": "إعادة إرسال الرمز خلال {time}",
   "otpChangeNumberLabel": "تغيير الرقم",
 
+  "otpInvalidCodeMessage": "هذا الرمز غير صحيح. تحقق من الأرقام وحاول مرة أخرى.",
+  "otpTooManyAttemptsMessage": "محاولات كثيرة جداً. يُرجى الانتظار قليلاً ثم المحاولة مرة أخرى.",
+
   "networkErrorMessage": "تعذّر الاتصال. تحقق من اتصالك بالإنترنت وحاول مرة أخرى.",
   "genericErrorMessage": "حدث خطأ ما. حاول مرة أخرى.",
 

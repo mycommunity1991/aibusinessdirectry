@@ -7,18 +7,26 @@ import '../domain/models/auth_exception.dart';
 import '../domain/models/auth_token.dart';
 import '../domain/models/otp_entry_args.dart';
 
-/// The OTP's server-side expiry (`OTP_EXPIRY_MINUTES` in
-/// `backend/app/core/constants.py`). A single countdown, started when OTP
-/// Entry (S-04) opens, both displays this expiry and gates "Resend code" —
-/// there is exactly one timer serving both purposes (AC9, Plan Decision 8).
+/// A defensive fallback for the OTP countdown's duration — used only if a
+/// `request-otp` response is somehow missing `expires_in_seconds`
+/// (`RequestOtpResponse` — `backend/app/modules/identity/schemas.py`), an
+/// old/misbehaving-response case that should be unreachable per the current
+/// contract. The primary path sizes the countdown from
+/// [OtpEntryArgs.expiresInSeconds], captured from the real `request-otp`
+/// response on Phone Entry (S-03) — this constant never drives the UI when
+/// that value is present (FU-2, `Walkthrough_S02_AUTH-001.md`). A single
+/// countdown, started when OTP Entry (S-04) opens, both displays the expiry
+/// and gates "Resend code" — there is exactly one timer serving both
+/// purposes (AC9, Plan Decision 8).
 ///
 /// Overridable via [otpCountdownDurationProvider] for tests.
-const kOtpExpiryDuration = Duration(minutes: 5);
+const kOtpExpiryFallbackDuration = Duration(minutes: 5);
 
-/// The countdown's total duration — a [Provider] so widget tests can
-/// override it with a short duration instead of waiting out 5 real minutes.
+/// The countdown's fallback duration, used when [OtpEntryArgs.expiresInSeconds]
+/// is absent — a [Provider] so widget tests can override it with a short
+/// duration instead of waiting out real minutes.
 final otpCountdownDurationProvider = Provider<Duration>(
-  (ref) => kOtpExpiryDuration,
+  (ref) => kOtpExpiryFallbackDuration,
 );
 
 class OtpEntryState {
@@ -65,20 +73,29 @@ class OtpEntryController extends StateNotifier<OtpEntryState> {
     this._repository, {
     required this.countryCode,
     required this.phoneNumber,
-    required this.countdownDuration,
-  }) : super(OtpEntryState(remainingSeconds: countdownDuration.inSeconds)) {
+    required Duration initialCountdownDuration,
+  }) : _countdownDuration = initialCountdownDuration,
+       super(
+         OtpEntryState(remainingSeconds: initialCountdownDuration.inSeconds),
+       ) {
     _startCountdown();
   }
 
   final AuthRepository _repository;
   final String countryCode;
   final String phoneNumber;
-  final Duration countdownDuration;
+
+  /// The countdown's current total duration. Set from the constructor's
+  /// initial value (sized from [OtpEntryArgs.expiresInSeconds]), and
+  /// refreshed on a successful [resend] from that call's own
+  /// `expires_in_seconds`, so a resent code's countdown always matches its
+  /// own real server-side expiry rather than the original request's.
+  Duration _countdownDuration;
   Timer? _timer;
 
   void _startCountdown() {
     _timer?.cancel();
-    state = state.copyWith(remainingSeconds: countdownDuration.inSeconds);
+    state = state.copyWith(remainingSeconds: _countdownDuration.inSeconds);
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final next = state.remainingSeconds - 1;
       if (next <= 0) {
@@ -117,7 +134,10 @@ class OtpEntryController extends StateNotifier<OtpEntryState> {
     }
   }
 
-  /// Requests a fresh OTP and restarts the countdown on success.
+  /// Requests a fresh OTP and restarts the countdown on success, resized
+  /// from that response's own `expires_in_seconds` when present (FU-2) —
+  /// falls back to keeping the previous countdown duration only in the
+  /// should-be-unreachable case where the field is missing.
   Future<void> resend() async {
     if (!state.canResend) {
       return;
@@ -125,10 +145,13 @@ class OtpEntryController extends StateNotifier<OtpEntryState> {
 
     state = state.copyWith(isResending: true, clearError: true);
     try {
-      await _repository.requestOtp(
+      final expiresInSeconds = await _repository.requestOtp(
         phoneCountryCode: countryCode,
         phoneNumber: phoneNumber,
       );
+      if (expiresInSeconds != null) {
+        _countdownDuration = Duration(seconds: expiresInSeconds);
+      }
       state = state.copyWith(isResending: false, code: '');
       _startCountdown();
     } on AuthException catch (error) {
@@ -145,11 +168,16 @@ class OtpEntryController extends StateNotifier<OtpEntryState> {
 
 final otpEntryControllerProvider = StateNotifierProvider.autoDispose
     .family<OtpEntryController, OtpEntryState, OtpEntryArgs>((ref, args) {
-      final countdownDuration = ref.watch(otpCountdownDurationProvider);
+      // Prefer the real expiry captured from the triggering `request-otp`
+      // response (FU-2); only fall back to the defensive default provider
+      // if that response was somehow missing `expires_in_seconds`.
+      final initialCountdownDuration = args.expiresInSeconds != null
+          ? Duration(seconds: args.expiresInSeconds!)
+          : ref.watch(otpCountdownDurationProvider);
       return OtpEntryController(
         ref.watch(authRepositoryProvider),
         countryCode: args.countryCode,
         phoneNumber: args.phoneNumber,
-        countdownDuration: countdownDuration,
+        initialCountdownDuration: initialCountdownDuration,
       );
     });

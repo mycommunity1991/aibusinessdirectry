@@ -134,6 +134,15 @@
     "description": "Link back to the Sign In / Sign Up screen to correct the phone number."
   },
 
+  "otpInvalidCodeMessage": "That code didn't work. Check the digits and try again.",
+  "@otpInvalidCodeMessage": {
+    "description": "Plain-language error shown when an OTP code is wrong, expired, or already used (backend 400, InvalidOtpError). Deliberately generic — never reveals which."
+  },
+  "otpTooManyAttemptsMessage": "Too many attempts. Please wait a moment before trying again.",
+  "@otpTooManyAttemptsMessage": {
+    "description": "Plain-language error shown after too many incorrect OTP attempts (OTP locked, backend 429 OtpLockedError) or too many requests in a short time (rate limited, backend 429 RateLimitExceededError) — both currently map to the same client error type, so this copy is phrased to read sensibly for either."
+  },
+
   "networkErrorMessage": "We couldn't connect. Check your internet connection and try again.",
   "@networkErrorMessage": {
     "description": "Plain-language error shown when a request fails with no server response."

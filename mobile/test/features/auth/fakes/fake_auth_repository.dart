@@ -11,6 +11,7 @@ class FakeAuthRepository extends AuthRepository {
   FakeAuthRepository({
     this.requestOtpError,
     this.verifyOtpError,
+    this.requestOtpExpiresInSeconds,
     AuthToken? tokenToReturn,
   }) : _tokenToReturn = tokenToReturn ?? _defaultToken,
        super(Dio());
@@ -32,11 +33,16 @@ class FakeAuthRepository extends AuthRepository {
   final AuthException? verifyOtpError;
   final AuthToken _tokenToReturn;
 
+  /// The `expires_in_seconds` this fake's `requestOtp` resolves with —
+  /// `null` by default, matching a not-yet-known/unspecified server value
+  /// in tests that don't care about it.
+  final int? requestOtpExpiresInSeconds;
+
   int requestOtpCallCount = 0;
   int verifyOtpCallCount = 0;
 
   @override
-  Future<void> requestOtp({
+  Future<int?> requestOtp({
     required String phoneCountryCode,
     required String phoneNumber,
   }) async {
@@ -44,6 +50,7 @@ class FakeAuthRepository extends AuthRepository {
     if (requestOtpError != null) {
       throw requestOtpError!;
     }
+    return requestOtpExpiresInSeconds;
   }
 
   @override

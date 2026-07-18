@@ -7,17 +7,20 @@ import '../../domain/models/auth_exception.dart';
 /// display — per `docs/AI/16_UX_GUIDELINES.md`'s error-message formula and
 /// AC10 (never a raw status code or internal identifier).
 ///
-/// For [AuthErrorType.invalidCode]/[AuthErrorType.tooManyAttempts], the
-/// backend's own message is already crafted to be plain-language and
-/// non-revealing (`InvalidOtpError`/`OtpLockedError`), so it's used
-/// directly with a localized fallback. Every other failure uses a
-/// client-owned, localized message.
+/// Every failure — including [AuthErrorType.invalidCode]/
+/// [AuthErrorType.tooManyAttempts] — resolves to a client-owned, localized
+/// string, never the backend's raw English message (FU-3,
+/// `Walkthrough_S02_AUTH-001.md`). This keeps Arabic-locale users from ever
+/// seeing untranslated English copy, and keeps the client's wording
+/// independent of the backend's (which is free to change without a mobile
+/// release).
 String authErrorMessage(BuildContext context, AuthException exception) {
   final l10n = AppLocalizations.of(context);
   switch (exception.type) {
     case AuthErrorType.invalidCode:
+      return l10n.otpInvalidCodeMessage;
     case AuthErrorType.tooManyAttempts:
-      return exception.serverMessage ?? l10n.genericErrorMessage;
+      return l10n.otpTooManyAttemptsMessage;
     case AuthErrorType.network:
       return l10n.networkErrorMessage;
     case AuthErrorType.unknown:

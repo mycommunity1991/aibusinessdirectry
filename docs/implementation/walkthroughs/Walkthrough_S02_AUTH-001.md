@@ -76,34 +76,40 @@ All 12 acceptance criteria (from `Plan_S02_AUTH-001.md`, sourced from the Tracke
 The `architect` agent returned **APPROVED WITH NOTES** (non-blocking). Each finding and its resolution:
 
 1. **Module layout diverged from `02_ARCHITECTURE.md`.** The backend was initially implemented in a flat layout (`backend/app/{models,services,repositories,schemas}/`), inherited from Sprint 1 (which shipped zero domain models, so the divergence pre-dated AUTH-001). The architect flagged that AUTH-001, as the first real domain, would set precedent for every later domain if left flat. **Resolution: refactored.** The user was presented with the finding and explicitly chose to refactor rather than accept the flat layout via ADR. A follow-up `backend` agent pass moved the identity domain into `backend/app/modules/identity/{models.py, schemas.py, api.py, dependencies.py, repositories/, services/}`, matching `02_ARCHITECTURE.md`'s documented `backend/app/modules/<domain>/...` convention exactly. `CommonColumnsMixin` stayed in `backend/app/database/` (shared infrastructure, not identity-specific). `InvalidOtpError`/`OtpLockedError` stayed in `backend/app/core/exceptions/` (judgment call — the module convention has no `exceptions/` subfolder). Tests were mirrored to `backend/tests/modules/identity/`. Post-refactor verification: still 104 tests passing, 0 behavior change, `ruff` clean, API route paths/contracts byte-for-byte unchanged (mobile needed zero changes), confirmed via grep that no stale imports of the old flat paths (`app.models.identity`, `app.services.otp_service`, `app.services.auth_service`, `app.repositories.user_repository`, etc.) remain anywhere in the codebase.
-2. **`OtpService` reached into `repository.session.commit()`** rather than taking `session` as an explicit constructor dependency, unlike `AuthService`. **Not fixed in this story** — tracked as a follow-up (see below).
-3. **Mobile's OTP countdown duration is a hardcoded constant** mirroring the backend's `OTP_EXPIRY_MINUTES`, not fetched from the response — could desync if the backend value changes. **Not fixed in this story** — tracked as a follow-up (see below).
-4. **`InvalidOtpError`/`OtpLockedError` messages are English-only**, shown verbatim to Arabic-locale users, while everything else in the app is properly localized. **Not fixed in this story** — tracked as a follow-up (see below).
+2. **`OtpService` reached into `repository.session.commit()`** rather than taking `session` as an explicit constructor dependency, unlike `AuthService`. **Resolved** — see FU-1 below.
+3. **Mobile's OTP countdown duration is a hardcoded constant** mirroring the backend's `OTP_EXPIRY_MINUTES`, not fetched from the response — could desync if the backend value changes. **Resolved** — see FU-2 below.
+4. **`InvalidOtpError`/`OtpLockedError` messages are English-only**, shown verbatim to Arabic-locale users, while everything else in the app is properly localized. **Resolved** — see FU-3 below.
 
-A fifth item surfaced during the module-layout refactor pass (not an architect finding on the original submission, but noted by the `backend` agent while doing that work): `alembic check` does not see the `identity` schema in autogenerate diffing because `include_schemas=True` is not set in `backend/alembic/env.py`. Pre-existing, not caused by AUTH-001, not fixed as part of a structural refactor pass.
+A fifth item surfaced during the module-layout refactor pass (not an architect finding on the original submission, but noted by the `backend` agent while doing that work): `alembic check` does not see the `identity` schema in autogenerate diffing because `include_schemas=True` is not set in `backend/alembic/env.py`. Pre-existing, not caused by AUTH-001. **Resolved** — see FU-4 below.
 
-### Tracked Follow-ups (not fixed in this story — do not lose these)
+### Tracked Follow-ups — all resolved in a dedicated follow-up pass
 
-- **FU-1:** Refactor `OtpService` to take `session` as an explicit constructor dependency (matching `AuthService`'s pattern) instead of reaching into `repository.session.commit()`.
-- **FU-2:** Have the mobile OTP countdown read its duration from the `request-otp`/`verify-otp` response payload instead of a hardcoded constant, to avoid desync with the backend's `OTP_EXPIRY_MINUTES`.
-- **FU-3:** Localize `InvalidOtpError`/`OtpLockedError` messages (currently English-only) for Arabic-locale users.
-- **FU-4:** Set `include_schemas=True` in `backend/alembic/env.py` so `alembic check`/autogenerate correctly sees the `identity` schema (pre-existing gap, not caused by AUTH-001).
-- **FU-5 (already flagged in the Plan, not new):** Redis-based rate limiting on `request-otp` (SMS-bombing protection) — `REDIS_URL`/a Redis client don't exist in the codebase yet; candidate for a future infra/hardening story.
+The user asked for all five follow-ups to be closed out before AUTH-002 starts, rather than deferring them. Resolution:
 
-These should be picked up as small, explicitly-scoped follow-up stories or folded into a hardening sprint — none are acceptance criteria of AUTH-001 and none block the story being marked Done.
+- **FU-1 — done.** `OtpService` now takes `session: AsyncSession` as an explicit constructor dependency, matching `AuthService`'s pattern; DI wiring updated in `backend/app/modules/identity/dependencies.py`. No behavior change.
+- **FU-2 — done.** Backend: `POST /auth/request-otp` now returns `RequestOtpResponse { expires_in_seconds: int }` (`backend/app/modules/identity/schemas.py`), sourced from `OTP_EXPIRY_MINUTES`. Mobile: `expires_in_seconds` is captured in `PhoneEntryState`, threaded through `OtpEntryArgs` and the route's `extra`, and used to size the OTP-entry countdown — including on `resend()`, which resizes from the *fresh* response. The old hardcoded `kOtpExpiryDuration` was renamed `kOtpExpiryFallbackDuration` and now only applies if the field is unexpectedly absent.
+- **FU-3 — done.** Added `otpInvalidCodeMessage`/`otpTooManyAttemptsMessage` to `mobile/lib/l10n/app_en.arb`/`app_ar.arb`; `auth_error_copy.dart` now returns these localized strings instead of the backend's raw English `serverMessage`. `AuthException.serverMessage` was removed entirely (confirmed unused elsewhere). Side effect handled: the backend's new FU-5 rate limiter also returns 429, indistinguishable from `OtpLockedError`'s 429 by any stable machine-readable field — both were deliberately collapsed into one `AuthErrorType.tooManyAttempts` with copy that reads sensibly for either ("Too many attempts. Please wait a moment before trying again.").
+- **FU-4 — done.** `include_schemas=True` added to both `context.configure()` calls in `backend/alembic/env.py`. `alembic check` now reports "No new upgrade operations detected" against a DB at head, confirmed.
+- **FU-5 — done.** Redis wired end-to-end: `redis` added to `pyproject.toml`, `REDIS_URL` added to `Settings` with startup validation, a real `redis.asyncio.Redis` client replaces the `AppState.redis_client=None` placeholder in `app/core/lifespan.py` (connect on startup, dispose on shutdown). `app/core/rate_limit.py` implements a Redis `INCR`+`EXPIRE` fixed-window `RateLimitDependency` (10 req/min per `05_API_GUIDELINES.md`), applied to both `request-otp` (phone-keyed — the meaningful SMS-bombing protection) and `verify-otp` (IP-keyed, defense in depth). Initially shipped without tests; a dedicated follow-up pass added 15 tests (`backend/tests/core/test_rate_limit.py` + a `TestRateLimiting` class in `test_auth_endpoints.py`) covering under/over-limit behavior, per-key isolation, and fast expiry-reset against real Redis with cleanup — no mocks, consistent with this project's real-service testing philosophy.
+
+None of these were acceptance criteria of AUTH-001 itself and none blocked the story being marked Done — they were closed out as an explicit, separately-scoped follow-up pass at the user's request.
 
 ---
 
 ## Testing Performed
 
-- `cd backend && uv run pytest -v` — 104 tests passing (post-refactor).
+- `cd backend && uv run pytest -v` — 104 tests passing (post-refactor); **123 passing after the follow-up pass** (108 + 15 new rate-limit tests — the +4 between 104 and 108 came from the FU-1/FU-2/FU-4/FU-5 implementation pass itself).
 - `cd backend && uv run alembic upgrade head && uv run alembic downgrade -1 && uv run alembic upgrade head` — verified live, non-mocked; reversible.
+- `cd backend && uv run alembic check` — clean ("No new upgrade operations detected") after FU-4.
 - `cd backend && uv run ruff check && uv run ruff format --check` — clean.
-- `cd mobile && flutter test` — 19 tests passing.
+- `cd mobile && flutter test` — 19 tests passing; **20 passing after the follow-up pass** (FU-2/FU-3 changes plus one new countdown-source test).
 - `cd mobile && flutter analyze` — clean, no new warnings.
 - `tester` agent: all 12 ACs independently verified with live evidence (real endpoint calls, direct SQL inspection, real migration cycle) — see table above.
-- `architect` agent: APPROVED WITH NOTES (see above) — module-layout finding resolved via refactor; three minor findings plus one gap surfaced during the refactor tracked as follow-ups.
+- `architect` agent: APPROVED WITH NOTES (see above) — module-layout finding resolved via refactor; all four remaining findings resolved in the follow-up pass (FU-1 through FU-5).
 - Post-refactor regression check: grepped for stale imports of the old flat module paths — none found.
+- Rate-limit tests (FU-5) run against a real local Redis instance with per-test key cleanup — no mocks.
+
+**Note on process:** the FU-1/FU-2(backend)/FU-4/FU-5(implementation) work was interrupted mid-session by a session/rate limit and completed by a separate continuation (per the project's new Continuity & Checkpointing convention in `.agents/agents.md`), which also committed the work (`5f723b3`). That pass left FU-5 without test coverage and did not touch the mobile side; those gaps (FU-5 tests, FU-2 mobile, FU-3) were closed in a final follow-up pass and are reflected in the numbers above.
 
 ---
 
@@ -143,6 +149,6 @@ These should be picked up as small, explicitly-scoped follow-up stories or folde
 
 ## Follow-up Notes
 
-- See "Tracked Follow-ups" above (FU-1 through FU-5) — none are blocking, all should become their own small stories or be folded into a hardening sprint before they're forgotten.
+- All five tracked follow-ups (FU-1 through FU-5) are resolved — see "Tracked Follow-ups" above. Nothing outstanding from the architect review remains open.
 - `docs/implementation/plans/Plan_S02_AUTH-002.md` through `Plan_S02_AUTH-009.md` describe the superseded 9-story Sprint 2 backlog and no longer correspond 1:1 to the current 4-story tracker (AUTH-001 through AUTH-004). They must be re-planned against the current tracker when AUTH-002/003/004 are picked up — do not implement against them as-is.
-- AUTH-002 ("Register and sign in with Google or Apple") is next in the Sprint 2 backlog and depends on this story's `users.external_auth_subject`/`auth_provider` columns, which already exist (Decision 3 in the Plan).
+- AUTH-002 ("Register and sign in with Google or Apple") is next in the Sprint 2 backlog and depends on this story's `users.external_auth_subject`/`auth_provider` columns, which already exist (Decision 3 in the Plan). It also now has a Redis client and rate-limiting dependency (FU-5) available to reuse if needed.

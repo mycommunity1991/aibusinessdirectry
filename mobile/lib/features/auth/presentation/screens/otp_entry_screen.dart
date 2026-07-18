@@ -16,17 +16,24 @@ import '../../state/otp_entry_controller.dart';
 import '../utils/auth_error_copy.dart';
 
 /// S-04 — Mobile OTP Entry. 6-digit code entry with live validation and a
-/// single 5:00 countdown that both gates "Resend" and matches the OTP's
-/// actual server-side expiry (AC9).
+/// single countdown, sized from the real OTP expiry (FU-2), that both gates
+/// "Resend" and matches the OTP's actual server-side expiry (AC9).
 class OtpEntryScreen extends ConsumerStatefulWidget {
   const OtpEntryScreen({
     super.key,
     required this.countryCode,
     required this.phoneNumber,
+    this.expiresInSeconds,
   });
 
   final String countryCode;
   final String phoneNumber;
+
+  /// The OTP's `expires_in_seconds`, captured from the triggering
+  /// `request-otp` response on Phone Entry (S-03). `null` only if that
+  /// response was somehow missing the field — the countdown then falls
+  /// back to a client-side default.
+  final int? expiresInSeconds;
 
   @override
   ConsumerState<OtpEntryScreen> createState() => _OtpEntryScreenState();
@@ -39,7 +46,11 @@ class _OtpEntryScreenState extends ConsumerState<OtpEntryScreen> {
   @override
   void initState() {
     super.initState();
-    _args = (countryCode: widget.countryCode, phoneNumber: widget.phoneNumber);
+    _args = (
+      countryCode: widget.countryCode,
+      phoneNumber: widget.phoneNumber,
+      expiresInSeconds: widget.expiresInSeconds,
+    );
     _codeController = TextEditingController();
   }
 

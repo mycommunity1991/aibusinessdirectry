@@ -17,12 +17,18 @@ class PhoneEntryState {
     this.phoneNumber = '',
     this.isSubmitting = false,
     this.error,
+    this.otpExpiresInSeconds,
   });
 
   final String countryCode;
   final String phoneNumber;
   final bool isSubmitting;
   final AuthException? error;
+
+  /// The `expires_in_seconds` from the last successful `request-otp` call,
+  /// forwarded to OTP Entry (S-04) via [OtpEntryArgs] so its resend
+  /// countdown is sized from the real server value (FU-2).
+  final int? otpExpiresInSeconds;
 
   bool get isCountryCodeValid => _countryCodePattern.hasMatch(countryCode);
 
@@ -36,12 +42,14 @@ class PhoneEntryState {
     bool? isSubmitting,
     AuthException? error,
     bool clearError = false,
+    int? otpExpiresInSeconds,
   }) {
     return PhoneEntryState(
       countryCode: countryCode ?? this.countryCode,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       isSubmitting: isSubmitting ?? this.isSubmitting,
       error: clearError ? null : (error ?? this.error),
+      otpExpiresInSeconds: otpExpiresInSeconds ?? this.otpExpiresInSeconds,
     );
   }
 }
@@ -70,11 +78,14 @@ class PhoneEntryController extends StateNotifier<PhoneEntryState> {
 
     state = state.copyWith(isSubmitting: true, clearError: true);
     try {
-      await _repository.requestOtp(
+      final expiresInSeconds = await _repository.requestOtp(
         phoneCountryCode: state.countryCode,
         phoneNumber: state.phoneNumber,
       );
-      state = state.copyWith(isSubmitting: false);
+      state = state.copyWith(
+        isSubmitting: false,
+        otpExpiresInSeconds: expiresInSeconds,
+      );
       return true;
     } on AuthException catch (error) {
       state = state.copyWith(isSubmitting: false, error: error);

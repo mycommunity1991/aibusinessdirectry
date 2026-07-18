@@ -19,18 +19,29 @@ class AuthRepository {
   /// Requests a 6-digit OTP for the given phone number. Always resolves
   /// successfully for a well-formed number — the backend never confirms or
   /// denies whether the number is already registered.
-  Future<void> requestOtp({
+  ///
+  /// Returns the OTP's `expires_in_seconds` from the response
+  /// (`RequestOtpResponse` — `backend/app/modules/identity/schemas.py`), so
+  /// callers can size a resend countdown from the real server value (FU-2).
+  /// Returns `null` only if that field is somehow missing from the response
+  /// — a should-be-unreachable, defensive case per the current contract.
+  Future<int?> requestOtp({
     required String phoneCountryCode,
     required String phoneNumber,
   }) async {
     try {
-      await _dio.post<Map<String, dynamic>>(
+      final response = await _dio.post<Map<String, dynamic>>(
         '/auth/request-otp',
         data: {
           'phone_country_code': phoneCountryCode,
           'phone_number': phoneNumber,
         },
       );
+      final data = response.data?['data'];
+      final expiresInSeconds = data is Map<String, dynamic>
+          ? data['expires_in_seconds']
+          : null;
+      return expiresInSeconds is int ? expiresInSeconds : null;
     } on DioException catch (error) {
       throw _mapError(error);
     }
@@ -65,13 +76,14 @@ class AuthRepository {
 
   /// Maps a Dio failure to a plain-language [AuthException].
   ///
-  /// The backend's `request-otp`/`verify-otp` 400/429 responses already
-  /// carry a plain-language, non-revealing message (`InvalidOtpError` /
-  /// `OtpLockedError` in `backend/app/core/exceptions/exceptions.py`), so
-  /// that message is safe to surface directly. Every other status (422
-  /// validation, 5xx, or no response at all) maps to a generic, localized,
-  /// client-owned message — never the raw status code, an internal error
-  /// identifier, or a technical validation string.
+  /// Only [AuthErrorType] is carried across — never the backend's raw
+  /// `message` string, an HTTP status code, or an internal error
+  /// identifier. Every type is rendered from client-owned, localized copy
+  /// (`auth_error_copy.dart`, FU-3). A 429 always maps to
+  /// [AuthErrorType.tooManyAttempts]: it covers both `OtpLockedError`
+  /// (too many wrong attempts) and `RateLimitExceededError` (too many
+  /// requests) — see [AuthErrorType.tooManyAttempts] for why they're not
+  /// distinguished further.
   AuthException _mapError(DioException error) {
     final response = error.response;
     if (response == null) {
@@ -79,22 +91,11 @@ class AuthRepository {
     }
 
     final statusCode = response.statusCode;
-    final body = response.data;
-    final message = body is Map<String, dynamic> && body['message'] is String
-        ? body['message'] as String
-        : null;
-
     if (statusCode == 429) {
-      return AuthException(
-        type: AuthErrorType.tooManyAttempts,
-        serverMessage: message,
-      );
+      return const AuthException(type: AuthErrorType.tooManyAttempts);
     }
     if (statusCode == 400) {
-      return AuthException(
-        type: AuthErrorType.invalidCode,
-        serverMessage: message,
-      );
+      return const AuthException(type: AuthErrorType.invalidCode);
     }
     return const AuthException(type: AuthErrorType.unknown);
   }

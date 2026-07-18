@@ -172,6 +172,7 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
     final OtpEntryArgs args = (
       countryCode: state.countryCode,
       phoneNumber: state.phoneNumber,
+      expiresInSeconds: state.otpExpiresInSeconds,
     );
     context.push(AppRoutes.otpEntry, extra: args);
   }

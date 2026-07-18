@@ -2,14 +2,21 @@
 ///
 /// Deliberately coarse-grained: the UI layer never needs to know the raw
 /// HTTP status code or backend error identifier (`docs/AI/06_SECURITY.md`,
-/// AC10) — only enough to pick the right plain-language copy.
+/// AC10) — only enough to pick the right plain-language, localized copy
+/// (see `auth_error_copy.dart`; FU-3, `Walkthrough_S02_AUTH-001.md`).
 enum AuthErrorType {
   /// The OTP code was wrong, expired, or already used (backend 400,
   /// `InvalidOtpError`). Deliberately generic per AC5 — never reveals which.
   invalidCode,
 
   /// The OTP has reached its maximum verification attempts (backend 429,
-  /// `OtpLockedError`).
+  /// `OtpLockedError`), **or** the client has been rate-limited (backend
+  /// 429, `RateLimitExceededError` — `backend/app/core/rate_limit.py`).
+  /// Both are collapsed into one type: the response carries no
+  /// machine-readable field distinguishing them (only the human-readable
+  /// `message`, which isn't a stable contract to parse), so this type's
+  /// copy is deliberately phrased to read sensibly for either "slow down"
+  /// condition.
   tooManyAttempts,
 
   /// The request never reached the server (no connectivity, timeout, DNS).
@@ -21,15 +28,13 @@ enum AuthErrorType {
 
 /// A plain-language auth failure, thrown by [AuthRepository].
 ///
-/// [serverMessage] is only ever populated for [AuthErrorType.invalidCode]
-/// and [AuthErrorType.tooManyAttempts], where the backend already crafts a
-/// safe, plain-language, non-revealing message (see `exceptions.py`). It is
-/// never a raw status code, stack trace, or internal identifier.
+/// Carries only [type] — every failure is rendered from a client-owned,
+/// localized string (`auth_error_copy.dart`), never a raw backend message,
+/// status code, stack trace, or internal identifier.
 class AuthException implements Exception {
-  const AuthException({required this.type, this.serverMessage});
+  const AuthException({required this.type});
 
   final AuthErrorType type;
-  final String? serverMessage;
 
   @override
   String toString() => 'AuthException(type: $type)';

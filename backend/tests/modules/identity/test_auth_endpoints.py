@@ -12,7 +12,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 
-from app.core.constants import OTP_EXPIRY_MINUTES, OTP_MAX_ATTEMPTS, ROLE_CUSTOMER
+from app.core.constants import (
+    AUTH_RATE_LIMIT_PER_MINUTE,
+    OTP_EXPIRY_MINUTES,
+    OTP_MAX_ATTEMPTS,
+    ROLE_CUSTOMER,
+)
 from app.core.redis import get_redis_client
 from app.core.security import hash_otp_code
 from app.database.session import get_db
@@ -384,3 +389,137 @@ class TestVerifyOtpFailureCases:
         )
         assert second_response.status_code == 400
         assert "didn't work" in second_response.json()["message"]
+
+
+class TestRateLimiting:
+    """
+    FU-5 follow-up (`Walkthrough_S02_AUTH-001.md`): the Redis-backed
+    fixed-window rate limiter wired onto both auth endpoints via
+    `dependencies=[Depends(...)]`. Confirms the actual endpoint wiring —
+    not just `RateLimitDependency` in isolation, which is covered
+    separately in `tests/core/test_rate_limit.py` — enforces the
+    configured `AUTH_RATE_LIMIT_PER_MINUTE` limit and returns a generic
+    429 once exceeded.
+    """
+
+    @pytest.mark.anyio
+    async def test_request_otp_allows_requests_up_to_the_configured_limit(
+        self, client: TestClient, sms_spy: SpySmsSender
+    ) -> None:
+        """`request-otp` is phone-keyed (`05_API_GUIDELINES.md`:
+        10/minute). The Nth request for a given number must still
+        succeed — only the (N+1)th is rejected."""
+        for _ in range(AUTH_RATE_LIMIT_PER_MINUTE):
+            response = client.post(
+                "/api/v1/auth/request-otp",
+                json={
+                    "phone_country_code": PHONE_COUNTRY_CODE,
+                    "phone_number": "503000001",
+                },
+            )
+            assert response.status_code == 200
+        assert len(sms_spy.sent) == AUTH_RATE_LIMIT_PER_MINUTE
+
+    @pytest.mark.anyio
+    async def test_request_otp_rejects_the_request_exceeding_the_limit(
+        self, client: TestClient, sms_spy: SpySmsSender
+    ) -> None:
+        for _ in range(AUTH_RATE_LIMIT_PER_MINUTE):
+            response = client.post(
+                "/api/v1/auth/request-otp",
+                json={
+                    "phone_country_code": PHONE_COUNTRY_CODE,
+                    "phone_number": "503000002",
+                },
+            )
+            assert response.status_code == 200
+
+        limited_response = client.post(
+            "/api/v1/auth/request-otp",
+            json={
+                "phone_country_code": PHONE_COUNTRY_CODE,
+                "phone_number": "503000002",
+            },
+        )
+        assert limited_response.status_code == 429
+        body = limited_response.json()
+        assert body["success"] is False
+        # 06_SECURITY.md: a plain-language message, no internal codes or
+        # stack traces.
+        assert (
+            body["message"] == "Too many requests. Please wait a moment and try again."
+        )
+        # The rate limiter runs before the endpoint's own logic, so no
+        # further SMS is dispatched once the limit is hit.
+        assert len(sms_spy.sent) == AUTH_RATE_LIMIT_PER_MINUTE
+
+    @pytest.mark.anyio
+    async def test_request_otp_limit_is_scoped_per_phone_number(
+        self, client: TestClient
+    ) -> None:
+        """A different phone number is unaffected by another number's
+        exhausted limit -- confirms `key_by="phone"` scoping."""
+        for _ in range(AUTH_RATE_LIMIT_PER_MINUTE):
+            response = client.post(
+                "/api/v1/auth/request-otp",
+                json={
+                    "phone_country_code": PHONE_COUNTRY_CODE,
+                    "phone_number": "503000003",
+                },
+            )
+            assert response.status_code == 200
+
+        exhausted_number_response = client.post(
+            "/api/v1/auth/request-otp",
+            json={
+                "phone_country_code": PHONE_COUNTRY_CODE,
+                "phone_number": "503000003",
+            },
+        )
+        assert exhausted_number_response.status_code == 429
+
+        other_number_response = client.post(
+            "/api/v1/auth/request-otp",
+            json={
+                "phone_country_code": PHONE_COUNTRY_CODE,
+                "phone_number": "503000004",
+            },
+        )
+        assert other_number_response.status_code == 200
+
+    @pytest.mark.anyio
+    async def test_verify_otp_rejects_the_request_exceeding_the_limit(
+        self, client: TestClient
+    ) -> None:
+        """`verify-otp` is IP-keyed -- defense in depth against a single
+        client hammering the endpoint across many different phone
+        numbers, which a phone-keyed limit would not catch. A distinct,
+        never-requested phone number is used per call below so the
+        separate per-OTP attempt-cap lockout (`OtpLockedError`, also a
+        429 but with a different message) never fires first and this
+        test cleanly isolates the rate limiter itself."""
+        for i in range(AUTH_RATE_LIMIT_PER_MINUTE):
+            response = client.post(
+                "/api/v1/auth/verify-otp",
+                json={
+                    "phone_country_code": PHONE_COUNTRY_CODE,
+                    "phone_number": f"50399{i:04d}",
+                    "code": "000000",
+                },
+            )
+            assert response.status_code == 400
+            assert "didn't work" in response.json()["message"]
+
+        limited_response = client.post(
+            "/api/v1/auth/verify-otp",
+            json={
+                "phone_country_code": PHONE_COUNTRY_CODE,
+                "phone_number": "503999999",
+                "code": "000000",
+            },
+        )
+        assert limited_response.status_code == 429
+        assert (
+            limited_response.json()["message"]
+            == "Too many requests. Please wait a moment and try again."
+        )
