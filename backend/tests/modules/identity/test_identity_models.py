@@ -8,6 +8,7 @@ against a real Postgres database so that native enums and partial unique
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from app.modules.identity.models import (
@@ -58,7 +59,13 @@ class TestUserDefaultsAndIdentifiers:
             await db_session.commit()
         await db_session.rollback()
 
-    async def test_duplicate_email_violates_unique_constraint(self, db_session):
+    async def test_duplicate_email_same_provider_violates_unique_constraint(
+        self, db_session
+    ):
+        """`uq_users_email_provider` still blocks two rows for the *same*
+        provider claiming the same email (AUTH-002, Decision 2 --
+        matching is really done via `external_auth_subject`, this is a
+        defensive constraint)."""
         db_session.add(
             User(email="dup@example.com", auth_provider=AuthProvider.EMAIL_PASSWORD)
         )
@@ -67,9 +74,37 @@ class TestUserDefaultsAndIdentifiers:
         db_session.add(
             User(email="dup@example.com", auth_provider=AuthProvider.EMAIL_PASSWORD)
         )
-        with pytest.raises(IntegrityError, match="uq_users_email"):
+        with pytest.raises(IntegrityError, match="uq_users_email_provider"):
             await db_session.commit()
         await db_session.rollback()
+
+    async def test_duplicate_email_different_provider_is_allowed(self, db_session):
+        """AUTH-002 AC5: a different `auth_provider` presenting the same
+        email as an existing account must create a second, independent
+        row -- `uq_users_email_provider` is scoped to
+        `(auth_provider, email)`, not `email` alone."""
+        db_session.add(
+            User(
+                email="shared@example.com",
+                auth_provider=AuthProvider.GOOGLE,
+                external_auth_subject="google-sub-x",
+            )
+        )
+        await db_session.commit()
+
+        db_session.add(
+            User(
+                email="shared@example.com",
+                auth_provider=AuthProvider.APPLE,
+                external_auth_subject="apple-sub-x",
+            )
+        )
+        await db_session.commit()
+
+        result = await db_session.execute(
+            select(User).where(User.email == "shared@example.com")
+        )
+        assert len(result.scalars().all()) == 2
 
     async def test_duplicate_phone_violates_unique_constraint(self, db_session):
         db_session.add(

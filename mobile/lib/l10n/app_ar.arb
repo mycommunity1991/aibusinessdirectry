@@ -39,6 +39,7 @@
 
   "networkErrorMessage": "تعذّر الاتصال. تحقق من اتصالك بالإنترنت وحاول مرة أخرى.",
   "genericErrorMessage": "حدث خطأ ما. حاول مرة أخرى.",
+  "identityVerificationFailedMessage": "تعذّر التحقق من تسجيل دخولك. يرجى المحاولة مرة أخرى.",
 
   "homePlaceholderTitle": "تم تسجيل الدخول",
   "homePlaceholderMessage": "الصفحة الرئيسية قادمة قريباً."

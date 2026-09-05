@@ -8,6 +8,32 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from app.core.constants import API_PREFIX
 
 
+def _parse_comma_separated_or_json_list(v: Any) -> list[str]:
+    """
+    Parses a comma-separated string (e.g. "a,b,c"), a JSON array string
+    (e.g. '["a", "b"]'), or an already-a-list value into a `list[str]`.
+
+    Shared by `ALLOWED_ORIGINS` and `APPLE_OAUTH_CLIENT_IDS`, which both
+    accept the same env-var shapes.
+    """
+    if isinstance(v, str):
+        if v.strip() == "":
+            return []
+        if v.startswith("[") and v.endswith("]"):
+            import json
+
+            try:
+                loaded = json.loads(v)
+                if isinstance(loaded, list):
+                    return [str(item).strip() for item in loaded if str(item).strip()]
+            except json.JSONDecodeError:
+                pass
+        return [item.strip() for item in v.split(",") if item.strip()]
+    if isinstance(v, list):
+        return [str(item).strip() for item in v if str(item).strip()]
+    return []
+
+
 class Environment(StrEnum):
     DEVELOPMENT = "development"
     TESTING = "testing"
@@ -54,6 +80,12 @@ class Settings(BaseSettings):
     # CORS Settings
     ALLOWED_ORIGINS: list[str] | str = Field(default_factory=list)
 
+    # OAuth Settings (AUTH-002 -- Google/Apple sign-in ID token audience
+    # validation). Real values are external Google Cloud Console / Apple
+    # Developer Portal configuration -- see `.env.example`.
+    GOOGLE_OAUTH_CLIENT_ID: str
+    APPLE_OAUTH_CLIENT_IDS: list[str] | str
+
     # Config dict to support loading from parent .env or current .env
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),
@@ -95,26 +127,24 @@ class Settings(BaseSettings):
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
     def parse_allowed_origins(cls, v: Any) -> list[str]:
-        if isinstance(v, str):
-            if v.strip() == "":
-                return []
-            if v.startswith("[") and v.endswith("]"):
-                import json
+        return _parse_comma_separated_or_json_list(v)
 
-                try:
-                    loaded = json.loads(v)
-                    if isinstance(loaded, list):
-                        return [
-                            str(origin).strip()
-                            for origin in loaded
-                            if str(origin).strip()
-                        ]
-                except json.JSONDecodeError:
-                    pass
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        if isinstance(v, list):
-            return [str(origin).strip() for origin in v if str(origin).strip()]
-        return []
+    @field_validator("GOOGLE_OAUTH_CLIENT_ID")
+    @classmethod
+    def validate_google_oauth_client_id(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("GOOGLE_OAUTH_CLIENT_ID must not be empty")
+        return v.strip()
+
+    @field_validator("APPLE_OAUTH_CLIENT_IDS", mode="before")
+    @classmethod
+    def parse_apple_oauth_client_ids(cls, v: Any) -> list[str]:
+        parsed = _parse_comma_separated_or_json_list(v)
+        if not parsed:
+            raise ValueError(
+                "APPLE_OAUTH_CLIENT_IDS must contain at least one client ID"
+            )
+        return parsed
 
 
 # Expose configuration as a singleton

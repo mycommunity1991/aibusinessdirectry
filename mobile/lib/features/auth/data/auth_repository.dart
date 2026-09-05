@@ -1,20 +1,30 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/network/oauth_config.dart';
 import '../domain/models/auth_exception.dart';
 import '../domain/models/auth_token.dart';
 
-/// Wraps the two mobile-OTP auth endpoints
-/// (`POST /auth/request-otp`, `POST /auth/verify-otp`).
+/// Wraps the mobile-OTP auth endpoints (`POST /auth/request-otp`,
+/// `POST /auth/verify-otp`) and the Google/Apple OAuth endpoints
+/// (`POST /auth/google`, `POST /auth/apple`, AUTH-002).
 ///
 /// Every failure is mapped to a plain-language [AuthException] — callers
 /// (state controllers/screens) never see a [DioException], an HTTP status
-/// code, or a backend error identifier (AC10, `docs/AI/06_SECURITY.md`).
+/// code, or a backend error identifier (AC10, `docs/AI/06_SECURITY.md`). The
+/// one deliberate exception is [OAuthCancelledException] (AC7): a benign,
+/// non-error outcome that is never wrapped in [AuthException].
 class AuthRepository {
   AuthRepository(this._dio);
 
   final Dio _dio;
+
+  /// Guards [GoogleSignIn.instance.initialize] — the plugin requires this be
+  /// called exactly once, and awaited, before any other method.
+  bool _googleSignInInitialized = false;
 
   /// Requests a 6-digit OTP for the given phone number. Always resolves
   /// successfully for a well-formed number — the backend never confirms or
@@ -72,6 +82,133 @@ class AuthRepository {
     } on DioException catch (error) {
       throw _mapError(error);
     }
+  }
+
+  /// Signs in with Google: runs the native Google sign-in flow to obtain an
+  /// ID token, then exchanges it with the backend via `POST /auth/google`.
+  ///
+  /// Throws [OAuthCancelledException] if the user closes the Google consent
+  /// screen (AC7) — never an [AuthException] for that case. Any other
+  /// failure (native plugin error, or the backend rejecting the token)
+  /// throws an [AuthException], most commonly
+  /// [AuthErrorType.identityVerificationFailed].
+  Future<AuthToken> signInWithGoogle() async {
+    final idToken = await _obtainGoogleIdToken();
+    return _exchangeIdToken('/auth/google', idToken);
+  }
+
+  /// Signs in with Apple: runs the native Sign in with Apple flow to obtain
+  /// an identity token, then exchanges it with the backend via
+  /// `POST /auth/apple`. See [signInWithGoogle] for the failure contract.
+  Future<AuthToken> signInWithApple() async {
+    final idToken = await _obtainAppleIdToken();
+    return _exchangeIdToken('/auth/apple', idToken);
+  }
+
+  Future<void> _ensureGoogleSignInInitialized() async {
+    if (_googleSignInInitialized) return;
+    await GoogleSignIn.instance.initialize(
+      serverClientId: OAuthConfig.googleServerClientId.isEmpty
+          ? null
+          : OAuthConfig.googleServerClientId,
+    );
+    _googleSignInInitialized = true;
+  }
+
+  Future<String> _obtainGoogleIdToken() async {
+    try {
+      await _ensureGoogleSignInInitialized();
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken;
+      if (idToken == null) {
+        throw const AuthException(
+          type: AuthErrorType.identityVerificationFailed,
+        );
+      }
+      return idToken;
+    } on GoogleSignInException catch (error) {
+      if (error.code == GoogleSignInExceptionCode.canceled) {
+        throw const OAuthCancelledException();
+      }
+      throw const AuthException(type: AuthErrorType.identityVerificationFailed);
+    }
+  }
+
+  Future<String> _obtainAppleIdToken() async {
+    try {
+      final credential = await SignInWithApple.getAppleIDCredential(
+        scopes: const [AppleIDAuthorizationScopes.email],
+        webAuthenticationOptions: _appleWebAuthenticationOptions(),
+      );
+      final idToken = credential.identityToken;
+      if (idToken == null) {
+        throw const AuthException(
+          type: AuthErrorType.identityVerificationFailed,
+        );
+      }
+      return idToken;
+    } on SignInWithAppleAuthorizationException catch (error) {
+      if (error.code == AuthorizationErrorCode.canceled) {
+        throw const OAuthCancelledException();
+      }
+      throw const AuthException(type: AuthErrorType.identityVerificationFailed);
+    }
+  }
+
+  /// Only Apple's Android/web fallback flow needs a Services ID/redirect URI
+  /// (native iOS/macOS uses the app's Bundle ID and needs none of this) —
+  /// `null` is a valid, supported value when that hasn't been configured
+  /// (Plan Decision 10).
+  WebAuthenticationOptions? _appleWebAuthenticationOptions() {
+    if (OAuthConfig.appleServiceId.isEmpty ||
+        OAuthConfig.appleRedirectUri.isEmpty) {
+      return null;
+    }
+    return WebAuthenticationOptions(
+      clientId: OAuthConfig.appleServiceId,
+      redirectUri: Uri.parse(OAuthConfig.appleRedirectUri),
+    );
+  }
+
+  /// Exchanges a provider ID token for the same [AuthToken] shape
+  /// [verifyOtp] returns — both endpoints reuse the backend's
+  /// `AuthTokenResponse` unchanged (Plan Decision 7).
+  Future<AuthToken> _exchangeIdToken(String path, String idToken) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        path,
+        data: {'id_token': idToken},
+      );
+      final data = response.data?['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw const AuthException(type: AuthErrorType.unknown);
+      }
+      return AuthToken.fromJson(data);
+    } on DioException catch (error) {
+      throw _mapOAuthError(error);
+    }
+  }
+
+  /// Maps a Dio failure from `/auth/google`/`/auth/apple` to a
+  /// plain-language [AuthException]. A 401 is always
+  /// `InvalidIdentityTokenError` (AC6) — collapsed into
+  /// [AuthErrorType.identityVerificationFailed], never a detailed reason.
+  AuthException _mapOAuthError(DioException error) {
+    final response = error.response;
+    if (response == null) {
+      return const AuthException(type: AuthErrorType.network);
+    }
+
+    final statusCode = response.statusCode;
+    if (statusCode == 429) {
+      return const AuthException(type: AuthErrorType.tooManyAttempts);
+    }
+    if (statusCode == 401) {
+      return const AuthException(
+        type: AuthErrorType.identityVerificationFailed,
+      );
+    }
+    return const AuthException(type: AuthErrorType.unknown);
   }
 
   /// Maps a Dio failure to a plain-language [AuthException].

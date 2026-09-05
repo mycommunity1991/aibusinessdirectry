@@ -22,6 +22,16 @@ enum AuthErrorType {
   /// The request never reached the server (no connectivity, timeout, DNS).
   network,
 
+  /// A Google/Apple sign-in could not be completed: the backend rejected
+  /// the provider's ID token (invalid, expired, or tampered — backend 401,
+  /// `InvalidIdentityTokenError`), or the native plugin failed for a reason
+  /// other than user cancellation (AUTH-002 AC6/AC7). Deliberately generic,
+  /// mirroring the backend's own non-revealing copy — never distinguishes
+  /// *why* verification failed, and never surfaced for a plain user
+  /// cancellation (see [OAuthCancelledException], which is not an
+  /// [AuthErrorType] at all, per `Plan_S02_AUTH-002.md` Decision 13).
+  identityVerificationFailed,
+
   /// Anything else (422 validation, 5xx, or an unrecognized shape).
   unknown,
 }
@@ -38,4 +48,19 @@ class AuthException implements Exception {
 
   @override
   String toString() => 'AuthException(type: $type)';
+}
+
+/// Thrown by [AuthRepository.signInWithGoogle]/[AuthRepository.signInWithApple]
+/// when the user cancels the native Google/Apple consent screen mid-flow.
+///
+/// A benign, non-error outcome (AC7) — deliberately **not** an
+/// [AuthException]/[AuthErrorType] value, so a cancellation can never
+/// accidentally render user-facing error copy. Callers (`OAuthSignInController`)
+/// catch this specifically and reset to idle with no error shown, per
+/// `Plan_S02_AUTH-002.md` Decision 13.
+class OAuthCancelledException implements Exception {
+  const OAuthCancelledException();
+
+  @override
+  String toString() => 'OAuthCancelledException()';
 }

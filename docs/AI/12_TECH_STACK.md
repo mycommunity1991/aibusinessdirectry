@@ -378,6 +378,11 @@ Environment Configuration
 
 - flutter_dotenv
 
+Authentication
+
+- google_sign_in
+- sign_in_with_apple
+
 ---
 
 # Approved Python Packages
@@ -405,6 +410,10 @@ Validation
 Authentication
 
 - python-jose
+
+HTTP Client
+
+- httpx
 
 Password Hashing
 

@@ -6,6 +6,7 @@ from app.core.exceptions.exceptions import (
     AuthenticationRequiredError,
     BusinessException,
     ExpiredTokenError,
+    InvalidIdentityTokenError,
     InvalidOtpError,
     InvalidTokenError,
     OtpLockedError,
@@ -18,6 +19,7 @@ __all__ = [
     "ExpiredTokenError",
     "AuthenticationRequiredError",
     "InvalidOtpError",
+    "InvalidIdentityTokenError",
     "OtpLockedError",
     "RateLimitExceededError",
 ]

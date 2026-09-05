@@ -8,15 +8,18 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/app_error_message.dart';
 import '../../../../shared/widgets/app_text_field.dart';
+import '../../../../shared/widgets/loading_indicator.dart';
 import '../../../../shared/widgets/primary_button.dart';
+import '../../domain/models/auth_token.dart';
 import '../../domain/models/otp_entry_args.dart';
+import '../../state/auth_session_controller.dart';
+import '../../state/oauth_sign_in_controller.dart';
 import '../../state/phone_entry_controller.dart';
 import '../utils/auth_error_copy.dart';
 
-/// S-03 — Sign In / Sign Up, mobile-number path only for this story.
-///
-/// Google/Apple render disabled/"coming soon" per the full S-03 layout —
-/// they are wired in AUTH-002, not this story.
+/// S-03 — Sign In / Sign Up. Offers Google, Apple, and mobile-number paths
+/// (AC1) — Google/Apple wired to [OAuthSignInController] (AUTH-002), mobile
+/// number wired to [PhoneEntryController] (AUTH-001).
 class PhoneEntryScreen extends ConsumerStatefulWidget {
   const PhoneEntryScreen({super.key});
 
@@ -49,6 +52,7 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
     final l10n = AppLocalizations.of(context);
     final state = ref.watch(phoneEntryControllerProvider);
     final controller = ref.read(phoneEntryControllerProvider.notifier);
+    final oauthState = ref.watch(oauthSignInControllerProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -68,17 +72,29 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: AppSpacing.xl),
-              _DisabledAuthOption(
+              _OAuthOptionButton(
                 label: l10n.continueWithGoogle,
                 icon: Icons.g_mobiledata,
-                comingSoonLabel: l10n.comingSoonLabel,
+                isLoading: oauthState.isLoading(OAuthProvider.google),
+                onPressed: oauthState.loadingProvider == null
+                    ? _onGoogleSignIn
+                    : null,
               ),
               const SizedBox(height: AppSpacing.sm),
-              _DisabledAuthOption(
+              _OAuthOptionButton(
                 label: l10n.continueWithApple,
                 icon: Icons.apple,
-                comingSoonLabel: l10n.comingSoonLabel,
+                isLoading: oauthState.isLoading(OAuthProvider.apple),
+                onPressed: oauthState.loadingProvider == null
+                    ? _onAppleSignIn
+                    : null,
               ),
+              if (oauthState.error != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                AppErrorMessage(
+                  message: authErrorMessage(context, oauthState.error!),
+                ),
+              ],
               const SizedBox(height: AppSpacing.lg),
               Row(
                 children: [
@@ -176,39 +192,59 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
     );
     context.push(AppRoutes.otpEntry, extra: args);
   }
+
+  Future<void> _onGoogleSignIn() async {
+    final controller = ref.read(oauthSignInControllerProvider.notifier);
+    final token = await controller.signInWithGoogle();
+    _handleOAuthResult(token);
+  }
+
+  Future<void> _onAppleSignIn() async {
+    final controller = ref.read(oauthSignInControllerProvider.notifier);
+    final token = await controller.signInWithApple();
+    _handleOAuthResult(token);
+  }
+
+  void _handleOAuthResult(AuthToken? token) {
+    if (!mounted || token == null) return;
+    ref.read(authSessionProvider.notifier).state = token;
+    context.go(AppRoutes.homePlaceholder);
+  }
 }
 
-/// A visually disabled auth option for a not-yet-wired provider (Google,
-/// Apple). Rendered per the full S-03 layout but never tappable — those
-/// are wired in AUTH-002.
-class _DisabledAuthOption extends StatelessWidget {
-  const _DisabledAuthOption({
+/// A real, tappable Google/Apple sign-in option (AC1) — replaces AUTH-001's
+/// disabled "coming soon" placeholder. Shows a loading spinner in place of
+/// its label while its own sign-in is in flight, and is disabled while
+/// *any* provider is loading (guards against a double-tap starting two
+/// concurrent native sign-in flows).
+class _OAuthOptionButton extends StatelessWidget {
+  const _OAuthOptionButton({
     required this.label,
     required this.icon,
-    required this.comingSoonLabel,
+    required this.isLoading,
+    required this.onPressed,
   });
 
   final String label;
   final IconData icon;
-  final String comingSoonLabel;
+  final bool isLoading;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return OutlinedButton(
-      onPressed: null,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon),
-          const SizedBox(width: AppSpacing.sm),
-          Text(label),
-          const SizedBox(width: AppSpacing.sm),
-          Text(
-            '($comingSoonLabel)',
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
-        ],
-      ),
+      onPressed: isLoading ? null : onPressed,
+      child: isLoading
+          ? LoadingIndicator(size: 20, label: label)
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon),
+                const SizedBox(width: AppSpacing.sm),
+                Text(label),
+              ],
+            ),
     );
   }
 }

@@ -167,7 +167,7 @@ Small, stable, rarely-changing value sets use native PostgreSQL `ENUM` types (ch
 | last_login_at | TIMESTAMPTZ | Yes | |
 
 **Constraints**
-- `uq_users_email` on `email` (partial, `WHERE email IS NOT NULL`)
+- `uq_users_email_provider` on `(auth_provider, email)` (partial, `WHERE email IS NOT NULL`) — scoped per provider (not globally unique) so the same email under two different providers can each hold their own `User` row (see AUTH-002, AC5/AC9); still prevents a duplicate within the same provider.
 - `uq_users_phone` on `(phone_country_code, phone_number)` (partial, `WHERE phone_number IS NOT NULL`)
 - `uq_users_external_auth` on `(auth_provider, external_auth_subject)` (partial, `WHERE external_auth_subject IS NOT NULL`)
 - `chk_users_has_identifier`: at least one of `email`, `phone_number`, `external_auth_subject` must be non-null

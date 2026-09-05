@@ -1,9 +1,9 @@
 """
-End-to-end integration tests for `POST /auth/request-otp` and
-`POST /auth/verify-otp`, exercised against the real FastAPI app with a
-real Postgres session (AC11: covers new-number registration,
+End-to-end integration tests for `POST /auth/request-otp`,
+`POST /auth/verify-otp` (AC11: covers new-number registration,
 existing-number login, expired code rejection, attempt-cap lockout, and
-reused-code rejection).
+reused-code rejection), and `POST /auth/google`/`POST /auth/apple`
+(AUTH-002: AC3/AC4/AC5/AC6/AC9).
 """
 
 from datetime import UTC, datetime, timedelta
@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 
+from app.core.config import settings
 from app.core.constants import (
     AUTH_RATE_LIMIT_PER_MINUTE,
     OTP_EXPIRY_MINUTES,
@@ -22,12 +23,24 @@ from app.core.redis import get_redis_client
 from app.core.security import hash_otp_code
 from app.database.session import get_db
 from app.main import app
-from app.modules.identity.dependencies import get_sms_sender
+from app.modules.identity.dependencies import (
+    APPLE_ISSUERS,
+    APPLE_JWKS_URL,
+    GOOGLE_ISSUERS,
+    GOOGLE_JWKS_URL,
+    get_apple_id_token_verifier,
+    get_google_id_token_verifier,
+    get_sms_sender,
+)
 from app.modules.identity.models import AuthProvider, OtpPurpose, OtpVerification, User
+from app.modules.identity.services.id_token_verifier import JwksIdTokenVerifier
 from app.modules.identity.services.seed_data import seed_roles
 from app.modules.identity.services.sms_sender import SmsSender
+from tests.support.id_token_factory import IdTokenFactory, JwksTestServer
 
 PHONE_COUNTRY_CODE = "+971"
+GOOGLE_ISSUER = "https://accounts.google.com"
+APPLE_ISSUER = "https://appleid.apple.com"
 
 
 class SpySmsSender(SmsSender):
@@ -55,7 +68,47 @@ def sms_spy() -> SpySmsSender:
 
 
 @pytest.fixture
-def client(db_session, sms_spy: SpySmsSender, redis_client):
+def google_id_token_factory() -> IdTokenFactory:
+    return IdTokenFactory(kid="google-test-kid")
+
+
+@pytest.fixture
+def apple_id_token_factory() -> IdTokenFactory:
+    return IdTokenFactory(kid="apple-test-kid")
+
+
+@pytest.fixture
+def google_jwks_server(google_id_token_factory: IdTokenFactory) -> JwksTestServer:
+    return JwksTestServer(GOOGLE_JWKS_URL, [google_id_token_factory])
+
+
+@pytest.fixture
+def apple_jwks_server(apple_id_token_factory: IdTokenFactory) -> JwksTestServer:
+    return JwksTestServer(APPLE_JWKS_URL, [apple_id_token_factory])
+
+
+def _sign_google_token(factory: IdTokenFactory, **kwargs) -> str:
+    return factory.sign(
+        issuer=GOOGLE_ISSUER, audience=settings.GOOGLE_OAUTH_CLIENT_ID, **kwargs
+    )
+
+
+def _sign_apple_token(factory: IdTokenFactory, **kwargs) -> str:
+    return factory.sign(
+        issuer=APPLE_ISSUER,
+        audience=settings.APPLE_OAUTH_CLIENT_IDS[0],
+        **kwargs,
+    )
+
+
+@pytest.fixture
+def client(
+    db_session,
+    sms_spy: SpySmsSender,
+    redis_client,
+    google_jwks_server: JwksTestServer,
+    apple_jwks_server: JwksTestServer,
+):
     from redis.asyncio import Redis
 
     from tests.conftest import TEST_REDIS_URL
@@ -64,6 +117,23 @@ def client(db_session, sms_spy: SpySmsSender, redis_client):
     app.dependency_overrides[get_sms_sender] = lambda: sms_spy
     app.dependency_overrides[get_redis_client] = lambda: Redis.from_url(
         TEST_REDIS_URL, decode_responses=True
+    )
+    # AUTH-002/AC8: the real `JwksIdTokenVerifier` code path is exercised
+    # against a fake, in-memory JWKS transport -- no test ever calls the
+    # real Google/Apple endpoints.
+    app.dependency_overrides[get_google_id_token_verifier] = lambda: (
+        JwksIdTokenVerifier(
+            http_client=google_jwks_server.http_client(),
+            jwks_url=GOOGLE_JWKS_URL,
+            issuers=GOOGLE_ISSUERS,
+            audiences=frozenset({settings.GOOGLE_OAUTH_CLIENT_ID}),
+        )
+    )
+    app.dependency_overrides[get_apple_id_token_verifier] = lambda: JwksIdTokenVerifier(
+        http_client=apple_jwks_server.http_client(),
+        jwks_url=APPLE_JWKS_URL,
+        issuers=APPLE_ISSUERS,
+        audiences=frozenset(settings.APPLE_OAUTH_CLIENT_IDS),
     )
     try:
         yield TestClient(app)
@@ -523,3 +593,286 @@ class TestRateLimiting:
             limited_response.json()["message"]
             == "Too many requests. Please wait a moment and try again."
         )
+
+
+class TestGoogleSignIn:
+    """AUTH-002: `POST /auth/google` (AC2, AC3, AC4, AC6)."""
+
+    @pytest.mark.anyio
+    async def test_new_subject_creates_user_with_customer_role(
+        self,
+        client: TestClient,
+        db_session,
+        google_id_token_factory: IdTokenFactory,
+    ) -> None:
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        token = _sign_google_token(
+            google_id_token_factory, subject="google-sub-001", email="new@example.com"
+        )
+        response = client.post("/api/v1/auth/google", json={"id_token": token})
+
+        assert response.status_code == 200
+        body = response.json()["data"]
+        assert body["access_token"]
+        assert body["token_type"] == "bearer"
+        assert body["user"]["roles"] == [ROLE_CUSTOMER]
+
+        result = await db_session.execute(
+            select(User).where(User.external_auth_subject == "google-sub-001")
+        )
+        users = result.scalars().all()
+        assert len(users) == 1
+        assert users[0].auth_provider == "google"
+        assert users[0].email == "new@example.com"
+
+    @pytest.mark.anyio
+    async def test_existing_subject_authenticates_without_duplicate(
+        self,
+        client: TestClient,
+        db_session,
+        google_id_token_factory: IdTokenFactory,
+    ) -> None:
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        token = _sign_google_token(google_id_token_factory, subject="google-sub-002")
+        first_response = client.post("/api/v1/auth/google", json={"id_token": token})
+        assert first_response.status_code == 200
+        first_user_id = first_response.json()["data"]["user"]["id"]
+
+        second_token = _sign_google_token(
+            google_id_token_factory, subject="google-sub-002"
+        )
+        second_response = client.post(
+            "/api/v1/auth/google", json={"id_token": second_token}
+        )
+        assert second_response.status_code == 200
+        second_user_id = second_response.json()["data"]["user"]["id"]
+
+        assert first_user_id == second_user_id
+        result = await db_session.execute(
+            select(User).where(User.external_auth_subject == "google-sub-002")
+        )
+        assert len(result.scalars().all()) == 1
+
+    @pytest.mark.anyio
+    async def test_tampered_token_returns_generic_401(
+        self, client: TestClient, google_id_token_factory: IdTokenFactory
+    ) -> None:
+        """AC6: no validation detail is leaked in the response."""
+        token = _sign_google_token(google_id_token_factory)
+        tampered = token[:-4] + ("AAAA" if not token.endswith("AAAA") else "BBBB")
+
+        response = client.post("/api/v1/auth/google", json={"id_token": tampered})
+
+        assert response.status_code == 401
+        body = response.json()
+        assert body["success"] is False
+        assert body["message"] == "We couldn't verify your sign-in. Please try again."
+        assert "signature" not in body["message"].lower()
+
+    @pytest.mark.anyio
+    async def test_expired_token_returns_generic_401(
+        self, client: TestClient, google_id_token_factory: IdTokenFactory
+    ) -> None:
+        token = _sign_google_token(
+            google_id_token_factory, expires_delta=timedelta(minutes=-5)
+        )
+
+        response = client.post("/api/v1/auth/google", json={"id_token": token})
+
+        assert response.status_code == 401
+        assert (
+            response.json()["message"]
+            == "We couldn't verify your sign-in. Please try again."
+        )
+
+    @pytest.mark.anyio
+    async def test_wrong_audience_token_returns_generic_401(
+        self, client: TestClient, google_id_token_factory: IdTokenFactory
+    ) -> None:
+        token = google_id_token_factory.sign(
+            issuer=GOOGLE_ISSUER, audience="some-other-app"
+        )
+
+        response = client.post("/api/v1/auth/google", json={"id_token": token})
+
+        assert response.status_code == 401
+        assert (
+            response.json()["message"]
+            == "We couldn't verify your sign-in. Please try again."
+        )
+
+
+class TestAppleSignIn:
+    """AUTH-002: `POST /auth/apple` (AC2, AC3, AC4, AC6)."""
+
+    @pytest.mark.anyio
+    async def test_new_subject_creates_user_with_customer_role(
+        self,
+        client: TestClient,
+        db_session,
+        apple_id_token_factory: IdTokenFactory,
+    ) -> None:
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        token = _sign_apple_token(
+            apple_id_token_factory,
+            subject="apple-sub-001",
+            email="applenew@example.com",
+            email_verified="true",
+        )
+        response = client.post("/api/v1/auth/apple", json={"id_token": token})
+
+        assert response.status_code == 200
+        body = response.json()["data"]
+        assert body["access_token"]
+        assert body["user"]["roles"] == [ROLE_CUSTOMER]
+
+        result = await db_session.execute(
+            select(User).where(User.external_auth_subject == "apple-sub-001")
+        )
+        users = result.scalars().all()
+        assert len(users) == 1
+        assert users[0].auth_provider == "apple"
+        assert users[0].email == "applenew@example.com"
+
+    @pytest.mark.anyio
+    async def test_existing_subject_authenticates_without_duplicate(
+        self,
+        client: TestClient,
+        db_session,
+        apple_id_token_factory: IdTokenFactory,
+    ) -> None:
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        token = _sign_apple_token(apple_id_token_factory, subject="apple-sub-002")
+        first_response = client.post("/api/v1/auth/apple", json={"id_token": token})
+        assert first_response.status_code == 200
+        first_user_id = first_response.json()["data"]["user"]["id"]
+
+        second_token = _sign_apple_token(
+            apple_id_token_factory, subject="apple-sub-002"
+        )
+        second_response = client.post(
+            "/api/v1/auth/apple", json={"id_token": second_token}
+        )
+        assert second_response.status_code == 200
+        second_user_id = second_response.json()["data"]["user"]["id"]
+
+        assert first_user_id == second_user_id
+
+    @pytest.mark.anyio
+    async def test_email_omitted_on_relogin_does_not_overwrite_existing_email(
+        self,
+        client: TestClient,
+        db_session,
+        apple_id_token_factory: IdTokenFactory,
+    ) -> None:
+        """Apple only guarantees email on the first authorization."""
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        first_token = _sign_apple_token(
+            apple_id_token_factory,
+            subject="apple-sub-003",
+            email="original@example.com",
+        )
+        first_response = client.post(
+            "/api/v1/auth/apple", json={"id_token": first_token}
+        )
+        assert first_response.status_code == 200
+
+        second_token = _sign_apple_token(
+            apple_id_token_factory, subject="apple-sub-003", email=None
+        )
+        second_response = client.post(
+            "/api/v1/auth/apple", json={"id_token": second_token}
+        )
+        assert second_response.status_code == 200
+
+        result = await db_session.execute(
+            select(User).where(User.external_auth_subject == "apple-sub-003")
+        )
+        user = result.scalar_one()
+        assert user.email == "original@example.com"
+
+    @pytest.mark.anyio
+    async def test_tampered_token_returns_generic_401(
+        self, client: TestClient, apple_id_token_factory: IdTokenFactory
+    ) -> None:
+        token = _sign_apple_token(apple_id_token_factory)
+        tampered = token[:-4] + ("AAAA" if not token.endswith("AAAA") else "BBBB")
+
+        response = client.post("/api/v1/auth/apple", json={"id_token": tampered})
+
+        assert response.status_code == 401
+        assert (
+            response.json()["message"]
+            == "We couldn't verify your sign-in. Please try again."
+        )
+
+
+class TestOauthCrossProviderSameEmail:
+    """
+    AC9: an explicit integration-level check that a different provider
+    presenting the same email as an existing account creates a second,
+    independent `identity.users` row -- never a merge/link (AC5).
+    """
+
+    @pytest.mark.anyio
+    async def test_same_email_different_provider_creates_two_distinct_users(
+        self,
+        client: TestClient,
+        db_session,
+        google_id_token_factory: IdTokenFactory,
+        apple_id_token_factory: IdTokenFactory,
+    ) -> None:
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        shared_email = "shared-across-providers@example.com"
+
+        google_token = _sign_google_token(
+            google_id_token_factory,
+            subject="google-shared-sub",
+            email=shared_email,
+        )
+        google_response = client.post(
+            "/api/v1/auth/google", json={"id_token": google_token}
+        )
+        assert google_response.status_code == 200
+        google_user_id = google_response.json()["data"]["user"]["id"]
+
+        apple_token = _sign_apple_token(
+            apple_id_token_factory,
+            subject="apple-shared-sub",
+            email=shared_email,
+        )
+        apple_response = client.post(
+            "/api/v1/auth/apple", json={"id_token": apple_token}
+        )
+        assert apple_response.status_code == 200
+        apple_user_id = apple_response.json()["data"]["user"]["id"]
+
+        assert google_user_id != apple_user_id
+
+        # Explicit direct-SQL check (AC9), independent of the API
+        # responses above: exactly two distinct rows in `identity.users`
+        # share this email, one per provider, neither merged nor linked.
+        result = await db_session.execute(
+            text(
+                "SELECT id, auth_provider FROM identity.users "
+                "WHERE email = :email ORDER BY auth_provider"
+            ),
+            {"email": shared_email},
+        )
+        rows = result.all()
+        assert len(rows) == 2
+        provider_by_id = {str(row.id): row.auth_provider for row in rows}
+        assert set(provider_by_id.values()) == {"google", "apple"}
+        assert len(set(provider_by_id.keys())) == 2

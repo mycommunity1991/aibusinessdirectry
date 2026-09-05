@@ -45,6 +45,10 @@ dependencies:
   shared_preferences: ^2.3.3
   intl: ^0.20.2
 
+  # OAuth sign-in (AUTH-002, Plan Decision 8 — user-approved new dependencies).
+  google_sign_in: ^7.2.0
+  sign_in_with_apple: ^8.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

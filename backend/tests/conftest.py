@@ -17,6 +17,14 @@ os.environ["ALLOWED_ORIGINS"] = "http://localhost:3000,http://localhost:8000"
 # via the `redis_client` fixture below, pointed at a dedicated test DB
 # index so it never collides with local dev data on db 0.
 os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+# AUTH-002: OAuth audience placeholders. Test ID tokens are minted (see
+# `tests/support/id_token_factory.py`) with an `aud` claim matching these
+# exact values, so the real verification code path can be exercised
+# end-to-end without any real Google/Apple credentials.
+os.environ["GOOGLE_OAUTH_CLIENT_ID"] = "test-google-client-id"
+os.environ["APPLE_OAUTH_CLIENT_IDS"] = (
+    "test-apple-client-id-ios,test-apple-client-id-android"
+)
 
 # ---------------------------------------------------------------------------
 # Real-database fixtures for identity-domain integration tests.

@@ -23,6 +23,8 @@ String authErrorMessage(BuildContext context, AuthException exception) {
       return l10n.otpTooManyAttemptsMessage;
     case AuthErrorType.network:
       return l10n.networkErrorMessage;
+    case AuthErrorType.identityVerificationFailed:
+      return l10n.identityVerificationFailedMessage;
     case AuthErrorType.unknown:
       return l10n.genericErrorMessage;
   }

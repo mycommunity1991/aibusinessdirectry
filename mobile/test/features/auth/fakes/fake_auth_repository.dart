@@ -12,6 +12,8 @@ class FakeAuthRepository extends AuthRepository {
     this.requestOtpError,
     this.verifyOtpError,
     this.requestOtpExpiresInSeconds,
+    this.signInWithGoogleError,
+    this.signInWithAppleError,
     AuthToken? tokenToReturn,
   }) : _tokenToReturn = tokenToReturn ?? _defaultToken,
        super(Dio());
@@ -38,8 +40,20 @@ class FakeAuthRepository extends AuthRepository {
   /// in tests that don't care about it.
   final int? requestOtpExpiresInSeconds;
 
+  /// The failure `signInWithGoogle` throws, if any. Accepts any [Object] so
+  /// tests can configure either an [AuthException] (a real failure, AC6) or
+  /// an [OAuthCancelledException] (user cancellation, AC7) — the two cases
+  /// [OAuthSignInController] must handle differently.
+  final Object? signInWithGoogleError;
+
+  /// The failure `signInWithApple` throws, if any. See
+  /// [signInWithGoogleError] for the accepted failure types.
+  final Object? signInWithAppleError;
+
   int requestOtpCallCount = 0;
   int verifyOtpCallCount = 0;
+  int signInWithGoogleCallCount = 0;
+  int signInWithAppleCallCount = 0;
 
   @override
   Future<int?> requestOtp({
@@ -62,6 +76,24 @@ class FakeAuthRepository extends AuthRepository {
     verifyOtpCallCount++;
     if (verifyOtpError != null) {
       throw verifyOtpError!;
+    }
+    return _tokenToReturn;
+  }
+
+  @override
+  Future<AuthToken> signInWithGoogle() async {
+    signInWithGoogleCallCount++;
+    if (signInWithGoogleError != null) {
+      throw signInWithGoogleError!;
+    }
+    return _tokenToReturn;
+  }
+
+  @override
+  Future<AuthToken> signInWithApple() async {
+    signInWithAppleCallCount++;
+    if (signInWithAppleError != null) {
+      throw signInWithAppleError!;
     }
     return _tokenToReturn;
   }

@@ -8,6 +8,7 @@ dependencies = [
     "alembic>=1.13.1",
     "fastapi>=0.139.0",
     "greenlet>=3.0.0",
+    "httpx>=0.28.1",
     "psycopg[binary]>=3.0.0",
     "pwdlib[argon2]>=0.3.0",
     "pydantic-settings>=2.14.2",
@@ -61,7 +62,6 @@ asyncio_default_fixture_loop_scope = "function"
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.8.0",

@@ -44,7 +44,7 @@ void main() {
       },
     );
 
-    testWidgets('Google and Apple options render disabled ("coming soon")', (
+    testWidgets('Google and Apple options render enabled (AUTH-002, AC1)', (
       tester,
     ) async {
       await pumpApp(tester, initialLocation: AppRoutes.phoneEntry);
@@ -63,8 +63,9 @@ void main() {
         ),
       );
 
-      expect(google.onPressed, isNull);
-      expect(apple.onPressed, isNull);
+      expect(google.onPressed, isNotNull);
+      expect(apple.onPressed, isNotNull);
+      expect(find.text('Coming soon'), findsNothing);
     });
 
     testWidgets(

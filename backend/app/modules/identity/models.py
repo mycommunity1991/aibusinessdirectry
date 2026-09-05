@@ -93,7 +93,8 @@ class User(CommonColumnsMixin, Base):
             name="chk_users_has_identifier",
         ),
         Index(
-            "uq_users_email",
+            "uq_users_email_provider",
+            "auth_provider",
             "email",
             unique=True,
             postgresql_where=text("email IS NOT NULL"),

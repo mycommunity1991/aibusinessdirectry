@@ -69,6 +69,23 @@ class VerifyOtpRequest(BaseModel):
     )
 
 
+class OAuthSignInRequest(BaseModel):
+    """Request payload for `POST /auth/google` and `POST /auth/apple`."""
+
+    id_token: str = Field(
+        ...,
+        description=(
+            "The provider-issued identity token (Google or Apple), "
+            "obtained by the client from the provider's native sign-in "
+            "SDK. Verified server-side against the provider's public "
+            "keys before any account is created or authenticated -- the "
+            "client's assertion of identity is never trusted directly."
+        ),
+        min_length=1,
+        examples=["eyJhbGciOiJSUzI1NiIsImtpZCI6Ii4uLiJ9..."],
+    )
+
+
 class UserSummaryResponse(BaseModel):
     """A minimal summary of the authenticated user, returned on verify-otp."""
 

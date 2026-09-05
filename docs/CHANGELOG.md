@@ -11,6 +11,8 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Google and Apple sign-in (Story AUTH-002): `POST /api/v1/auth/google` and `POST /api/v1/auth/apple`, backed by a shared `IdTokenVerifier`/`JwksIdTokenVerifier` (RS256, JWKS-published keys) serving both providers through one verification code path, and `OAuthService`, which collapses any verification failure into a single generic, non-revealing error. `AuthService.authenticate_with_oauth` finds-or-creates a `User` by `(auth_provider, external_auth_subject)`, assigning the `customer` role only on creation, matching AUTH-001's mobile-OTP find-or-create pattern.
+- Mobile Google/Apple sign-in buttons on the Phone Entry screen (`google_sign_in`, `sign_in_with_apple` packages), replacing AUTH-001's disabled placeholders, with graceful cancellation handling (no error shown, no stuck loading state) and localized failure copy (EN/AR).
 - Identity & Access domain foundation (Story AUTH-001): `identity` Postgres schema with `users`, `roles`, `permissions`, `role_permissions`, `user_roles`, `devices`, `otp_verifications` tables via a reversible Alembic migration, native enums (`user_status`, `auth_provider`, `device_platform`, `language_code`, `otp_purpose`), and the reusable `CommonColumnsMixin` (`backend/app/database/mixins.py`) that every future domain migration will inherit.
 - Idempotent role seeding (`customer`, `provider`, `admin`) via `backend/app/modules/identity/services/seed_data.py` and `backend/scripts/seed_roles.py`.
 - Mobile OTP registration/login: `POST /api/v1/auth/request-otp` and `POST /api/v1/auth/verify-otp`, backed by `OtpService` (6-digit code via `secrets`, Argon2id-hashed, 5-minute expiry, 5-attempt lockout, non-revealing error responses) and `AuthService` (find-or-create `User` by phone, assigns `customer` role on creation, issues a stateless JWT access token — no session/refresh-token/device persistence in this story, deferred to AUTH-003).
@@ -49,6 +51,7 @@ Current Version: 0.1.0 (Pre-MVP)
 - Migration developer guidelines and instructions in `backend/README.md`.
 
 ### Changed
+- Replaced the `identity.users` table's global `uq_users_email` unique constraint with `uq_users_email_provider`, scoped to `(auth_provider, email)`, so the same email address under two different sign-in providers can each hold an independent account (Story AUTH-002). Promoted `httpx` from a dev-only to a runtime backend dependency to support JWKS fetching.
 - Refactored the backend from a flat `app/{models,services,repositories,schemas}/` layout to the documented modular structure (`app/modules/<domain>/...`), starting with the identity domain (`app/modules/identity/`), to match `02_ARCHITECTURE.md`'s Feature-First/module convention and set the precedent for every future domain (Story AUTH-001, post-architect-review). No behavior change: 104 backend tests still passing, API route paths/contracts unchanged, mobile required zero changes.
 - Enhanced `GET /api/v1/health` to use the service layer and return a structured `HealthResponse` schema containing service name and version (Story BF-007).
 - Updated `app/api/router.py` to delegate to version routers (Story BF-006).

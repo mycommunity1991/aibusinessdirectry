@@ -3,10 +3,10 @@
 
 **Project:** AI Marketplace
 **Current Phase:** MVP Development
-**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (In Progress — 1 of 4 stories done)
-**Completed Story:** AUTH-001 Register and Sign In with Mobile OTP
-**Status:** Identity & Access domain underway — mobile OTP registration/login shipped
-**Last Updated:** 18 July 2026
+**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (In Progress — 2 of 4 stories done)
+**Completed Story:** AUTH-002 Register and Sign In with Google or Apple
+**Status:** Identity & Access domain underway — mobile OTP and Google/Apple sign-in shipped
+**Last Updated:** 05 September 2026
 **Owner:** CTO
 
 ---
@@ -19,7 +19,7 @@ The engineering team follows a Specification-Driven Development approach where e
 
 The objective is to build production-quality software from Day One while avoiding architectural drift and unnecessary technical debt.
 
-Sprint 1 delivered a complete backend foundation (BF-001 through BF-018). Sprint 2 (Identity & Access) is underway: AUTH-001 (mobile OTP registration/login) shipped the first business domain module, establishing the `identity` schema and the `backend/app/modules/<domain>/...` structural convention every later domain will follow.
+Sprint 1 delivered a complete backend foundation (BF-001 through BF-018). Sprint 2 (Identity & Access) is underway: AUTH-001 (mobile OTP registration/login) shipped the first business domain module, establishing the `identity` schema and the `backend/app/modules/<domain>/...` structural convention every later domain will follow. AUTH-002 (Google/Apple sign-in) has since shipped on top of it, adding server-side ID-token verification and the `(auth_provider, external_auth_subject)` account-matching pattern both OAuth providers and future auth methods share.
 
 ---
 
@@ -214,7 +214,7 @@ No story may introduce functionality outside its defined scope.
 
 Full detail in `docs/sprints/sprint_01_summary.md`.
 
-## Sprint 2 — Identity & Access (In Progress — 1 of 4 stories done)
+## Sprint 2 — Identity & Access (In Progress — 2 of 4 stories done)
 
 **Correction (18 July 2026):** This section previously described a stale 9-story AUTH-001..009 backlog (models → OTP service → mobile auth → OAuth → JWT → sessions → RBAC → rate limiting → audit logging) that no longer matches `docs/AI/Project_Tracker.xlsx`, the authoritative backlog source. The Tracker defines a smaller, 4-story Sprint 2, each a full vertical slice (backend + mobile + tests), not a layered breakdown. The table below reflects the current, real backlog. See `docs/implementation/plans/Plan_S02_AUTH-001.md`'s Supersession Notice for the full history of this correction.
 
@@ -223,11 +223,11 @@ Scope is limited strictly to the Identity & Access domain (`03_DOMAIN_MODEL.md`)
 | Story | Description | Status |
 |--------|-------------|--------|
 | AUTH-001 | Register and sign in with Mobile OTP | ✅ Done |
-| AUTH-002 | Register and sign in with Google or Apple | 🔲 Not Started |
+| AUTH-002 | Register and sign in with Google or Apple | ✅ Done |
 | AUTH-003 | Stay signed in and manage active sessions | 🔲 Not Started |
 | AUTH-004 | Access the app according to my role | 🔲 Not Started |
 
-**Note:** `docs/implementation/plans/Plan_S02_AUTH-002.md` through `Plan_S02_AUTH-009.md` still describe the old 9-story breakdown and do not correspond 1:1 to the current tracker's AUTH-002/003/004. They are stale/superseded and must be re-planned against the current 4-story tracker scope before their stories are picked up — do not implement against them as-is.
+**Note:** `docs/implementation/plans/Plan_S02_AUTH-003.md`/`Plan_S02_AUTH-004.md` (and any remaining `_AUTH-005` through `_AUTH-009` plans) still describe the old 9-story breakdown and do not correspond 1:1 to the current tracker's AUTH-003/004. They are stale/superseded and must be re-planned against the current 4-story tracker scope before their stories are picked up — do not implement against them as-is. `Plan_S02_AUTH-002.md` was re-planned against the current tracker scope and is no longer stale; see `docs/implementation/walkthroughs/Walkthrough_S02_AUTH-002.md` for its completed implementation.
 
 ---
 
@@ -251,8 +251,9 @@ The backend currently provides:
 ✓ Automatic OpenAPI documentation
 ✓ Production-ready project structure
 ✓ Identity & Access domain (mobile OTP registration/login — AUTH-001): `identity` schema, roles/permissions scaffolding, `request-otp`/`verify-otp` endpoints, stateless JWT issuance
+✓ Google/Apple sign-in (AUTH-002): JWKS-based ID-token verification (`IdTokenVerifier`/`JwksIdTokenVerifier`), `OAuthService`, `POST /auth/google`/`POST /auth/apple`, find-or-create by `(auth_provider, external_auth_subject)`
 
-The first business module (Identity & Access, partial — mobile OTP only) has landed. Google/Apple OAuth, session/refresh-token management, and RBAC enforcement remain (AUTH-002/003/004).
+The first business module (Identity & Access, partial — mobile OTP and Google/Apple sign-in) has landed. Session/refresh-token management and RBAC enforcement remain (AUTH-003/004).
 
 ---
 
@@ -351,11 +352,11 @@ Implemented layers include:
 - Logging & exception handling
 - Repository layer
 - Testing & code quality tooling
-- Identity & Access module (`backend/app/modules/identity/`) — mobile OTP registration/login (AUTH-001), establishing the `backend/app/modules/<domain>/...` structural convention every later domain module will follow
+- Identity & Access module (`backend/app/modules/identity/`) — mobile OTP registration/login (AUTH-001), establishing the `backend/app/modules/<domain>/...` structural convention every later domain module will follow; Google/Apple sign-in (AUTH-002) built on top of it, adding JWKS-based ID-token verification and `OAuthService`
 
 Remaining business modules are deferred until their corresponding sprint stories.
 
-The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001) are implemented. The full Home screen and all other feature areas remain unbuilt.
+The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001), and real Google/Apple sign-in buttons on the Phone Entry screen (AUTH-002), are implemented. The full Home screen and all other feature areas remain unbuilt.
 
 ---
 
@@ -363,7 +364,7 @@ The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/
 
 Not yet implemented:
 
-- Authentication / Identity & Access — partial: mobile OTP registration/login (AUTH-001) is done; Google/Apple OAuth (AUTH-002), session/refresh-token management (AUTH-003), and RBAC enforcement (AUTH-004) remain
+- Authentication / Identity & Access — partial: mobile OTP registration/login (AUTH-001) and Google/Apple OAuth (AUTH-002) are done; session/refresh-token management (AUTH-003) and RBAC enforcement (AUTH-004) remain
 - Customer profile
 - Provider profile (Business / Freelancer)
 - Category taxonomy
@@ -392,27 +393,27 @@ AI Knowledge Base — 100%
 
 Backend Foundation — 100%
 
-Identity & Access — In Progress (1 of 4 stories done: AUTH-001)
+Identity & Access — In Progress (2 of 4 stories done: AUTH-001, AUTH-002)
 
 Provider / Customer Profiles — Not Started
 
 Conversation / AI Intake — Not Started
 
-Flutter Application — In Progress (auth flow only: Splash, Language Selection, Phone Entry, OTP Entry)
+Flutter Application — In Progress (auth flow only: Splash, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry)
 
 Deployment — Not Started
 
-Overall Estimated Project Completion: Approximately 15-20%
+Overall Estimated Project Completion: Approximately 20-25%
 
 ---
 
 # 17. Next Planned Story
 
-Sprint 2 — AUTH-002 (Register and sign in with Google or Apple), second of four stories in the current backlog defined in Section 8.
+Sprint 2 — AUTH-003 (Stay signed in and manage active sessions), third of four stories in the current backlog defined in Section 8.
 
-Identity & Access domain continues: Google/Apple OAuth registration and login, extending the `users.auth_provider`/`external_auth_subject` columns already created in AUTH-001.
+Identity & Access domain continues: session/refresh-token management and device tracking (`sessions`/`refresh_tokens`/`devices` tables), building JWT refresh/rotation on top of the `User` records both AUTH-001 and AUTH-002 create.
 
-AUTH-001 (mobile OTP registration/login) is done. Note: `docs/implementation/plans/Plan_S02_AUTH-002.md` is stale (written against the old 9-story backlog) and must be re-planned against the current tracker scope before AUTH-002 implementation begins.
+AUTH-001 (mobile OTP registration/login) and AUTH-002 (Google/Apple sign-in) are both done. Note: `docs/implementation/plans/Plan_S02_AUTH-003.md` is stale (written against the old 9-story backlog) and must be re-planned against the current tracker scope before AUTH-003 implementation begins.
 
 ---
 

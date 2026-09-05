@@ -151,6 +151,10 @@
   "@genericErrorMessage": {
     "description": "Plain-language fallback error for unexpected/unrecognized failures. Never includes a status code or internal identifier."
   },
+  "identityVerificationFailedMessage": "We couldn't verify your sign-in. Please try again.",
+  "@identityVerificationFailedMessage": {
+    "description": "Plain-language error shown when a Google/Apple sign-in fails for any reason other than user cancellation (invalid/expired/tampered ID token, backend 401 InvalidIdentityTokenError, or a native plugin failure). Mirrors the backend's own generic AC6 copy but is client-owned and localized, never the backend's raw message."
+  },
 
   "homePlaceholderTitle": "You're signed in",
   "@homePlaceholderTitle": {

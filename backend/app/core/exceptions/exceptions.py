@@ -72,6 +72,24 @@ class OtpLockedError(BusinessException):
         super().__init__(message=message, status_code=429)
 
 
+class InvalidIdentityTokenError(BusinessException):
+    """
+    Raised whenever a Google/Apple ID token cannot be verified -- whether
+    the signature, issuer, audience, or expiry check failed, the token
+    was malformed, or the provider's JWKS could not be fetched.
+
+    Deliberately generic (AC6, AUTH-002): the message never reveals which
+    of those conditions applied, mirroring `InvalidOtpError`'s
+    non-revealing design.
+    """
+
+    def __init__(
+        self,
+        message: str = "We couldn't verify your sign-in. Please try again.",
+    ):
+        super().__init__(message=message, status_code=401)
+
+
 class RateLimitExceededError(BusinessException):
     """
     Raised when a client exceeds a Redis-backed fixed-window rate limit
