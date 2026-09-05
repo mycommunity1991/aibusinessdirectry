@@ -1,7 +1,9 @@
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.identity.models import Role
+from app.modules.identity.models import Role, UserRole
 from app.repositories.base_repository import BaseRepository
 
 
@@ -16,3 +18,19 @@ class RoleRepository(BaseRepository[Role]):
         stmt = select(Role).where(Role.name == name)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_role_names_for_user(self, user_id: uuid.UUID) -> list[str]:
+        """
+        Retrieve the current role names assigned to a user via
+        `user_roles`. Shared by `AuthService` (at login) and
+        `SessionService` (at refresh, so a role change since the last
+        login is reflected in the reissued access token) -- kept here
+        rather than duplicated in each service.
+        """
+        stmt = (
+            select(Role.name)
+            .join(UserRole, UserRole.role_id == Role.id)
+            .where(UserRole.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

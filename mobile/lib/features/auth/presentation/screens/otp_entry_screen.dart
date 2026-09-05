@@ -156,7 +156,8 @@ class _OtpEntryScreenState extends ConsumerState<OtpEntryScreen> {
     final token = await controller.verify();
     if (!mounted || token == null) return;
 
-    ref.read(authSessionProvider.notifier).state = token;
+    await ref.read(authSessionControllerProvider).setSession(token);
+    if (!mounted) return;
     context.go(AppRoutes.homePlaceholder);
   }
 

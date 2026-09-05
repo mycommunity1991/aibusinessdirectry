@@ -3,24 +3,22 @@ Registration/login orchestration for both the mobile OTP path (AUTH-001)
 and the Google/Apple OAuth path (AUTH-002).
 
 Coordinates OTP verification or already-verified OAuth identity claims
-with find-or-create User semantics and JWT issuance. Deliberately does
+with find-or-create User semantics, then delegates device/session/
+refresh-token issuance to `SessionService` (AUTH-003). Deliberately does
 not touch `customer_profiles`/`customer_preferences` (AC12 — Customer
-domain, CUS-001) or `devices`/`sessions` (AUTH-003).
+domain, CUS-001).
 """
 
-import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import ROLE_CUSTOMER
-from app.core.security import create_access_token
 from app.modules.identity.models import (
     AuthProvider,
+    DevicePlatform,
     LanguageCode,
     OtpPurpose,
-    Role,
     User,
     UserRole,
     UserStatus,
@@ -29,10 +27,11 @@ from app.modules.identity.repositories.role_repository import RoleRepository
 from app.modules.identity.repositories.user_repository import UserRepository
 from app.modules.identity.services.id_token_verifier import IdentityClaims
 from app.modules.identity.services.otp_service import OtpService
+from app.modules.identity.services.session_service import SessionService
 
 
 class AuthService:
-    """Orchestrates the mobile OTP registration/login flow."""
+    """Orchestrates the mobile OTP and OAuth registration/login flows."""
 
     def __init__(
         self,
@@ -40,11 +39,13 @@ class AuthService:
         user_repository: UserRepository,
         role_repository: RoleRepository,
         otp_service: OtpService,
+        session_service: SessionService,
     ) -> None:
         self.session = session
         self.user_repository = user_repository
         self.role_repository = role_repository
         self.otp_service = otp_service
+        self.session_service = session_service
 
     async def request_otp(self, phone_country_code: str, phone_number: str) -> None:
         """
@@ -57,15 +58,21 @@ class AuthService:
         )
 
     async def verify_otp_and_authenticate(
-        self, phone_country_code: str, phone_number: str, code: str
-    ) -> tuple[User, str, list[str]]:
+        self,
+        phone_country_code: str,
+        phone_number: str,
+        code: str,
+        device_platform: DevicePlatform,
+        device_name: str | None,
+        ip_address: str | None,
+        user_agent: str | None,
+    ) -> tuple[User, str, str, list[str]]:
         """
         Verify the submitted OTP, then transparently find-or-create the
-        `User` for this phone number (AC6/AC7) and issue a stateless JWT
-        access token (Decision 8 — no session/device row is created here).
-
-        Returns the authenticated `User`, the access token, and the
-        user's current role names.
+        `User` for this phone number (AC6/AC7), start a new session/
+        device/refresh-token (AUTH-003), and return the authenticated
+        `User`, the access token, the raw refresh token, and the user's
+        current role names.
         """
         await self.otp_service.verify_otp(
             phone_country_code, phone_number, OtpPurpose.LOGIN, code
@@ -97,18 +104,37 @@ class AuthService:
                 self.session.add(UserRole(user_id=user.id, role_id=customer_role.id))
                 await self.session.flush()
 
-        role_names = await self._get_role_names(user.id)
-        token = create_access_token(subject=str(user.id))
-        return user, token, role_names
+        role_names = await self.role_repository.get_role_names_for_user(user.id)
+        (
+            _session,
+            access_token,
+            refresh_token,
+        ) = await self.session_service.start_session(
+            user=user,
+            roles=role_names,
+            device_platform=device_platform,
+            device_name=device_name,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return user, access_token, refresh_token, role_names
 
     async def authenticate_with_oauth(
-        self, provider: AuthProvider, claims: IdentityClaims
-    ) -> tuple[User, str, list[str]]:
+        self,
+        provider: AuthProvider,
+        claims: IdentityClaims,
+        device_platform: DevicePlatform,
+        device_name: str | None,
+        ip_address: str | None,
+        user_agent: str | None,
+    ) -> tuple[User, str, str, list[str]]:
         """
         Find-or-create the `User` for this `(auth_provider,
-        external_auth_subject)` pair (AC3/AC4) and issue a stateless JWT
-        access token -- mirrors `verify_otp_and_authenticate`'s shape
-        exactly (Decision 5, `Plan_S02_AUTH-002.md`). `claims` must
+        external_auth_subject)` pair (AC3/AC4), start a new session/
+        device/refresh-token (AUTH-003), and return the authenticated
+        `User`, the access token, the raw refresh token, and the user's
+        current role names -- mirrors `verify_otp_and_authenticate`'s
+        shape exactly (Decision 5, `Plan_S02_AUTH-002.md`). `claims` must
         already be server-verified by `OAuthService`; this method never
         performs its own token verification.
 
@@ -152,15 +178,17 @@ class AuthService:
                 self.session.add(UserRole(user_id=user.id, role_id=customer_role.id))
                 await self.session.flush()
 
-        role_names = await self._get_role_names(user.id)
-        token = create_access_token(subject=str(user.id))
-        return user, token, role_names
-
-    async def _get_role_names(self, user_id: uuid.UUID) -> list[str]:
-        stmt = (
-            select(Role.name)
-            .join(UserRole, UserRole.role_id == Role.id)
-            .where(UserRole.user_id == user_id)
+        role_names = await self.role_repository.get_role_names_for_user(user.id)
+        (
+            _session,
+            access_token,
+            refresh_token,
+        ) = await self.session_service.start_session(
+            user=user,
+            roles=role_names,
+            device_platform=device_platform,
+            device_name=device_name,
+            ip_address=ip_address,
+            user_agent=user_agent,
         )
-        result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        return user, access_token, refresh_token, role_names

@@ -90,6 +90,45 @@ class InvalidIdentityTokenError(BusinessException):
         super().__init__(message=message, status_code=401)
 
 
+class InvalidRefreshTokenError(BusinessException):
+    """
+    Raised whenever a refresh token cannot be used to mint a new
+    access/refresh pair -- whether it doesn't exist, is expired, was
+    already revoked, or was already rotated away and is being replayed
+    (AUTH-003, AC5).
+
+    Deliberately generic, mirroring `InvalidOtpError`/
+    `InvalidIdentityTokenError`'s non-revealing design: the message never
+    reveals which of those conditions applied.
+    """
+
+    def __init__(
+        self,
+        message: str = "That session could not be refreshed. Please sign in again.",
+    ):
+        super().__init__(
+            message=message,
+            status_code=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+class SessionNotFoundError(BusinessException):
+    """
+    Raised by `DELETE /auth/sessions/{id}` (and any other session lookup)
+    when a session either doesn't exist at all, or exists but is not
+    owned by the requesting user (AUTH-003, AC8/AC10).
+
+    Deliberately collapses both cases into the same 404 rather than a
+    403 for the ownership case -- consistent with this project's existing
+    non-revealing-error philosophy (Decision 9,
+    `Plan_S02_AUTH-003.md`).
+    """
+
+    def __init__(self, message: str = "Session not found."):
+        super().__init__(message=message, status_code=404)
+
+
 class RateLimitExceededError(BusinessException):
     """
     Raised when a client exceeds a Redis-backed fixed-window rate limit

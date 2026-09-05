@@ -1,11 +1,13 @@
 """
-Unit tests for `AuthService` orchestration (AC6, AC7, AC12).
+Unit tests for `AuthService` orchestration (AC6, AC7, AC12; AUTH-003's
+device/session delegation).
 
-`OtpService`/repositories are mocked so these tests isolate the
-find-or-create-User orchestration logic. See
-`tests/api/test_auth_endpoints.py` for end-to-end coverage against a real
-database, including AC12 (no `customer_profiles`/`customer_preferences`
-row).
+`OtpService`/repositories/`SessionService` are mocked so these tests
+isolate the find-or-create-User orchestration logic. See
+`tests/modules/identity/test_auth_endpoints.py` for end-to-end coverage
+against a real database, including AC12 (no `customer_profiles`/
+`customer_preferences` row) and AUTH-003's device-capture/session-
+creation behavior.
 """
 
 import uuid
@@ -16,6 +18,7 @@ import pytest
 from app.core.constants import ROLE_CUSTOMER
 from app.modules.identity.models import (
     AuthProvider,
+    DevicePlatform,
     LanguageCode,
     Role,
     User,
@@ -51,6 +54,7 @@ def mock_user_repository() -> MagicMock:
 def mock_role_repository() -> MagicMock:
     repo = MagicMock()
     repo.get_by_name = AsyncMock()
+    repo.get_role_names_for_user = AsyncMock(return_value=[])
     return repo
 
 
@@ -62,24 +66,33 @@ def mock_otp_service() -> AsyncMock:
 
 
 @pytest.fixture
+def mock_session_service() -> AsyncMock:
+    service = AsyncMock()
+    service.start_session = AsyncMock(
+        return_value=(
+            MagicMock(id=uuid.uuid4()),
+            "access-token-value",
+            "refresh-token-value",
+        )
+    )
+    return service
+
+
+@pytest.fixture
 def auth_service(
     mock_session: MagicMock,
     mock_user_repository: MagicMock,
     mock_role_repository: MagicMock,
     mock_otp_service: AsyncMock,
+    mock_session_service: AsyncMock,
 ) -> AuthService:
     return AuthService(
         session=mock_session,
         user_repository=mock_user_repository,
         role_repository=mock_role_repository,
         otp_service=mock_otp_service,
+        session_service=mock_session_service,
     )
-
-
-def _scalars_result(values: list) -> MagicMock:
-    result = MagicMock()
-    result.scalars.return_value.all.return_value = values
-    return result
 
 
 @pytest.mark.anyio
@@ -88,6 +101,7 @@ async def test_verify_otp_and_authenticate_creates_user_and_assigns_customer_rol
     mock_user_repository: MagicMock,
     mock_role_repository: MagicMock,
     mock_session: MagicMock,
+    mock_session_service: AsyncMock,
 ) -> None:
     """AC6: a verified OTP for an unrecognized number creates a new User
     with auth_provider=mobile_otp and assigns the customer role."""
@@ -103,10 +117,21 @@ async def test_verify_otp_and_authenticate_creates_user_and_assigns_customer_rol
     mock_user_repository.create.return_value = created_user
     customer_role = Role(id=uuid.uuid4(), name=ROLE_CUSTOMER)
     mock_role_repository.get_by_name.return_value = customer_role
-    mock_session.execute.return_value = _scalars_result([ROLE_CUSTOMER])
+    mock_role_repository.get_role_names_for_user.return_value = [ROLE_CUSTOMER]
 
-    user, token, roles = await auth_service.verify_otp_and_authenticate(
-        "+971", "501234567", "123456"
+    (
+        user,
+        access_token,
+        refresh_token,
+        roles,
+    ) = await auth_service.verify_otp_and_authenticate(
+        "+971",
+        "501234567",
+        "123456",
+        DevicePlatform.IOS,
+        "iPhone 15",
+        "127.0.0.1",
+        "pytest-agent",
     )
 
     mock_user_repository.create.assert_awaited_once()
@@ -117,8 +142,18 @@ async def test_verify_otp_and_authenticate_creates_user_and_assigns_customer_rol
 
     mock_role_repository.get_by_name.assert_awaited_once_with(ROLE_CUSTOMER)
     mock_session.add.assert_called_once()  # the UserRole row
+    mock_session_service.start_session.assert_awaited_once()
+    call_kwargs = mock_session_service.start_session.await_args.kwargs
+    assert call_kwargs["user"] is created_user
+    assert call_kwargs["roles"] == [ROLE_CUSTOMER]
+    assert call_kwargs["device_platform"] == DevicePlatform.IOS
+    assert call_kwargs["device_name"] == "iPhone 15"
+    assert call_kwargs["ip_address"] == "127.0.0.1"
+    assert call_kwargs["user_agent"] == "pytest-agent"
+
     assert user is created_user
-    assert token
+    assert access_token == "access-token-value"
+    assert refresh_token == "refresh-token-value"
     assert roles == [ROLE_CUSTOMER]
 
 
@@ -140,17 +175,27 @@ async def test_verify_otp_and_authenticate_existing_user_does_not_duplicate(
         preferred_language=LanguageCode.EN,
     )
     mock_user_repository.get_by_phone.return_value = existing_user
-    mock_session.execute.return_value = _scalars_result([ROLE_CUSTOMER])
 
-    user, token, roles = await auth_service.verify_otp_and_authenticate(
-        "+971", "501234567", "123456"
+    (
+        user,
+        access_token,
+        _refresh_token,
+        _roles,
+    ) = await auth_service.verify_otp_and_authenticate(
+        "+971",
+        "501234567",
+        "123456",
+        DevicePlatform.IOS,
+        None,
+        None,
+        None,
     )
 
     mock_user_repository.create.assert_not_awaited()
     mock_role_repository.get_by_name.assert_not_awaited()
     mock_session.add.assert_not_called()  # no new UserRole row
     assert user is existing_user
-    assert token
+    assert access_token == "access-token-value"
 
 
 @pytest.mark.anyio
@@ -158,7 +203,6 @@ async def test_verify_otp_and_authenticate_uses_login_purpose_for_otp(
     auth_service: AuthService,
     mock_otp_service: AsyncMock,
     mock_user_repository: MagicMock,
-    mock_session: MagicMock,
 ) -> None:
     """Decision 7: no client-supplied registration-vs-login distinction —
     always OtpPurpose.LOGIN."""
@@ -172,9 +216,10 @@ async def test_verify_otp_and_authenticate_uses_login_purpose_for_otp(
         status=UserStatus.ACTIVE,
         preferred_language=LanguageCode.EN,
     )
-    mock_session.execute.return_value = _scalars_result([])
 
-    await auth_service.verify_otp_and_authenticate("+971", "501234567", "123456")
+    await auth_service.verify_otp_and_authenticate(
+        "+971", "501234567", "123456", DevicePlatform.ANDROID, None, None, None
+    )
 
     mock_otp_service.verify_otp.assert_awaited_once_with(
         "+971", "501234567", OtpPurpose.LOGIN, "123456"
@@ -210,6 +255,7 @@ class TestAuthenticateWithOauth:
         mock_user_repository: MagicMock,
         mock_role_repository: MagicMock,
         mock_session: MagicMock,
+        mock_session_service: AsyncMock,
     ) -> None:
         """AC3: a new (provider, subject) pair creates a new User and
         assigns the customer role."""
@@ -225,13 +271,23 @@ class TestAuthenticateWithOauth:
         mock_user_repository.create.return_value = created_user
         customer_role = Role(id=uuid.uuid4(), name=ROLE_CUSTOMER)
         mock_role_repository.get_by_name.return_value = customer_role
-        mock_session.execute.return_value = _scalars_result([ROLE_CUSTOMER])
+        mock_role_repository.get_role_names_for_user.return_value = [ROLE_CUSTOMER]
 
         claims = IdentityClaims(
             subject="google-sub-1", email="person@example.com", email_verified=True
         )
-        user, token, roles = await auth_service.authenticate_with_oauth(
-            AuthProvider.GOOGLE, claims
+        (
+            user,
+            access_token,
+            refresh_token,
+            roles,
+        ) = await auth_service.authenticate_with_oauth(
+            AuthProvider.GOOGLE,
+            claims,
+            DevicePlatform.IOS,
+            "iPhone",
+            "127.0.0.1",
+            "pytest-agent",
         )
 
         mock_user_repository.create.assert_awaited_once()
@@ -243,8 +299,10 @@ class TestAuthenticateWithOauth:
 
         mock_role_repository.get_by_name.assert_awaited_once_with(ROLE_CUSTOMER)
         mock_session.add.assert_called_once()  # the UserRole row
+        mock_session_service.start_session.assert_awaited_once()
         assert user is created_user
-        assert token
+        assert access_token == "access-token-value"
+        assert refresh_token == "refresh-token-value"
         assert roles == [ROLE_CUSTOMER]
 
     @pytest.mark.anyio
@@ -268,13 +326,17 @@ class TestAuthenticateWithOauth:
         mock_user_repository.get_by_provider_and_subject = AsyncMock(
             return_value=existing_user
         )
-        mock_session.execute.return_value = _scalars_result([ROLE_CUSTOMER])
 
         claims = IdentityClaims(
             subject="google-sub-1", email="person@example.com", email_verified=True
         )
-        user, token, _roles = await auth_service.authenticate_with_oauth(
-            AuthProvider.GOOGLE, claims
+        (
+            user,
+            access_token,
+            _refresh_token,
+            _roles,
+        ) = await auth_service.authenticate_with_oauth(
+            AuthProvider.GOOGLE, claims, DevicePlatform.IOS, None, None, None
         )
 
         mock_user_repository.create.assert_not_awaited()
@@ -282,14 +344,13 @@ class TestAuthenticateWithOauth:
         mock_session.add.assert_not_called()  # no new UserRole row
         assert user is existing_user
         assert user.last_login_at is not None
-        assert token
+        assert access_token == "access-token-value"
 
     @pytest.mark.anyio
     async def test_email_is_not_overwritten_on_a_login_where_claims_omit_it(
         self,
         auth_service: AuthService,
         mock_user_repository: MagicMock,
-        mock_session: MagicMock,
     ) -> None:
         """Decision 11: Apple only guarantees email on first authorization
         -- a subsequent login must never null out (or otherwise change)
@@ -305,13 +366,22 @@ class TestAuthenticateWithOauth:
         mock_user_repository.get_by_provider_and_subject = AsyncMock(
             return_value=existing_user
         )
-        mock_session.execute.return_value = _scalars_result([])
 
         claims_without_email = IdentityClaims(
             subject="apple-sub-1", email=None, email_verified=False
         )
-        user, _token, _roles = await auth_service.authenticate_with_oauth(
-            AuthProvider.APPLE, claims_without_email
+        (
+            user,
+            _access_token,
+            _refresh_token,
+            _roles,
+        ) = await auth_service.authenticate_with_oauth(
+            AuthProvider.APPLE,
+            claims_without_email,
+            DevicePlatform.ANDROID,
+            None,
+            None,
+            None,
         )
 
         assert user.email == "original@example.com"
@@ -321,7 +391,6 @@ class TestAuthenticateWithOauth:
         self,
         auth_service: AuthService,
         mock_user_repository: MagicMock,
-        mock_session: MagicMock,
     ) -> None:
         """AC5 (unit-level companion to the endpoint-level check): the
         find step is keyed on (auth_provider, external_auth_subject),
@@ -335,12 +404,13 @@ class TestAuthenticateWithOauth:
                 preferred_language=LanguageCode.EN,
             )
         )
-        mock_session.execute.return_value = _scalars_result([])
 
         claims = IdentityClaims(
             subject="apple-sub-1", email="shared@example.com", email_verified=True
         )
-        await auth_service.authenticate_with_oauth(AuthProvider.APPLE, claims)
+        await auth_service.authenticate_with_oauth(
+            AuthProvider.APPLE, claims, DevicePlatform.IOS, None, None, None
+        )
 
         mock_user_repository.get_by_provider_and_subject.assert_awaited_once_with(
             AuthProvider.APPLE, "apple-sub-1"

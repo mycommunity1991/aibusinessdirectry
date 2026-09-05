@@ -19,7 +19,9 @@ from app.modules.identity.models import (
     OtpPurpose,
     OtpVerification,
     Permission,
+    RefreshToken,
     Role,
+    Session,
     User,
     UserStatus,
 )
@@ -195,6 +197,182 @@ class TestDeviceAndOtpVerification:
 
         assert otp.attempt_count == 0
         assert otp.verified_at is None
+
+
+class TestSessionAndRefreshToken:
+    """AUTH-003, AC1: `sessions`/`refresh_tokens` tables exist, linked to
+    `users` (and `devices`), mirroring the existing `Device` coverage
+    above."""
+
+    async def test_session_requires_existing_user(self, db_session):
+        user = User(
+            phone_country_code="+971",
+            phone_number="504444444",
+            auth_provider=AuthProvider.MOBILE_OTP,
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+
+        session_row = Session(
+            user_id=user.id,
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+        )
+        db_session.add(session_row)
+        await db_session.commit()
+        await db_session.refresh(session_row)
+
+        assert session_row.id is not None
+        assert session_row.revoked_at is None
+        assert session_row.device_id is None
+
+    async def test_session_links_to_device(self, db_session):
+        user = User(
+            phone_country_code="+971",
+            phone_number="504444445",
+            auth_provider=AuthProvider.MOBILE_OTP,
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+
+        device = Device(user_id=user.id, platform=DevicePlatform.ANDROID)
+        db_session.add(device)
+        await db_session.commit()
+        await db_session.refresh(device)
+
+        session_row = Session(
+            user_id=user.id,
+            device_id=device.id,
+            ip_address="127.0.0.1",
+            user_agent="pytest",
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+        )
+        db_session.add(session_row)
+        await db_session.commit()
+        await db_session.refresh(session_row)
+
+        assert session_row.device_id == device.id
+
+    async def test_refresh_token_requires_existing_session(self, db_session):
+        user = User(
+            phone_country_code="+971",
+            phone_number="504444446",
+            auth_provider=AuthProvider.MOBILE_OTP,
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+
+        session_row = Session(
+            user_id=user.id,
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+        )
+        db_session.add(session_row)
+        await db_session.commit()
+        await db_session.refresh(session_row)
+
+        refresh_token = RefreshToken(
+            user_id=user.id,
+            session_id=session_row.id,
+            token_hash="a" * 64,
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+        )
+        db_session.add(refresh_token)
+        await db_session.commit()
+        await db_session.refresh(refresh_token)
+
+        assert refresh_token.id is not None
+        assert refresh_token.revoked_at is None
+        assert refresh_token.replaced_by_token_id is None
+
+    async def test_duplicate_token_hash_violates_unique_constraint(self, db_session):
+        user = User(
+            phone_country_code="+971",
+            phone_number="504444447",
+            auth_provider=AuthProvider.MOBILE_OTP,
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+
+        session_row = Session(
+            user_id=user.id,
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+        )
+        db_session.add(session_row)
+        await db_session.commit()
+        await db_session.refresh(session_row)
+
+        db_session.add(
+            RefreshToken(
+                user_id=user.id,
+                session_id=session_row.id,
+                token_hash="dup-hash",
+                expires_at=datetime.now(UTC) + timedelta(days=7),
+            )
+        )
+        await db_session.commit()
+
+        db_session.add(
+            RefreshToken(
+                user_id=user.id,
+                session_id=session_row.id,
+                token_hash="dup-hash",
+                expires_at=datetime.now(UTC) + timedelta(days=7),
+            )
+        )
+        with pytest.raises(IntegrityError, match="uq_refresh_tokens_token_hash"):
+            await db_session.commit()
+        await db_session.rollback()
+
+    async def test_refresh_token_rotation_chain_via_replaced_by_token_id(
+        self, db_session
+    ):
+        user = User(
+            phone_country_code="+971",
+            phone_number="504444448",
+            auth_provider=AuthProvider.MOBILE_OTP,
+        )
+        db_session.add(user)
+        await db_session.commit()
+        await db_session.refresh(user)
+
+        session_row = Session(
+            user_id=user.id,
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+        )
+        db_session.add(session_row)
+        await db_session.commit()
+        await db_session.refresh(session_row)
+
+        old_token = RefreshToken(
+            user_id=user.id,
+            session_id=session_row.id,
+            token_hash="old-hash",
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+        )
+        db_session.add(old_token)
+        await db_session.commit()
+        await db_session.refresh(old_token)
+
+        new_token = RefreshToken(
+            user_id=user.id,
+            session_id=session_row.id,
+            token_hash="new-hash",
+            expires_at=datetime.now(UTC) + timedelta(days=7),
+        )
+        db_session.add(new_token)
+        await db_session.commit()
+        await db_session.refresh(new_token)
+
+        old_token.revoked_at = datetime.now(UTC)
+        old_token.replaced_by_token_id = new_token.id
+        await db_session.commit()
+        await db_session.refresh(old_token)
+
+        assert old_token.replaced_by_token_id == new_token.id
+        assert old_token.revoked_at is not None
 
 
 class TestEnumValues:

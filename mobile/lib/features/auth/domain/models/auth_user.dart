@@ -29,4 +29,17 @@ class AuthUser {
   final String status;
   final String preferredLanguage;
   final List<String> roles;
+
+  /// Mirrors [fromJson]'s field names — used by [AuthToken.toJson] so a
+  /// session persisted to secure storage (AUTH-003) round-trips through
+  /// the exact same shape the backend sends, rather than a second,
+  /// hand-maintained serialization format.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'phone_country_code': phoneCountryCode,
+    'phone_number': phoneNumber,
+    'status': status,
+    'preferred_language': preferredLanguage,
+    'roles': roles,
+  };
 }

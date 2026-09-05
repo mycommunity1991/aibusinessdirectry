@@ -3,14 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/routing/app_routes.dart';
+import '../../../../core/storage/secure_token_storage.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
+import '../../data/auth_repository.dart';
 import '../../state/auth_session_controller.dart';
 import '../../state/language_controller.dart';
 
 /// S-01 — Splash. A brand moment with no user action: checks the
-/// persisted language choice and any in-memory session, then auto-routes
+/// persisted language choice and any persisted session, then auto-routes
 /// to Language Selection (S-02), Phone Entry (S-03), or the post-auth
 /// placeholder.
 class SplashScreen extends ConsumerStatefulWidget {
@@ -43,10 +45,36 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       return;
     }
 
-    final session = ref.read(authSessionProvider);
+    final hasValidSession = await _restoreSession();
+    if (!mounted) return;
+
     context.go(
-      session != null ? AppRoutes.homePlaceholder : AppRoutes.phoneEntry,
+      hasValidSession ? AppRoutes.homePlaceholder : AppRoutes.phoneEntry,
     );
+  }
+
+  /// Reads any session persisted from a previous app run and silently
+  /// refreshes it against the backend (AUTH-003 — S-01's own doc comment
+  /// anticipates exactly this "session check") — a valid persisted access
+  /// token alone is never trusted as-is, since it may have expired while
+  /// the app was closed. A persisted-but-rejected session (expired/revoked
+  /// refresh token) is cleared so the user isn't stuck retrying a dead
+  /// session; no persisted session at all is the ordinary logged-out case.
+  Future<bool> _restoreSession() async {
+    final storage = ref.read(secureTokenStorageProvider);
+    final persisted = await storage.read();
+    if (persisted == null) return false;
+
+    try {
+      final refreshed = await ref
+          .read(authRepositoryProvider)
+          .refresh(persisted.refreshToken);
+      await ref.read(authSessionControllerProvider).setSession(refreshed);
+      return true;
+    } catch (_) {
+      await ref.read(authSessionControllerProvider).clear();
+      return false;
+    }
   }
 
   @override

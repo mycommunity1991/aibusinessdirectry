@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import UTC, datetime, timedelta
 
 from jose import JWTError, jwt
@@ -70,31 +72,75 @@ def verify_otp_code(code: str, code_hash: str) -> bool:
 
 def create_access_token(
     subject: str,
+    roles: list[str],
+    jti: str,
     expires_delta: timedelta | None = None,
 ) -> str:
     """
     Creates a JWT access token.
 
+    Payload is exactly `{sub, exp, iat, jti, roles}` -- no email, phone,
+    or any other PII (AUTH-003, AC2). `jti` doubles as the session
+    identifier (Decision 1, `Plan_S02_AUTH-003.md`): every access token
+    minted within the same session's lifetime (across refreshes) shares
+    the same `jti`.
+
     Args:
         subject: The subject of the token (e.g., user ID).
+        roles: The user's current role names.
+        jti: The session id this token belongs to.
         expires_delta: Optional custom expiration timedelta.
             Defaults to the application settings.
 
     Returns:
         The encoded JWT token.
     """
+    now = datetime.now(UTC)
     if expires_delta:
-        expire = datetime.now(UTC) + expires_delta
+        expire = now + expires_delta
     else:
-        expire = datetime.now(UTC) + timedelta(
-            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-        )
+        expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode = {"exp": expire, "sub": str(subject)}
+    to_encode = {
+        "sub": str(subject),
+        "exp": expire,
+        "iat": now,
+        "jti": str(jti),
+        "roles": roles,
+    }
     encoded_jwt = jwt.encode(
         to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
     )
     return encoded_jwt
+
+
+def generate_refresh_token() -> str:
+    """
+    Generates a new opaque refresh token: a 256-bit
+    (`secrets.token_urlsafe(32)`) cryptographically random value (AUTH-003,
+    Decision 5, AC3). The raw value returned here is handed to the client
+    exactly once and is never itself persisted -- only `hash_refresh_token`
+    of it is.
+    """
+    return secrets.token_urlsafe(32)
+
+
+def hash_refresh_token(token: str) -> str:
+    """
+    Hashes an opaque refresh token with SHA-256 (`04_DATABASE.md`'s
+    `refresh_tokens.token_hash` column note) -- deliberately NOT Argon2id.
+    Argon2id's slow-KDF property defends against brute-forcing a
+    low-entropy, human-chosen secret (a password, a 6-digit OTP); a
+    256-bit `secrets.token_urlsafe` value has no meaningful brute-force
+    surface, so a fast, collision-resistant hash is the correct choice.
+
+    Args:
+        token: The raw opaque refresh token.
+
+    Returns:
+        The hex-encoded SHA-256 digest.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def decode_token(token: str) -> dict:

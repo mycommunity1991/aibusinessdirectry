@@ -14,12 +14,17 @@ class FakeAuthRepository extends AuthRepository {
     this.requestOtpExpiresInSeconds,
     this.signInWithGoogleError,
     this.signInWithAppleError,
+    this.refreshError,
     AuthToken? tokenToReturn,
+    AuthToken? refreshTokenToReturn,
   }) : _tokenToReturn = tokenToReturn ?? _defaultToken,
+       _refreshTokenToReturn =
+           refreshTokenToReturn ?? tokenToReturn ?? _defaultToken,
        super(Dio());
 
   static final _defaultToken = AuthToken(
     accessToken: 'test-access-token',
+    refreshToken: 'test-refresh-token',
     tokenType: 'bearer',
     user: const AuthUser(
       id: 'user-1',
@@ -50,10 +55,23 @@ class FakeAuthRepository extends AuthRepository {
   /// [signInWithGoogleError] for the accepted failure types.
   final Object? signInWithAppleError;
 
+  /// The failure `refresh` throws, if any (AUTH-003) — e.g. an expired or
+  /// revoked refresh token, surfaced as an [AuthException].
+  final Object? refreshError;
+
+  /// The [AuthToken] `refresh` resolves with, if [refreshError] is unset.
+  /// Defaults to [_tokenToReturn] so a plain `FakeAuthRepository()` behaves
+  /// consistently across login and refresh.
+  final AuthToken _refreshTokenToReturn;
+
   int requestOtpCallCount = 0;
   int verifyOtpCallCount = 0;
   int signInWithGoogleCallCount = 0;
   int signInWithAppleCallCount = 0;
+  int refreshCallCount = 0;
+  int logoutCallCount = 0;
+  String? lastRefreshToken;
+  String? lastLogoutAccessToken;
 
   @override
   Future<int?> requestOtp({
@@ -96,5 +114,21 @@ class FakeAuthRepository extends AuthRepository {
       throw signInWithAppleError!;
     }
     return _tokenToReturn;
+  }
+
+  @override
+  Future<AuthToken> refresh(String refreshToken) async {
+    refreshCallCount++;
+    lastRefreshToken = refreshToken;
+    if (refreshError != null) {
+      throw refreshError!;
+    }
+    return _refreshTokenToReturn;
+  }
+
+  @override
+  Future<void> logout(String? accessToken) async {
+    logoutCallCount++;
+    lastLogoutAccessToken = accessToken;
   }
 }

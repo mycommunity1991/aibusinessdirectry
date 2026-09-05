@@ -1,6 +1,10 @@
-from fastapi import APIRouter, Depends
+import ipaddress
+import uuid
+
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import CurrentUser, get_current_user
 from app.core.constants import (
     AUTH_RATE_LIMIT_PER_MINUTE,
     AUTH_RATE_LIMIT_WINDOW_SECONDS,
@@ -8,18 +12,26 @@ from app.core.constants import (
 )
 from app.core.rate_limit import RateLimitDependency
 from app.database.session import get_db
-from app.modules.identity.dependencies import get_auth_service, get_oauth_service
+from app.modules.identity.dependencies import (
+    get_auth_service,
+    get_oauth_service,
+    get_session_service,
+)
 from app.modules.identity.models import AuthProvider
 from app.modules.identity.schemas import (
     AuthTokenResponse,
+    LogoutAllRequest,
     OAuthSignInRequest,
+    RefreshTokenRequest,
     RequestOtpRequest,
     RequestOtpResponse,
+    SessionSummaryResponse,
     UserSummaryResponse,
     VerifyOtpRequest,
 )
 from app.modules.identity.services.auth_service import AuthService
 from app.modules.identity.services.oauth_service import OAuthService
+from app.modules.identity.services.session_service import SessionService
 from app.shared.schemas.response import SuccessResponse
 
 router = APIRouter(tags=["Auth"])
@@ -55,6 +67,38 @@ _apple_sign_in_rate_limiter = RateLimitDependency(
     window_seconds=AUTH_RATE_LIMIT_WINDOW_SECONDS,
     key_by="ip",
 )
+# The refresh endpoint reuses the same auth rate-limit bucket, IP-keyed —
+# it is public (no access token required, since the whole point is to
+# mint a new one), so IP is the only signal available (AUTH-003).
+_refresh_rate_limiter = RateLimitDependency(
+    limit=AUTH_RATE_LIMIT_PER_MINUTE,
+    window_seconds=AUTH_RATE_LIMIT_WINDOW_SECONDS,
+    key_by="ip",
+)
+
+
+def _client_context(request: Request) -> tuple[str | None, str | None]:
+    """
+    Best-effort client IP/user-agent extraction (AUTH-003). Deliberately
+    not proxy-aware (`X-Forwarded-For` chain parsing is explicitly out of
+    scope, `Plan_S02_AUTH-003.md`) -- `request.client.host` only.
+
+    `sessions.ip_address` is a Postgres `INET` column, which rejects
+    anything that isn't a real, parseable IP address -- ASGI test clients
+    (e.g. Starlette's `TestClient`) set `request.client.host` to the
+    literal string `"testclient"`, which is not one. Falls back to `None`
+    rather than raising for any host value that doesn't parse.
+    """
+    raw_host = request.client.host if request.client else None
+    ip_address = None
+    if raw_host:
+        try:
+            ipaddress.ip_address(raw_host)
+            ip_address = raw_host
+        except ValueError:
+            ip_address = None
+    user_agent = request.headers.get("user-agent")
+    return ip_address, user_agent
 
 
 @router.post(
@@ -132,21 +176,35 @@ async def request_otp(
     },
     summary="Verify a Mobile OTP Code and Authenticate",
     description=(
-        "Verifies a 6-digit OTP code and returns a JWT access token. "
-        "Transparently creates a new Account (with the `customer` role) if "
-        "the phone number is not yet registered, or authenticates the "
-        "existing Account otherwise — the client never needs to know in "
-        "advance which will happen."
+        "Verifies a 6-digit OTP code and returns a JWT access token plus "
+        "a refresh token. Transparently creates a new Account (with the "
+        "`customer` role) if the phone number is not yet registered, or "
+        "authenticates the existing Account otherwise — the client never "
+        "needs to know in advance which will happen. Records/updates a "
+        "Device row for the signing-in device (AUTH-003)."
     ),
 )
 async def verify_otp(
     payload: VerifyOtpRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),  # noqa: B008
     auth_service: AuthService = Depends(get_auth_service),  # noqa: B008
 ) -> SuccessResponse[AuthTokenResponse]:
     """Verify an OTP code, then authenticate (creating the Account if new)."""
-    user, token, roles = await auth_service.verify_otp_and_authenticate(
-        payload.phone_country_code, payload.phone_number, payload.code
+    ip_address, user_agent = _client_context(request)
+    (
+        user,
+        access_token,
+        refresh_token,
+        roles,
+    ) = await auth_service.verify_otp_and_authenticate(
+        payload.phone_country_code,
+        payload.phone_number,
+        payload.code,
+        payload.device.device_platform,
+        payload.device.device_name,
+        ip_address,
+        user_agent,
     )
     await db.commit()
 
@@ -154,7 +212,8 @@ async def verify_otp(
         success=True,
         message="Signed in successfully.",
         data=AuthTokenResponse(
-            access_token=token,
+            access_token=access_token,
+            refresh_token=refresh_token,
             token_type="bearer",
             user=UserSummaryResponse(
                 id=user.id,
@@ -171,6 +230,7 @@ async def verify_otp(
 async def _sign_in_with_oauth(
     provider: AuthProvider,
     payload: OAuthSignInRequest,
+    request: Request,
     db: AsyncSession,
     oauth_service: OAuthService,
     auth_service: AuthService,
@@ -178,17 +238,32 @@ async def _sign_in_with_oauth(
     """
     Shared orchestration for both OAuth endpoints below: verify the ID
     token server-side (never trust a client-asserted identity — AC2),
-    then find-or-create the Account and issue a JWT (AC3/AC4/AC5).
+    then find-or-create the Account and start a session (AC3/AC4/AC5,
+    AUTH-003).
     """
     claims = await oauth_service.verify_identity(provider, payload.id_token)
-    user, token, roles = await auth_service.authenticate_with_oauth(provider, claims)
+    ip_address, user_agent = _client_context(request)
+    (
+        user,
+        access_token,
+        refresh_token,
+        roles,
+    ) = await auth_service.authenticate_with_oauth(
+        provider,
+        claims,
+        payload.device.device_platform,
+        payload.device.device_name,
+        ip_address,
+        user_agent,
+    )
     await db.commit()
 
     return SuccessResponse[AuthTokenResponse](
         success=True,
         message="Signed in successfully.",
         data=AuthTokenResponse(
-            access_token=token,
+            access_token=access_token,
+            refresh_token=refresh_token,
             token_type="bearer",
             user=UserSummaryResponse(
                 id=user.id,
@@ -227,22 +302,24 @@ async def _sign_in_with_oauth(
     summary="Sign In or Register with Google",
     description=(
         "Verifies a Google ID token against Google's public keys and "
-        "returns a JWT access token. Transparently creates a new Account "
-        "(with the `customer` role) if this is the first sign-in for the "
-        "Google account, or authenticates the existing Account otherwise. "
-        "A different provider previously used with the same email "
-        "produces a second, independent Account by design."
+        "returns a JWT access token plus a refresh token. Transparently "
+        "creates a new Account (with the `customer` role) if this is the "
+        "first sign-in for the Google account, or authenticates the "
+        "existing Account otherwise. A different provider previously "
+        "used with the same email produces a second, independent Account "
+        "by design."
     ),
 )
 async def sign_in_with_google(
     payload: OAuthSignInRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),  # noqa: B008
     oauth_service: OAuthService = Depends(get_oauth_service),  # noqa: B008
     auth_service: AuthService = Depends(get_auth_service),  # noqa: B008
 ) -> SuccessResponse[AuthTokenResponse]:
     """Verify a Google ID token, then authenticate (creating the Account if new)."""
     return await _sign_in_with_oauth(
-        AuthProvider.GOOGLE, payload, db, oauth_service, auth_service
+        AuthProvider.GOOGLE, payload, request, db, oauth_service, auth_service
     )
 
 
@@ -271,21 +348,193 @@ async def sign_in_with_google(
     summary="Sign In or Register with Apple",
     description=(
         "Verifies an Apple identity token against Apple's public keys "
-        "and returns a JWT access token. Transparently creates a new "
-        "Account (with the `customer` role) if this is the first "
-        "sign-in for the Apple account, or authenticates the existing "
-        "Account otherwise. A different provider previously used with "
-        "the same email produces a second, independent Account by "
-        "design."
+        "and returns a JWT access token plus a refresh token. "
+        "Transparently creates a new Account (with the `customer` role) "
+        "if this is the first sign-in for the Apple account, or "
+        "authenticates the existing Account otherwise. A different "
+        "provider previously used with the same email produces a "
+        "second, independent Account by design."
     ),
 )
 async def sign_in_with_apple(
     payload: OAuthSignInRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),  # noqa: B008
     oauth_service: OAuthService = Depends(get_oauth_service),  # noqa: B008
     auth_service: AuthService = Depends(get_auth_service),  # noqa: B008
 ) -> SuccessResponse[AuthTokenResponse]:
     """Verify an Apple identity token, creating the Account if it's new."""
     return await _sign_in_with_oauth(
-        AuthProvider.APPLE, payload, db, oauth_service, auth_service
+        AuthProvider.APPLE, payload, request, db, oauth_service, auth_service
+    )
+
+
+@router.post(
+    "/refresh",
+    response_model=SuccessResponse[AuthTokenResponse],
+    dependencies=[Depends(_refresh_rate_limiter)],
+    responses={
+        200: {
+            "model": SuccessResponse[AuthTokenResponse],
+            "description": "A new access/refresh token pair was issued.",
+        },
+        401: {
+            "description": (
+                "The refresh token was not found, expired, already used "
+                "(rotated away), or revoked. The response never reveals "
+                "which."
+            ),
+        },
+        429: {
+            "description": "Too many requests from this client.",
+        },
+    },
+    summary="Rotate a Refresh Token",
+    description=(
+        "Exchanges a valid, unexpired refresh token for a new "
+        "access/refresh pair, invalidating the presented refresh token "
+        "(rotation, AC4). Reusing an already-rotated-away or revoked "
+        "refresh token is rejected and, as hardening, revokes the whole "
+        "session (AC5)."
+    ),
+)
+async def refresh_token(
+    payload: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+    session_service: SessionService = Depends(get_session_service),  # noqa: B008
+) -> SuccessResponse[AuthTokenResponse]:
+    """Rotate a refresh token, issuing a new access/refresh pair."""
+    user, roles, access_token, new_refresh_token = await session_service.refresh(
+        payload.refresh_token
+    )
+    await db.commit()
+
+    return SuccessResponse[AuthTokenResponse](
+        success=True,
+        message="Token refreshed successfully.",
+        data=AuthTokenResponse(
+            access_token=access_token,
+            refresh_token=new_refresh_token,
+            token_type="bearer",
+            user=UserSummaryResponse(
+                id=user.id,
+                phone_country_code=user.phone_country_code,
+                phone_number=user.phone_number,
+                status=user.status,
+                preferred_language=user.preferred_language,
+                roles=roles,
+            ),
+        ),
+    )
+
+
+@router.get(
+    "/sessions",
+    response_model=SuccessResponse[list[SessionSummaryResponse]],
+    responses={
+        200: {
+            "model": SuccessResponse[list[SessionSummaryResponse]],
+            "description": "The caller's active sessions.",
+        },
+        401: {"description": "Authentication required."},
+    },
+    summary="List Active Sessions",
+    description=(
+        "Lists the caller's active sessions with device name, platform, "
+        "and last-seen time, flagging the current one (AC7). "
+        "Deliberately unpaginated — a user's realistic session count is "
+        "small and per-owner."
+    ),
+)
+async def list_sessions(
+    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    session_service: SessionService = Depends(get_session_service),  # noqa: B008
+) -> SuccessResponse[list[SessionSummaryResponse]]:
+    """List the caller's active sessions."""
+    items = await session_service.list_active_sessions(
+        current_user.id, current_user.session_id
+    )
+    return SuccessResponse[list[SessionSummaryResponse]](
+        success=True,
+        message="Active sessions retrieved.",
+        data=[
+            SessionSummaryResponse(
+                id=item.id,
+                device_name=item.device_name,
+                platform=item.platform,
+                last_seen_at=item.last_seen_at,
+                created_at=item.created_at,
+                is_current=item.is_current,
+            )
+            for item in items
+        ],
+    )
+
+
+@router.delete(
+    "/sessions/{session_id}",
+    response_model=SuccessResponse[None],
+    responses={
+        200: {
+            "model": SuccessResponse[None],
+            "description": "The session was revoked.",
+        },
+        401: {"description": "Authentication required."},
+        404: {
+            "description": (
+                "The session does not exist, or does not belong to the "
+                "caller — the response never reveals which (AC10)."
+            ),
+        },
+    },
+    summary="Revoke a Single Session",
+    description=(
+        "Revokes one session and every refresh token in its chain "
+        "(AC8). A subsequent refresh attempt with that session's "
+        "refresh token fails."
+    ),
+)
+async def revoke_session(
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    session_service: SessionService = Depends(get_session_service),  # noqa: B008
+) -> SuccessResponse[None]:
+    """Revoke a single session owned by the caller."""
+    await session_service.revoke_session(current_user.id, session_id)
+    await db.commit()
+    return SuccessResponse[None](success=True, message="Session revoked.", data=None)
+
+
+@router.post(
+    "/sessions/logout-all",
+    response_model=SuccessResponse[None],
+    responses={
+        200: {
+            "model": SuccessResponse[None],
+            "description": "Every session was revoked.",
+        },
+        401: {"description": "Authentication required."},
+    },
+    summary="Log Out Everywhere",
+    description=(
+        "Revokes every active session for the caller, optionally "
+        "excluding the current one (`keep_current`). A distinct, "
+        "separately labeled action from `DELETE /auth/sessions/{id}` "
+        "(AC9)."
+    ),
+)
+async def logout_all_sessions(
+    payload: LogoutAllRequest,
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+    current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    session_service: SessionService = Depends(get_session_service),  # noqa: B008
+) -> SuccessResponse[None]:
+    """Revoke every session for the caller (optionally keeping the current one)."""
+    await session_service.revoke_all_sessions(
+        current_user.id, current_user.session_id, payload.keep_current
+    )
+    await db.commit()
+    return SuccessResponse[None](
+        success=True, message="Signed out of all sessions.", data=None
     )

@@ -196,18 +196,19 @@ class _PhoneEntryScreenState extends ConsumerState<PhoneEntryScreen> {
   Future<void> _onGoogleSignIn() async {
     final controller = ref.read(oauthSignInControllerProvider.notifier);
     final token = await controller.signInWithGoogle();
-    _handleOAuthResult(token);
+    await _handleOAuthResult(token);
   }
 
   Future<void> _onAppleSignIn() async {
     final controller = ref.read(oauthSignInControllerProvider.notifier);
     final token = await controller.signInWithApple();
-    _handleOAuthResult(token);
+    await _handleOAuthResult(token);
   }
 
-  void _handleOAuthResult(AuthToken? token) {
+  Future<void> _handleOAuthResult(AuthToken? token) async {
     if (!mounted || token == null) return;
-    ref.read(authSessionProvider.notifier).state = token;
+    await ref.read(authSessionControllerProvider).setSession(token);
+    if (!mounted) return;
     context.go(AppRoutes.homePlaceholder);
   }
 }

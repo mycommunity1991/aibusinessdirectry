@@ -1,8 +1,30 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
 from app.core.constants import OTP_CODE_LENGTH
+from app.modules.identity.models import DevicePlatform
+
+
+class DeviceContext(BaseModel):
+    """
+    Client-supplied device context (AUTH-003, AC6), required on every
+    login-shaped request (`verify-otp`/`google`/`apple`) so a `Device`
+    row can be recorded/updated. No client-generated device ID exists in
+    the documented schema (Decision 2, `Plan_S02_AUTH-003.md`) -- the
+    find-or-update key is `(user_id, platform, device_name)`.
+    """
+
+    device_platform: DevicePlatform = Field(
+        ..., description="The device's operating system.", examples=["ios"]
+    )
+    device_name: str | None = Field(
+        None,
+        description='A human-readable device label, e.g. "iPhone 15".',
+        max_length=255,
+        examples=["iPhone 15"],
+    )
 
 
 class RequestOtpRequest(BaseModel):
@@ -67,6 +89,9 @@ class VerifyOtpRequest(BaseModel):
         pattern=r"^\d{6}$",
         examples=["123456"],
     )
+    device: DeviceContext = Field(
+        ..., description="The signing-in device's context (AUTH-003, AC6)."
+    )
 
 
 class OAuthSignInRequest(BaseModel):
@@ -83,6 +108,9 @@ class OAuthSignInRequest(BaseModel):
         ),
         min_length=1,
         examples=["eyJhbGciOiJSUzI1NiIsImtpZCI6Ii4uLiJ9..."],
+    )
+    device: DeviceContext = Field(
+        ..., description="The signing-in device's context (AUTH-003, AC6)."
     )
 
 
@@ -102,8 +130,60 @@ class UserSummaryResponse(BaseModel):
 
 
 class AuthTokenResponse(BaseModel):
-    """Response payload for a successful `POST /auth/verify-otp`."""
+    """
+    Response payload for a successful `POST /auth/verify-otp`/`google`/
+    `apple`/`refresh`. Every login (or refresh) now mints a session and
+    refresh token, not only an access token (AUTH-003).
+    """
 
     access_token: str = Field(..., description="A short-lived JWT access token.")
+    refresh_token: str = Field(
+        ...,
+        description=(
+            "An opaque refresh token. Store securely; use it against "
+            "`POST /auth/refresh` to obtain a new access/refresh pair "
+            "once the access token expires."
+        ),
+    )
     token_type: str = Field("bearer", description="The token type.")
     user: UserSummaryResponse = Field(..., description="The authenticated user.")
+
+
+class RefreshTokenRequest(BaseModel):
+    """Request payload for `POST /auth/refresh`."""
+
+    refresh_token: str = Field(
+        ..., description="The opaque refresh token issued at the last login/refresh."
+    )
+
+
+class SessionSummaryResponse(BaseModel):
+    """A single entry of `GET /auth/sessions`' response (AC7)."""
+
+    id: uuid.UUID = Field(..., description="The session's unique identifier.")
+    device_name: str | None = Field(
+        None, description="The signed-in device's human-readable name, if known."
+    )
+    platform: str | None = Field(
+        None, description="The signed-in device's platform (ios/android), if known."
+    )
+    last_seen_at: datetime | None = Field(
+        None, description="When this device was last seen, if known."
+    )
+    created_at: datetime = Field(..., description="When this session was created.")
+    is_current: bool = Field(
+        ..., description="Whether this is the session the caller is using right now."
+    )
+
+
+class LogoutAllRequest(BaseModel):
+    """Request payload for `POST /auth/sessions/logout-all` (AC9)."""
+
+    keep_current: bool = Field(
+        False,
+        description=(
+            "If true, the caller's own current session is kept active; "
+            "every other session is revoked. A distinct, separately "
+            "labeled action from `DELETE /auth/sessions/{session_id}`."
+        ),
+    )

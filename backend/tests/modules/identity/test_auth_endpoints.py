@@ -2,8 +2,10 @@
 End-to-end integration tests for `POST /auth/request-otp`,
 `POST /auth/verify-otp` (AC11: covers new-number registration,
 existing-number login, expired code rejection, attempt-cap lockout, and
-reused-code rejection), and `POST /auth/google`/`POST /auth/apple`
-(AUTH-002: AC3/AC4/AC5/AC6/AC9).
+reused-code rejection), `POST /auth/google`/`POST /auth/apple`
+(AUTH-002: AC3/AC4/AC5/AC6/AC9), and AUTH-003's `POST /auth/refresh`,
+`GET /auth/sessions`, `DELETE /auth/sessions/{id}`,
+`POST /auth/sessions/logout-all` (AC1-AC11).
 """
 
 from datetime import UTC, datetime, timedelta
@@ -41,6 +43,11 @@ from tests.support.id_token_factory import IdTokenFactory, JwksTestServer
 PHONE_COUNTRY_CODE = "+971"
 GOOGLE_ISSUER = "https://accounts.google.com"
 APPLE_ISSUER = "https://appleid.apple.com"
+
+# AUTH-003, AC6: every login-shaped request now requires a `device`
+# field. A single default payload is reused by every test below that
+# doesn't specifically exercise device-capture behavior.
+DEFAULT_DEVICE = {"device_platform": "ios", "device_name": "Test Device"}
 
 
 class SpySmsSender(SmsSender):
@@ -155,6 +162,44 @@ async def _request_otp(
     return sms_spy.last_code
 
 
+def _verify_otp_json(phone_number: str, code: str, device: dict | None = None) -> dict:
+    return {
+        "phone_country_code": PHONE_COUNTRY_CODE,
+        "phone_number": phone_number,
+        "code": code,
+        "device": device if device is not None else DEFAULT_DEVICE,
+    }
+
+
+def _verify_otp(
+    client: TestClient, phone_number: str, code: str, device: dict | None = None
+):
+    return client.post(
+        "/api/v1/auth/verify-otp", json=_verify_otp_json(phone_number, code, device)
+    )
+
+
+def _oauth_json(id_token: str, device: dict | None = None) -> dict:
+    return {
+        "id_token": id_token,
+        "device": device if device is not None else DEFAULT_DEVICE,
+    }
+
+
+async def _login_and_get_tokens(
+    client: TestClient,
+    sms_spy: SpySmsSender,
+    phone_number: str,
+    device: dict | None = None,
+) -> dict:
+    """Runs the full OTP flow and returns the `data` payload of a
+    successful `verify-otp` response (access_token/refresh_token/user)."""
+    code = await _request_otp(client, sms_spy, phone_number)
+    response = _verify_otp(client, phone_number, code, device)
+    assert response.status_code == 200
+    return response.json()["data"]
+
+
 class TestRequestOtp:
     @pytest.mark.anyio
     async def test_request_otp_returns_generic_ack(
@@ -227,18 +272,12 @@ class TestVerifyOtpRegistrationAndLogin:
 
         code = await _request_otp(client, sms_spy, "502000001")
 
-        response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000001",
-                "code": code,
-            },
-        )
+        response = _verify_otp(client, "502000001", code)
 
         assert response.status_code == 200
         body = response.json()["data"]
         assert body["access_token"]
+        assert body["refresh_token"]
         assert body["token_type"] == "bearer"
         assert body["user"]["phone_number"] == "502000001"
         assert body["user"]["roles"] == [ROLE_CUSTOMER]
@@ -260,26 +299,12 @@ class TestVerifyOtpRegistrationAndLogin:
         await db_session.commit()
 
         first_code = await _request_otp(client, sms_spy, "502000002")
-        first_response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000002",
-                "code": first_code,
-            },
-        )
+        first_response = _verify_otp(client, "502000002", first_code)
         assert first_response.status_code == 200
         first_user_id = first_response.json()["data"]["user"]["id"]
 
         second_code = await _request_otp(client, sms_spy, "502000002")
-        second_response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000002",
-                "code": second_code,
-            },
-        )
+        second_response = _verify_otp(client, "502000002", second_code)
         assert second_response.status_code == 200
         second_user_id = second_response.json()["data"]["user"]["id"]
 
@@ -302,14 +327,7 @@ class TestVerifyOtpRegistrationAndLogin:
         await db_session.commit()
 
         code = await _request_otp(client, sms_spy, "502000003")
-        response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000003",
-                "code": code,
-            },
-        )
+        response = _verify_otp(client, "502000003", code)
         assert response.status_code == 200
 
         # `customer.customer_profiles` doesn't exist at all — this
@@ -319,6 +337,36 @@ class TestVerifyOtpRegistrationAndLogin:
             text("SELECT to_regclass('customer.customer_profiles') AS reg")
         )
         assert schema_check.scalar() is None
+
+    @pytest.mark.anyio
+    async def test_repeat_login_from_the_same_device_updates_not_duplicates_device(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        """AUTH-003, AC6: a device row is created on first login and
+        updated (not duplicated) on a repeat login with the same device
+        info."""
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        device = {"device_platform": "android", "device_name": "Pixel 8"}
+
+        first_code = await _request_otp(client, sms_spy, "502000020")
+        first_response = _verify_otp(client, "502000020", first_code, device)
+        assert first_response.status_code == 200
+
+        second_code = await _request_otp(client, sms_spy, "502000020")
+        second_response = _verify_otp(client, "502000020", second_code, device)
+        assert second_response.status_code == 200
+
+        result = await db_session.execute(
+            text(
+                "SELECT count(*) FROM identity.devices d "
+                "JOIN identity.users u ON u.id = d.user_id "
+                "WHERE u.phone_number = :phone"
+            ),
+            {"phone": "502000020"},
+        )
+        assert result.scalar() == 1
 
 
 class TestVerifyOtpFailureCases:
@@ -330,14 +378,7 @@ class TestVerifyOtpFailureCases:
         whether the phone number is registered."""
         await _request_otp(client, sms_spy, "502000004")
 
-        response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000004",
-                "code": "000000",
-            },
-        )
+        response = _verify_otp(client, "502000004", "000000")
         assert response.status_code == 400
         body = response.json()
         assert body["success"] is False
@@ -351,14 +392,7 @@ class TestVerifyOtpFailureCases:
     ) -> None:
         """No OTP was ever requested for this number — the response must
         be indistinguishable from a wrong-code response."""
-        response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000099",
-                "code": "123456",
-            },
-        )
+        response = _verify_otp(client, "502000099", "123456")
         assert response.status_code == 400
         assert "didn't work" in response.json()["message"]
 
@@ -378,14 +412,7 @@ class TestVerifyOtpFailureCases:
         )
         await db_session.commit()
 
-        response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000005",
-                "code": "123456",
-            },
-        )
+        response = _verify_otp(client, "502000005", "123456")
         assert response.status_code == 400
         assert "didn't work" in response.json()["message"]
 
@@ -398,35 +425,14 @@ class TestVerifyOtpFailureCases:
         code = await _request_otp(client, sms_spy, "502000006")
 
         for _ in range(OTP_MAX_ATTEMPTS - 1):
-            response = client.post(
-                "/api/v1/auth/verify-otp",
-                json={
-                    "phone_country_code": PHONE_COUNTRY_CODE,
-                    "phone_number": "502000006",
-                    "code": "000000",
-                },
-            )
+            response = _verify_otp(client, "502000006", "000000")
             assert response.status_code == 400
 
-        locked_response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000006",
-                "code": "000000",
-            },
-        )
+        locked_response = _verify_otp(client, "502000006", "000000")
         assert locked_response.status_code == 429
 
         # Even the correct code is now rejected — this OTP is dead.
-        still_locked_response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000006",
-                "code": code,
-            },
-        )
+        still_locked_response = _verify_otp(client, "502000006", code)
         assert still_locked_response.status_code == 429
 
     @pytest.mark.anyio
@@ -439,24 +445,10 @@ class TestVerifyOtpFailureCases:
 
         code = await _request_otp(client, sms_spy, "502000007")
 
-        first_response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000007",
-                "code": code,
-            },
-        )
+        first_response = _verify_otp(client, "502000007", code)
         assert first_response.status_code == 200
 
-        second_response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "502000007",
-                "code": code,
-            },
-        )
+        second_response = _verify_otp(client, "502000007", code)
         assert second_response.status_code == 400
         assert "didn't work" in second_response.json()["message"]
 
@@ -569,25 +561,11 @@ class TestRateLimiting:
         429 but with a different message) never fires first and this
         test cleanly isolates the rate limiter itself."""
         for i in range(AUTH_RATE_LIMIT_PER_MINUTE):
-            response = client.post(
-                "/api/v1/auth/verify-otp",
-                json={
-                    "phone_country_code": PHONE_COUNTRY_CODE,
-                    "phone_number": f"50399{i:04d}",
-                    "code": "000000",
-                },
-            )
+            response = _verify_otp(client, f"50399{i:04d}", "000000")
             assert response.status_code == 400
             assert "didn't work" in response.json()["message"]
 
-        limited_response = client.post(
-            "/api/v1/auth/verify-otp",
-            json={
-                "phone_country_code": PHONE_COUNTRY_CODE,
-                "phone_number": "503999999",
-                "code": "000000",
-            },
-        )
+        limited_response = _verify_otp(client, "503999999", "000000")
         assert limited_response.status_code == 429
         assert (
             limited_response.json()["message"]
@@ -611,11 +589,12 @@ class TestGoogleSignIn:
         token = _sign_google_token(
             google_id_token_factory, subject="google-sub-001", email="new@example.com"
         )
-        response = client.post("/api/v1/auth/google", json={"id_token": token})
+        response = client.post("/api/v1/auth/google", json=_oauth_json(token))
 
         assert response.status_code == 200
         body = response.json()["data"]
         assert body["access_token"]
+        assert body["refresh_token"]
         assert body["token_type"] == "bearer"
         assert body["user"]["roles"] == [ROLE_CUSTOMER]
 
@@ -638,7 +617,7 @@ class TestGoogleSignIn:
         await db_session.commit()
 
         token = _sign_google_token(google_id_token_factory, subject="google-sub-002")
-        first_response = client.post("/api/v1/auth/google", json={"id_token": token})
+        first_response = client.post("/api/v1/auth/google", json=_oauth_json(token))
         assert first_response.status_code == 200
         first_user_id = first_response.json()["data"]["user"]["id"]
 
@@ -646,7 +625,7 @@ class TestGoogleSignIn:
             google_id_token_factory, subject="google-sub-002"
         )
         second_response = client.post(
-            "/api/v1/auth/google", json={"id_token": second_token}
+            "/api/v1/auth/google", json=_oauth_json(second_token)
         )
         assert second_response.status_code == 200
         second_user_id = second_response.json()["data"]["user"]["id"]
@@ -665,7 +644,7 @@ class TestGoogleSignIn:
         token = _sign_google_token(google_id_token_factory)
         tampered = token[:-4] + ("AAAA" if not token.endswith("AAAA") else "BBBB")
 
-        response = client.post("/api/v1/auth/google", json={"id_token": tampered})
+        response = client.post("/api/v1/auth/google", json=_oauth_json(tampered))
 
         assert response.status_code == 401
         body = response.json()
@@ -681,7 +660,7 @@ class TestGoogleSignIn:
             google_id_token_factory, expires_delta=timedelta(minutes=-5)
         )
 
-        response = client.post("/api/v1/auth/google", json={"id_token": token})
+        response = client.post("/api/v1/auth/google", json=_oauth_json(token))
 
         assert response.status_code == 401
         assert (
@@ -697,7 +676,7 @@ class TestGoogleSignIn:
             issuer=GOOGLE_ISSUER, audience="some-other-app"
         )
 
-        response = client.post("/api/v1/auth/google", json={"id_token": token})
+        response = client.post("/api/v1/auth/google", json=_oauth_json(token))
 
         assert response.status_code == 401
         assert (
@@ -725,11 +704,12 @@ class TestAppleSignIn:
             email="applenew@example.com",
             email_verified="true",
         )
-        response = client.post("/api/v1/auth/apple", json={"id_token": token})
+        response = client.post("/api/v1/auth/apple", json=_oauth_json(token))
 
         assert response.status_code == 200
         body = response.json()["data"]
         assert body["access_token"]
+        assert body["refresh_token"]
         assert body["user"]["roles"] == [ROLE_CUSTOMER]
 
         result = await db_session.execute(
@@ -751,7 +731,7 @@ class TestAppleSignIn:
         await db_session.commit()
 
         token = _sign_apple_token(apple_id_token_factory, subject="apple-sub-002")
-        first_response = client.post("/api/v1/auth/apple", json={"id_token": token})
+        first_response = client.post("/api/v1/auth/apple", json=_oauth_json(token))
         assert first_response.status_code == 200
         first_user_id = first_response.json()["data"]["user"]["id"]
 
@@ -759,7 +739,7 @@ class TestAppleSignIn:
             apple_id_token_factory, subject="apple-sub-002"
         )
         second_response = client.post(
-            "/api/v1/auth/apple", json={"id_token": second_token}
+            "/api/v1/auth/apple", json=_oauth_json(second_token)
         )
         assert second_response.status_code == 200
         second_user_id = second_response.json()["data"]["user"]["id"]
@@ -783,7 +763,7 @@ class TestAppleSignIn:
             email="original@example.com",
         )
         first_response = client.post(
-            "/api/v1/auth/apple", json={"id_token": first_token}
+            "/api/v1/auth/apple", json=_oauth_json(first_token)
         )
         assert first_response.status_code == 200
 
@@ -791,7 +771,7 @@ class TestAppleSignIn:
             apple_id_token_factory, subject="apple-sub-003", email=None
         )
         second_response = client.post(
-            "/api/v1/auth/apple", json={"id_token": second_token}
+            "/api/v1/auth/apple", json=_oauth_json(second_token)
         )
         assert second_response.status_code == 200
 
@@ -808,7 +788,7 @@ class TestAppleSignIn:
         token = _sign_apple_token(apple_id_token_factory)
         tampered = token[:-4] + ("AAAA" if not token.endswith("AAAA") else "BBBB")
 
-        response = client.post("/api/v1/auth/apple", json={"id_token": tampered})
+        response = client.post("/api/v1/auth/apple", json=_oauth_json(tampered))
 
         assert response.status_code == 401
         assert (
@@ -843,7 +823,7 @@ class TestOauthCrossProviderSameEmail:
             email=shared_email,
         )
         google_response = client.post(
-            "/api/v1/auth/google", json={"id_token": google_token}
+            "/api/v1/auth/google", json=_oauth_json(google_token)
         )
         assert google_response.status_code == 200
         google_user_id = google_response.json()["data"]["user"]["id"]
@@ -854,7 +834,7 @@ class TestOauthCrossProviderSameEmail:
             email=shared_email,
         )
         apple_response = client.post(
-            "/api/v1/auth/apple", json={"id_token": apple_token}
+            "/api/v1/auth/apple", json=_oauth_json(apple_token)
         )
         assert apple_response.status_code == 200
         apple_user_id = apple_response.json()["data"]["user"]["id"]
@@ -876,3 +856,234 @@ class TestOauthCrossProviderSameEmail:
         provider_by_id = {str(row.id): row.auth_provider for row in rows}
         assert set(provider_by_id.values()) == {"google", "apple"}
         assert len(set(provider_by_id.keys())) == 2
+
+
+class TestRefreshEndpoint:
+    """AUTH-003: `POST /auth/refresh` (AC4, AC5, AC11's rotation case)."""
+
+    @pytest.mark.anyio
+    async def test_refresh_rotates_and_returns_a_new_pair(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        login_data = await _login_and_get_tokens(client, sms_spy, "506000001")
+
+        response = client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": login_data["refresh_token"]},
+        )
+
+        assert response.status_code == 200
+        body = response.json()["data"]
+        assert body["access_token"]
+        assert body["refresh_token"]
+        # AC4: the refresh token is always rotated. The access token's
+        # `jti` (session id) is unchanged by design (Decision 1,
+        # `Plan_S02_AUTH-003.md`) -- if `sub`/`roles` are also unchanged
+        # and both calls land in the same wall-clock second (JWT
+        # timestamps are second-precision), the reissued access token can
+        # be byte-identical to the previous one, so it is deliberately
+        # not asserted to differ here.
+        assert body["refresh_token"] != login_data["refresh_token"]
+
+    @pytest.mark.anyio
+    async def test_reusing_an_already_rotated_refresh_token_fails(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        """AC5 / AC11: an already-used (rotated-away) refresh token is
+        rejected."""
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        login_data = await _login_and_get_tokens(client, sms_spy, "506000002")
+
+        first_refresh = client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": login_data["refresh_token"]},
+        )
+        assert first_refresh.status_code == 200
+
+        second_refresh = client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": login_data["refresh_token"]},
+        )
+        assert second_refresh.status_code == 401
+        assert "session could not be refreshed" in second_refresh.json()["message"]
+
+    @pytest.mark.anyio
+    async def test_refresh_with_an_unknown_token_fails(
+        self, client: TestClient
+    ) -> None:
+        """AC5: a refresh token that was never issued is rejected."""
+        response = client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": "never-issued-token-value"},
+        )
+        assert response.status_code == 401
+
+
+class TestSessionsEndpoints:
+    """
+    AUTH-003: `GET /auth/sessions`, `DELETE /auth/sessions/{id}`,
+    `POST /auth/sessions/logout-all` (AC7, AC8, AC9, AC10, AC11).
+    """
+
+    @pytest.mark.anyio
+    async def test_list_sessions_requires_authentication(
+        self, client: TestClient
+    ) -> None:
+        response = client.get("/api/v1/auth/sessions")
+        assert response.status_code == 401
+
+    @pytest.mark.anyio
+    async def test_list_sessions_shows_device_info_and_flags_current(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        """AC7."""
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        login_data = await _login_and_get_tokens(
+            client,
+            sms_spy,
+            "506000010",
+            device={"device_platform": "ios", "device_name": "My iPhone"},
+        )
+        headers = {"Authorization": f"Bearer {login_data['access_token']}"}
+
+        response = client.get("/api/v1/auth/sessions", headers=headers)
+
+        assert response.status_code == 200
+        sessions = response.json()["data"]
+        assert len(sessions) == 1
+        assert sessions[0]["device_name"] == "My iPhone"
+        assert sessions[0]["platform"] == "ios"
+        assert sessions[0]["is_current"] is True
+
+    @pytest.mark.anyio
+    async def test_delete_session_then_refresh_with_its_token_fails(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        """AC8 / AC11: revoke-then-refresh-fails."""
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        login_data = await _login_and_get_tokens(client, sms_spy, "506000011")
+        headers = {"Authorization": f"Bearer {login_data['access_token']}"}
+
+        sessions_resp = client.get("/api/v1/auth/sessions", headers=headers)
+        session_id = sessions_resp.json()["data"][0]["id"]
+
+        delete_resp = client.delete(
+            f"/api/v1/auth/sessions/{session_id}", headers=headers
+        )
+        assert delete_resp.status_code == 200
+
+        refresh_resp = client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": login_data["refresh_token"]},
+        )
+        assert refresh_resp.status_code == 401
+
+    @pytest.mark.anyio
+    async def test_logout_all_revokes_every_session(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        """AC9 (no keep_current)."""
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        first_login = await _login_and_get_tokens(client, sms_spy, "506000012")
+        code = await _request_otp(client, sms_spy, "506000012")
+        second_response = _verify_otp(client, "506000012", code)
+        second_login = second_response.json()["data"]
+
+        headers = {"Authorization": f"Bearer {second_login['access_token']}"}
+        logout_resp = client.post(
+            "/api/v1/auth/sessions/logout-all", json={}, headers=headers
+        )
+        assert logout_resp.status_code == 200
+
+        for refresh_token_value in (
+            first_login["refresh_token"],
+            second_login["refresh_token"],
+        ):
+            refresh_resp = client.post(
+                "/api/v1/auth/refresh", json={"refresh_token": refresh_token_value}
+            )
+            assert refresh_resp.status_code == 401
+
+    @pytest.mark.anyio
+    async def test_logout_all_can_keep_the_current_session(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        """AC9 (keep_current=True) -- a distinct, separately labeled
+        action from a single-session DELETE."""
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        first_login = await _login_and_get_tokens(client, sms_spy, "506000013")
+        code = await _request_otp(client, sms_spy, "506000013")
+        second_response = _verify_otp(client, "506000013", code)
+        second_login = second_response.json()["data"]
+
+        headers = {"Authorization": f"Bearer {second_login['access_token']}"}
+        logout_resp = client.post(
+            "/api/v1/auth/sessions/logout-all",
+            json={"keep_current": True},
+            headers=headers,
+        )
+        assert logout_resp.status_code == 200
+
+        # The first session's token is revoked...
+        first_refresh_resp = client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": first_login["refresh_token"]},
+        )
+        assert first_refresh_resp.status_code == 401
+
+        # ...but the second (current) session's token still works.
+        second_refresh_resp = client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": second_login["refresh_token"]},
+        )
+        assert second_refresh_resp.status_code == 200
+
+    @pytest.mark.anyio
+    async def test_user_cannot_list_or_revoke_another_users_session(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        """AC10 / AC11: explicit ownership-boundary test."""
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        user_a_login = await _login_and_get_tokens(client, sms_spy, "506000014")
+        user_a_headers = {"Authorization": f"Bearer {user_a_login['access_token']}"}
+        user_a_sessions = client.get(
+            "/api/v1/auth/sessions", headers=user_a_headers
+        ).json()["data"]
+        user_a_session_id = user_a_sessions[0]["id"]
+
+        user_b_login = await _login_and_get_tokens(client, sms_spy, "506000015")
+        user_b_headers = {"Authorization": f"Bearer {user_b_login['access_token']}"}
+
+        # User B's own session list never contains User A's session.
+        user_b_sessions = client.get(
+            "/api/v1/auth/sessions", headers=user_b_headers
+        ).json()["data"]
+        assert all(s["id"] != user_a_session_id for s in user_b_sessions)
+
+        # User B cannot revoke User A's session -- 404, revealing nothing.
+        cross_delete_resp = client.delete(
+            f"/api/v1/auth/sessions/{user_a_session_id}", headers=user_b_headers
+        )
+        assert cross_delete_resp.status_code == 404
+
+        # User A's session (and its refresh token) is untouched.
+        refresh_resp = client.post(
+            "/api/v1/auth/refresh",
+            json={"refresh_token": user_a_login["refresh_token"]},
+        )
+        assert refresh_resp.status_code == 200

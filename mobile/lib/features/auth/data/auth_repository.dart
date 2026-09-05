@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -7,6 +9,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/oauth_config.dart';
 import '../domain/models/auth_exception.dart';
 import '../domain/models/auth_token.dart';
+import '../domain/models/device_context.dart';
 
 /// Wraps the mobile-OTP auth endpoints (`POST /auth/request-otp`,
 /// `POST /auth/verify-otp`) and the Google/Apple OAuth endpoints
@@ -60,6 +63,9 @@ class AuthRepository {
   /// Verifies a 6-digit OTP and returns the resulting [AuthToken]. The
   /// backend transparently creates-or-fetches the user — the client never
   /// needs to know in advance whether this is a registration or a login.
+  ///
+  /// Includes the signing-in device's context (AUTH-003, AC6) so the
+  /// backend can record/update a `Device` row.
   Future<AuthToken> verifyOtp({
     required String phoneCountryCode,
     required String phoneNumber,
@@ -72,6 +78,7 @@ class AuthRepository {
           'phone_country_code': phoneCountryCode,
           'phone_number': phoneNumber,
           'code': code,
+          'device': DeviceContext.current().toJson(),
         },
       );
       final data = response.data?['data'] as Map<String, dynamic>?;
@@ -172,12 +179,13 @@ class AuthRepository {
 
   /// Exchanges a provider ID token for the same [AuthToken] shape
   /// [verifyOtp] returns — both endpoints reuse the backend's
-  /// `AuthTokenResponse` unchanged (Plan Decision 7).
+  /// `AuthTokenResponse` unchanged (Plan Decision 7), and both now also
+  /// require the signing-in device's context (AUTH-003, AC6).
   Future<AuthToken> _exchangeIdToken(String path, String idToken) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         path,
-        data: {'id_token': idToken},
+        data: {'id_token': idToken, 'device': DeviceContext.current().toJson()},
       );
       final data = response.data?['data'] as Map<String, dynamic>?;
       if (data == null) {
@@ -186,6 +194,69 @@ class AuthRepository {
       return AuthToken.fromJson(data);
     } on DioException catch (error) {
       throw _mapOAuthError(error);
+    }
+  }
+
+  /// Exchanges a persisted refresh token for a new access/refresh pair
+  /// (`POST /auth/refresh`, AUTH-003). Used by the splash screen's silent
+  /// session restore and by [ApiClient]'s auth interceptor on a 401.
+  ///
+  /// Throws [AuthException] (never a raw [DioException]) on failure — an
+  /// expired/reused/revoked refresh token maps to
+  /// [AuthErrorType.identityVerificationFailed] the same way an invalid
+  /// OAuth identity token does, since both represent "this credential is
+  /// no longer trustworthy."
+  Future<AuthToken> refresh(String refreshToken) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/auth/refresh',
+        data: {'refresh_token': refreshToken},
+      );
+      final data = response.data?['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw const AuthException(type: AuthErrorType.unknown);
+      }
+      return AuthToken.fromJson(data);
+    } on DioException catch (error) {
+      throw _mapOAuthError(error);
+    }
+  }
+
+  /// Revokes the current session server-side
+  /// (`DELETE /auth/sessions/{sessionId}`, AUTH-003), using the session ID
+  /// embedded in [accessToken]'s own `jti` claim (Plan Decision 1 — a
+  /// session's `jti` doubles as its ID). Does not touch local/persisted
+  /// session state — clearing that is [AuthSessionController.clear]'s job,
+  /// called separately by the caller.
+  ///
+  /// Best-effort: a `null`/malformed [accessToken], or any failure calling
+  /// the endpoint (already revoked, network unreachable), is swallowed —
+  /// logging out must always be possible locally even when the server-side
+  /// revoke can't be confirmed.
+  Future<void> logout(String? accessToken) async {
+    if (accessToken == null) return;
+    final sessionId = _decodeSessionId(accessToken);
+    if (sessionId == null) return;
+    try {
+      await _dio.delete<Map<String, dynamic>>('/auth/sessions/$sessionId');
+    } on DioException {
+      // Best-effort — see doc comment above.
+    }
+  }
+
+  /// Decodes an access token's own `jti` claim via a plain base64Url
+  /// decode of the JWT's payload segment. No signature verification is
+  /// performed or needed client-side: this value is only ever used to
+  /// label "my own session" for a logout call, never for authorization.
+  String? _decodeSessionId(String accessToken) {
+    final segments = accessToken.split('.');
+    if (segments.length != 3) return null;
+    try {
+      final normalized = base64Url.normalize(segments[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)));
+      return payload is Map<String, dynamic> ? payload['jti'] as String? : null;
+    } catch (_) {
+      return null;
     }
   }
 

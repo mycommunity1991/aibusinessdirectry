@@ -577,6 +577,78 @@ Prior ADR entries in this log that reference "MyCommunity" or the old repository
 
 ---
 
+# ADR-012
+
+## Title
+
+Small, Single-Owner-Scoped Collection Endpoints May Omit Pagination
+
+**Date**
+
+2026-09-05
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`05_API_GUIDELINES.md` states, without carve-out, that "all collection endpoints must support pagination."
+Story AUTH-003 introduced `GET /api/v1/auth/sessions`, which lists only the calling user's own active
+sessions — a collection that is inherently small and bounded by the number of real devices a person actually
+owns and signs in from (never "thousands," unlike a business/provider directory listing or a search-results
+endpoint). The endpoint was shipped unpaginated, a deliberate and documented deviation flagged during
+planning and implementation, not a silent omission. The `architect` agent reviewed the deviation during
+AUTH-003's story review and agreed the underlying reasoning was sound, but noted that a deviation from a
+documented "must" needs a formal record, not just an inline code comment and a Plan paragraph, so it isn't
+re-litigated the next time a similarly-shaped endpoint is built.
+
+### Decision
+
+A collection endpoint may omit pagination when both of the following hold:
+
+- The collection is scoped to a single owner (e.g. the calling user's own resources), not a shared or
+  platform-wide collection.
+- The collection's cardinality is inherently small and bounded by a real-world constraint on the owner side
+  (e.g. the number of devices a person plausibly owns), not by data volume that grows with platform usage or
+  time.
+
+`GET /api/v1/auth/sessions` (Story AUTH-003) is the first endpoint this applies to. This is a narrow
+exception to `05_API_GUIDELINES.md`'s blanket pagination rule, not a general license to skip pagination —
+any endpoint returning a platform-wide, shared, or unbounded-growth collection (business/provider listings,
+search results, reviews, notifications, etc.) must still paginate per the existing rule. When in doubt,
+default to pagination; this exception is for cases where pagination would be unnecessary complexity with no
+real benefit, consistent with `08_CODING_STANDARDS.md`'s "avoid unnecessary abstractions" principle.
+
+### Alternatives Considered
+
+- Paginate `GET /sessions` anyway for blanket consistency with `05_API_GUIDELINES.md` (rejected — adds
+  complexity with no realistic benefit for a collection that will essentially never exceed single-digit to
+  low-double-digit rows per user).
+- Leave the deviation as an inline code comment only, without a formal ADR (rejected per `architect`'s
+  review — a documented "must" being deviated from needs a recorded decision, not just a comment that could
+  be lost or contradicted by a future, uninformed implementer).
+
+### Consequences
+
+- Future stories building a similarly-shaped small, single-owner-scoped collection endpoint may cite this
+  ADR to omit pagination without re-deriving the reasoning from scratch.
+- `05_API_GUIDELINES.md`'s pagination rule remains the default for every other collection endpoint; this ADR
+  narrows it only for the specific shape described above.
+
+### Related Documents
+
+- 05_API_GUIDELINES.md
+- 08_CODING_STANDARDS.md
+- docs/implementation/plans/Plan_S02_AUTH-003.md
+- docs/implementation/walkthroughs/Walkthrough_S02_AUTH-003.md
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

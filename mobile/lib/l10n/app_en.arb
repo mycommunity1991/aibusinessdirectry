@@ -163,5 +163,10 @@
   "homePlaceholderMessage": "Home is coming soon.",
   "@homePlaceholderMessage": {
     "description": "Body copy on the temporary post-authentication placeholder screen."
+  },
+
+  "logOutLabel": "Log out",
+  "@logOutLabel": {
+    "description": "Label for the sign-out action on the temporary post-authentication placeholder screen (AUTH-003)."
   }
 }

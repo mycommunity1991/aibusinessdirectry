@@ -11,6 +11,23 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Session management and refresh-token rotation (Story AUTH-003): `identity.sessions` and
+  `identity.refresh_tokens` tables (linked to `users`/`devices`) via a reversible Alembic migration. Access
+  tokens are now 15 minutes (down from 30) and their JWT payload is narrowed to exactly `sub`, `exp`, `iat`,
+  `jti`, `roles` — no email or phone. Refresh tokens are opaque (`secrets.token_urlsafe(32)`), only their
+  SHA-256 hash is persisted. New `SessionService` (device/session/refresh-token lifecycle, separate from
+  `AuthService`) backs new endpoints: `POST /api/v1/auth/refresh` (rotation with reuse-detection cascade —
+  replaying an already-rotated or revoked refresh token revokes the entire session, not just that call),
+  `GET /api/v1/auth/sessions` (lists the caller's active sessions with device/platform/last-seen, flags the
+  current one), `DELETE /api/v1/auth/sessions/{session_id}`, and `POST /api/v1/auth/sessions/logout-all`
+  (optional `keep_current`). Ownership enforcement collapses "not found" and "not yours" into one non-revealing
+  404. `app/api/dependencies.py::get_current_user` is now a real implementation (replacing the BF-011
+  placeholder that unconditionally raised), decoding the JWT into a `CurrentUser(id, session_id, roles)`.
+- Mobile session persistence (Story AUTH-003): access/refresh token pairs are now persisted securely
+  (`flutter_secure_storage`) across app restarts; a Dio `AuthInterceptor` attaches the access token to every
+  request and performs one silent refresh-and-retry on a 401; the Splash screen validates a persisted session
+  via a real refresh call before routing to Home. A bare "Log out" action was added to the existing Home stub.
+  No new "Manage Sessions" UI screen was built this story (backend endpoints are fully built/tested regardless).
 - Google and Apple sign-in (Story AUTH-002): `POST /api/v1/auth/google` and `POST /api/v1/auth/apple`, backed by a shared `IdTokenVerifier`/`JwksIdTokenVerifier` (RS256, JWKS-published keys) serving both providers through one verification code path, and `OAuthService`, which collapses any verification failure into a single generic, non-revealing error. `AuthService.authenticate_with_oauth` finds-or-creates a `User` by `(auth_provider, external_auth_subject)`, assigning the `customer` role only on creation, matching AUTH-001's mobile-OTP find-or-create pattern.
 - Mobile Google/Apple sign-in buttons on the Phone Entry screen (`google_sign_in`, `sign_in_with_apple` packages), replacing AUTH-001's disabled placeholders, with graceful cancellation handling (no error shown, no stuck loading state) and localized failure copy (EN/AR).
 - Identity & Access domain foundation (Story AUTH-001): `identity` Postgres schema with `users`, `roles`, `permissions`, `role_permissions`, `user_roles`, `devices`, `otp_verifications` tables via a reversible Alembic migration, native enums (`user_status`, `auth_provider`, `device_platform`, `language_code`, `otp_purpose`), and the reusable `CommonColumnsMixin` (`backend/app/database/mixins.py`) that every future domain migration will inherit.
@@ -51,6 +68,10 @@ Current Version: 0.1.0 (Pre-MVP)
 - Migration developer guidelines and instructions in `backend/README.md`.
 
 ### Changed
+- Every login (mobile OTP, Google, Apple) now requires a `device: { device_platform, device_name }` field in
+  the request body and returns a `refresh_token` alongside `access_token` (Story AUTH-003) — an additive-field
+  but conforming-client-affecting contract change to the three endpoints AUTH-001/AUTH-002 previously shipped.
+  `request-otp` (unauthenticated, no login outcome) was not changed.
 - Replaced the `identity.users` table's global `uq_users_email` unique constraint with `uq_users_email_provider`, scoped to `(auth_provider, email)`, so the same email address under two different sign-in providers can each hold an independent account (Story AUTH-002). Promoted `httpx` from a dev-only to a runtime backend dependency to support JWKS fetching.
 - Refactored the backend from a flat `app/{models,services,repositories,schemas}/` layout to the documented modular structure (`app/modules/<domain>/...`), starting with the identity domain (`app/modules/identity/`), to match `02_ARCHITECTURE.md`'s Feature-First/module convention and set the precedent for every future domain (Story AUTH-001, post-architect-review). No behavior change: 104 backend tests still passing, API route paths/contracts unchanged, mobile required zero changes.
 - Enhanced `GET /api/v1/health` to use the service layer and return a structured `HealthResponse` schema containing service name and version (Story BF-007).

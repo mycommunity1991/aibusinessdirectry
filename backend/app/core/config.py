@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = Field(
         validation_alias=AliasChoices("SECRET_KEY", "JWT_SECRET_KEY")
     )
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
 

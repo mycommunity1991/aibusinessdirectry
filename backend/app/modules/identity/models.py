@@ -1,15 +1,12 @@
 """
 Identity domain models (`identity` Postgres schema).
 
-Covers the AUTH-001 scope: `users`, `roles`, `permissions`,
-`role_permissions`, `user_roles`, `devices`, and `otp_verifications`.
-See `docs/AI/04_DATABASE.md` (Identity Domain) for the column-level source
-of truth and `docs/implementation/plans/Plan_S02_AUTH-001.md` for the
-architecture decisions behind this module (first domain migration —
-establishes the mixin/enum/schema conventions every later domain reuses).
-
-`sessions`/`refresh_tokens` are intentionally NOT defined here — they
-belong to AUTH-003.
+Covers the AUTH-001 scope (`users`, `roles`, `permissions`,
+`role_permissions`, `user_roles`, `devices`, `otp_verifications`) plus the
+AUTH-003 scope (`sessions`, `refresh_tokens`). See `docs/AI/04_DATABASE.md`
+(Identity Domain) for the column-level source of truth and
+`docs/implementation/plans/Plan_S02_AUTH-001.md` /
+`Plan_S02_AUTH-003.md` for the architecture decisions behind this module.
 """
 
 import uuid
@@ -32,7 +29,7 @@ from sqlalchemy import (
 from sqlalchemy import (
     Enum as SqlEnum,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.base import Base
@@ -213,8 +210,9 @@ class UserRole(Base):
 
 
 class Device(CommonColumnsMixin, Base):
-    """A user's device. Table created by this story; not yet populated —
-    session/device tracking is AUTH-003."""
+    """A user's device. Table created by AUTH-001; populated by AUTH-003
+    on every login (find-or-update by `(user_id, platform, device_name)`,
+    see `DeviceRepository`)."""
 
     __tablename__ = "devices"
     __table_args__ = (
@@ -235,6 +233,75 @@ class Device(CommonColumnsMixin, Base):
     )
     last_seen_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+
+class Session(CommonColumnsMixin, Base):
+    """
+    One continuous device sign-in (AUTH-003). Its access token's `jti`
+    claim IS the session id (`jti = str(session.id)`, Decision 1 of
+    `Plan_S02_AUTH-003.md`) -- every refresh reissues an access token
+    carrying the same `jti`, since there is no independent per-access-
+    token blocklist in this design; only sessions/refresh tokens are
+    individually revocable.
+    """
+
+    __tablename__ = "sessions"
+    __table_args__ = (
+        Index("idx_sessions_user_id", "user_id"),
+        Index("idx_sessions_expires_at", "expires_at"),
+        {"schema": SCHEMA},
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.users.id"), nullable=False
+    )
+    device_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.devices.id"), nullable=True
+    )
+    ip_address: Mapped[str | None] = mapped_column(INET, nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class RefreshToken(CommonColumnsMixin, Base):
+    """
+    An opaque refresh token's persisted record (AUTH-003). Only
+    `token_hash` (SHA-256 of the raw token) is ever persisted -- the raw
+    value is never stored, per `04_DATABASE.md`'s column note. Rotation
+    forms a chain via `replaced_by_token_id`: reusing an already-rotated-
+    away token is a reuse-detection signal (see `SessionService.refresh`).
+    """
+
+    __tablename__ = "refresh_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_refresh_tokens_token_hash"),
+        Index("idx_refresh_tokens_user_id", "user_id"),
+        {"schema": SCHEMA},
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.users.id"), nullable=False
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey(f"{SCHEMA}.sessions.id"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    replaced_by_token_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{SCHEMA}.refresh_tokens.id"),
+        nullable=True,
     )
 
 

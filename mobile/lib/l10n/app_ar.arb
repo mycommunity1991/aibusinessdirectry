@@ -42,5 +42,7 @@
   "identityVerificationFailedMessage": "تعذّر التحقق من تسجيل دخولك. يرجى المحاولة مرة أخرى.",
 
   "homePlaceholderTitle": "تم تسجيل الدخول",
-  "homePlaceholderMessage": "الصفحة الرئيسية قادمة قريباً."
+  "homePlaceholderMessage": "الصفحة الرئيسية قادمة قريباً.",
+
+  "logOutLabel": "تسجيل الخروج"
 }

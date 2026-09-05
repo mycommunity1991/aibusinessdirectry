@@ -9,10 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.database.session import get_db
 from app.modules.identity.models import AuthProvider
+from app.modules.identity.repositories.device_repository import DeviceRepository
 from app.modules.identity.repositories.otp_verification_repository import (
     OtpVerificationRepository,
 )
+from app.modules.identity.repositories.refresh_token_repository import (
+    RefreshTokenRepository,
+)
 from app.modules.identity.repositories.role_repository import RoleRepository
+from app.modules.identity.repositories.session_repository import SessionRepository
 from app.modules.identity.repositories.user_repository import UserRepository
 from app.modules.identity.services.auth_service import AuthService
 from app.modules.identity.services.id_token_verifier import (
@@ -21,6 +26,7 @@ from app.modules.identity.services.id_token_verifier import (
 )
 from app.modules.identity.services.oauth_service import OAuthService
 from app.modules.identity.services.otp_service import OtpService
+from app.modules.identity.services.session_service import SessionService
 from app.modules.identity.services.sms_sender import ConsoleSmsSender, SmsSender
 
 # Google/Apple JWKS endpoints and accepted issuers (Decision 3,
@@ -105,9 +111,49 @@ def get_otp_service(
     return OtpService(OtpVerificationRepository(db), sms_sender, db)
 
 
+def get_device_repository(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> DeviceRepository:
+    """Provides a `DeviceRepository` bound to the request-scoped DB session."""
+    return DeviceRepository(db)
+
+
+def get_session_repository(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SessionRepository:
+    """Provides a `SessionRepository` bound to the request-scoped DB session."""
+    return SessionRepository(db)
+
+
+def get_refresh_token_repository(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> RefreshTokenRepository:
+    """Provides a `RefreshTokenRepository` bound to the request-scoped DB session."""
+    return RefreshTokenRepository(db)
+
+
+def get_session_service(
+    device_repository: Annotated[DeviceRepository, Depends(get_device_repository)],
+    session_repository: Annotated[SessionRepository, Depends(get_session_repository)],
+    refresh_token_repository: Annotated[
+        RefreshTokenRepository, Depends(get_refresh_token_repository)
+    ],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SessionService:
+    """Provides a `SessionService` bound to the request-scoped DB session."""
+    return SessionService(
+        device_repository=device_repository,
+        session_repository=session_repository,
+        refresh_token_repository=refresh_token_repository,
+        user_repository=UserRepository(db),
+        role_repository=RoleRepository(db),
+    )
+
+
 def get_auth_service(
     db: Annotated[AsyncSession, Depends(get_db)],
     otp_service: Annotated[OtpService, Depends(get_otp_service)],
+    session_service: Annotated[SessionService, Depends(get_session_service)],
 ) -> AuthService:
     """Provides an `AuthService` bound to the request-scoped DB session."""
     return AuthService(
@@ -115,4 +161,5 @@ def get_auth_service(
         user_repository=UserRepository(db),
         role_repository=RoleRepository(db),
         otp_service=otp_service,
+        session_service=session_service,
     )

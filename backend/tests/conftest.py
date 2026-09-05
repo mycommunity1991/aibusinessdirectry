@@ -88,8 +88,10 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         Device,
         OtpVerification,
         Permission,
+        RefreshToken,
         Role,
         RolePermission,
+        Session,
         User,
         UserRole,
     )
@@ -101,6 +103,8 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
 
     async with db_engine.begin() as conn:
         for model in (
+            RefreshToken,
+            Session,
             OtpVerification,
             Device,
             RolePermission,
