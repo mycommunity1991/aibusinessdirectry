@@ -728,6 +728,97 @@ attempting to invoke Alembic inside the test suite.
 
 ---
 
+# ADR-014
+
+## Title
+
+Cross-Module Provisioning Trigger via Direct Service Injection — `identity → customer`
+
+**Date**
+
+2026-09-06
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story CUS-001 needed every newly registered account (via mobile OTP, AUTH-001, or Google/Apple sign-in,
+AUTH-002) to also get a `customer_profiles` row and a `customer_preferences` row, created in the same database
+transaction as the `User` row — never as a separate, possibly-failing follow-up call. `identity`'s registration
+services (`AuthService.verify_otp_and_authenticate`/`authenticate_with_oauth`) already had an explicit
+`is_new_user` branch and a single, well-understood transaction boundary (one `await db.commit()` per endpoint,
+after the service call returns), but no existing mechanism for one module to trigger another module's
+provisioning logic within that same transaction. Story AUTH-004 had already established exactly this shape for
+a different purpose: `AuthService` takes `AuditService` (a different module's service) as a constructor
+dependency and calls it inline, flush-only, on the same request-scoped session — a one-directional
+`identity → audit` dependency with zero cycle risk, since `audit`'s models/repositories/services import
+nothing from `identity` (only a plain `user_id: uuid.UUID`, never a `User` object).
+
+### Decision
+
+`AuthService` gains a second cross-module service dependency, `customer_service: CustomerService`, wired via
+`identity/dependencies.py`'s `get_auth_service()` (`Depends(get_customer_service)`), in the identical shape as
+the existing `Depends(get_audit_service)` line. Both `verify_otp_and_authenticate` and `authenticate_with_oauth`
+call `await self.customer_service.provision_default_profile(user_id=user.id, accept_language_header=...)`
+inline inside their existing `if is_new_user:` blocks, on the same `AsyncSession` already in use — flush only,
+never a nested commit. The endpoint's single, pre-existing `db.commit()` remains the only transaction boundary,
+so the `User` row and the new `customer_profiles`/`customer_preferences` rows either all land together or none
+do.
+
+Dependency direction is deliberately one-directional: `customer`'s code has zero imports from `identity`'s
+services or repositories anywhere — only a plain FK-by-string to `identity.users.id` (via the pre-existing
+`CommonColumnsMixin` convention) and a reuse of `identity.models.LanguageCode` (a pure value enum, not a
+service or ORM-mapped class). This is not a new architectural pattern being introduced for CUS-001 — it is a
+second, independent application of the same pattern AUTH-004 already established and had reviewed. Any future
+story that needs one module to trigger another module's same-transaction provisioning logic on a shared
+lifecycle event (e.g. a future Notification-domain default-preferences row on registration) should default to
+this same shape rather than re-deriving a new mechanism.
+
+### Alternatives Considered
+
+- **SQLAlchemy `after_insert` ORM event listener** registered by `customer` on `identity.User` (rejected — the
+  language default needs the `Accept-Language` HTTP header, which is invisible to a low-level ORM mapper
+  event; it also makes the trigger implicit and untraceable from `AuthService` itself, violating this
+  project's "prefer explicit code over implicit behavior" rule; and it still requires `customer` to import
+  `identity`'s mapped `User` class at import time — a worse, "spooky action at a distance" coupling, for no
+  atomicity benefit over direct injection).
+- **Domain event** (`CustomerRegistered`, named in `03_DOMAIN_MODEL.md`'s Domain Events list) via an in-process
+  event bus (rejected — no event-bus infrastructure exists anywhere in this codebase today; building one
+  solely for this single call site is the kind of premature abstraction `08_CODING_STANDARDS.md` warns
+  against, and a synchronous, same-transaction event handler would be functionally identical to direct
+  injection with an extra indirection layer and no isolation benefit).
+
+### Consequences
+
+- `identity` now has two outgoing cross-module service dependencies (`audit`, `customer`), both following the
+  identical constructor-injection, flush-only, same-session shape — a consistent, repeatable pattern rather
+  than two different mechanisms for a similar problem.
+- Future modules needing to react to a registration (or other shared lifecycle) event within the same
+  transaction should default to this pattern; a domain-event bus remains a legitimate option to revisit only if
+  a genuinely independent, decoupled subscriber count grows large enough to justify the infrastructure
+  investment — not before.
+- `customer`'s own code must continue to have zero imports from `identity`'s services/repositories to keep the
+  dependency one-directional and cycle-free; any future PR that would import an `identity` service into
+  `customer` (or vice versa in a way that would create a cycle) should be treated as a design smell, not a
+  quick fix.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md
+- 03_DOMAIN_MODEL.md
+- 04_DATABASE.md
+- docs/implementation/plans/Plan_S03_CUS-001.md
+- docs/implementation/walkthroughs/Walkthrough_S03_CUS-001.md
+- docs/implementation/walkthroughs/Walkthrough_S02_AUTH-004.md (the `identity → audit` precedent this mirrors)
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

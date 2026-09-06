@@ -3,9 +3,9 @@
 
 **Project:** AI Marketplace
 **Current Phase:** MVP Development
-**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done)
-**Completed Story:** AUTH-004 Access the App According to My Role
-**Status:** Identity & Access domain complete — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging all shipped
+**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (In Progress — 1 of 2 stories done)
+**Completed Story:** CUS-001 Set Up My Customer Profile and Preferences
+**Status:** Identity & Access domain complete. Customer domain now underway: customer profile/preferences auto-provisioning and the `GET`/`PATCH /customers/me` endpoints have shipped; saved addresses (CUS-002) is next and now unblocked.
 **Last Updated:** 06 September 2026
 **Owner:** CTO
 
@@ -20,6 +20,8 @@ The engineering team follows a Specification-Driven Development approach where e
 The objective is to build production-quality software from Day One while avoiding architectural drift and unnecessary technical debt.
 
 Sprint 1 delivered a complete backend foundation (BF-001 through BF-018). Sprint 2 (Identity & Access) is now complete: AUTH-001 (mobile OTP registration/login) shipped the first business domain module, establishing the `identity` schema and the `backend/app/modules/<domain>/...` structural convention every later domain will follow. AUTH-002 (Google/Apple sign-in) shipped on top of it, adding server-side ID-token verification and the `(auth_provider, external_auth_subject)` account-matching pattern both OAuth providers and future auth methods share. AUTH-003 (stay signed in and manage active sessions) shipped on top of both: `sessions`/`refresh_tokens`/`devices` tables, a narrowed 15-minute JWT payload, rotating opaque refresh tokens with reuse-detection cascade-revocation, and real session listing/revocation endpoints, replacing the BF-011 `get_current_user` placeholder with a real implementation. AUTH-004 (access the app according to my role) has since shipped on top of all three: a composable `require_role()` dependency, an ownership-check helper (404, not 403), a new `audit` module with an immutable `audit_logs` table recording registration/login/logout/session-revocation events, and `GET /auth/me` — closing out Sprint 2 in full.
+
+Sprint 3 (Customer Profile & Locations) is now underway. Its first story, CUS-001 (set up my customer profile and preferences), has shipped: a new `customer` domain module (`customer_profiles`/`customer_preferences`, one-to-one with `users`), auto-provisioned in the same database transaction as registration via a new `identity → customer` cross-module service dependency that deliberately mirrors the `identity → audit` pattern AUTH-004 already established (recorded as ADR-014), sensible defaults (WhatsApp notification channel, `Accept-Language`-derived language falling back to English), and `GET`/`PATCH /customers/me` with no `{id}` parameter — ownership is structurally guaranteed rather than defensively checked. On mobile, a new Profile & Settings screen delivers live language switching (no app restart) and this codebase's first automated RTL test. CUS-002 (manage my service locations), which depends on CUS-001, is next and now unblocked.
 
 ---
 
@@ -229,8 +231,22 @@ Scope is limited strictly to the Identity & Access domain (`03_DOMAIN_MODEL.md`)
 
 **Sprint 2 (Identity & Access) is now complete.** All four plans (`Plan_S02_AUTH-001.md` through
 `Plan_S02_AUTH-004.md`) were re-planned against the current, authoritative 4-story tracker scope and are no
-longer stale; see each story's respective Walkthrough for completed implementation detail. The next sprint's
-stories have not yet been identified in this tracker document — see Section 17.
+longer stale; see each story's respective Walkthrough for completed implementation detail.
+
+## Sprint 3 — Customer Profile & Locations (In Progress — 1 of 2 stories done)
+
+Scope is limited to the Customer domain (`03_DOMAIN_MODEL.md`): the customer-facing profile/preferences record
+auto-provisioned at registration, and (in CUS-002) the customer's saved service-location addresses. Does not
+include the Provider-side profile equivalent (PRO-001/002) or a full bottom-navigation shell — both deferred
+to their own later stories.
+
+| Story | Description | Status |
+|--------|-------------|--------|
+| CUS-001 | Set up my customer profile and preferences | ✅ Done |
+| CUS-002 | Manage my service locations | ⬜ Pending — depends on CUS-001 (now unblocked) |
+
+See `docs/implementation/walkthroughs/Walkthrough_S03_CUS-001.md` for CUS-001's completed implementation
+detail.
 
 ---
 
@@ -257,8 +273,14 @@ The backend currently provides:
 ✓ Google/Apple sign-in (AUTH-002): JWKS-based ID-token verification (`IdTokenVerifier`/`JwksIdTokenVerifier`), `OAuthService`, `POST /auth/google`/`POST /auth/apple`, find-or-create by `(auth_provider, external_auth_subject)`
 ✓ Session management and refresh-token rotation (AUTH-003): `identity.sessions`/`identity.refresh_tokens` tables, 15-minute JWT access tokens narrowed to `{sub, exp, iat, jti, roles}`, opaque SHA-256-hashed refresh tokens with rotation and reuse-detection cascade-revocation, `SessionService`, `POST /auth/refresh`, `GET /auth/sessions`, `DELETE /auth/sessions/{id}`, `POST /auth/sessions/logout-all`, and a real `get_current_user` dependency (replacing the BF-011 placeholder)
 ✓ Role-based authorization and audit logging (AUTH-004): a composable `require_role()` dependency (401 vs. 403 structurally guaranteed, never interchangeable), an `ensure_owner_or_not_found` ownership-check helper (404, not 403), a new `audit` module with an immutable `audit.audit_logs` table recording registration/login/logout/session_revocation events with no secrets/tokens/PII, and `GET /auth/me` (role-protected, returns id/roles/status)
+✓ Customer domain — profile and preferences (CUS-001): a new `customer` schema with `customer_profiles`/
+`customer_preferences` tables (1:1 with `identity.users`), auto-provisioned atomically at registration via a
+new `identity → customer` cross-module service dependency (`CustomerService`, ADR-014); sensible defaults
+(WhatsApp notification channel, `Accept-Language`-derived language with English fallback); `GET`/`PATCH
+/customers/me` (no `{id}` parameter — ownership structurally guaranteed); lazy get-or-create backfill so
+Sprint-2 accounts that predate this story never 404 on first access
 
-The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete.
+The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain has now landed its first module (CUS-001) on top of it, following the same modular structure.
 
 ---
 
@@ -358,10 +380,15 @@ Implemented layers include:
 - Repository layer
 - Testing & code quality tooling
 - Identity & Access module (`backend/app/modules/identity/`) — mobile OTP registration/login (AUTH-001), establishing the `backend/app/modules/<domain>/...` structural convention every later domain module will follow; Google/Apple sign-in (AUTH-002) built on top of it, adding JWKS-based ID-token verification and `OAuthService`; session management and refresh-token rotation (AUTH-003) built on top of both, adding `SessionService`, `sessions`/`refresh_tokens` tables, and a real `get_current_user` dependency; role-based authorization and audit logging (AUTH-004) built on top of all three, adding `require_role()`, `ensure_owner_or_not_found`, a new `backend/app/modules/audit/` module (immutable `audit_logs` table), and `GET /auth/me` — completing Sprint 2
+- Customer module (`backend/app/modules/customer/`) — profile and preferences (CUS-001), the first module of the
+  new Customer domain: `customer_profiles`/`customer_preferences` tables, `CustomerService` (auto-provisioning,
+  get-or-create, `Accept-Language` parsing), and `GET`/`PATCH /customers/me`. Required one edit to `identity`
+  (`AuthService` gained a `CustomerService` constructor dependency, mirroring AUTH-004's `AuditService` wiring)
+  — no other existing module was touched.
 
 Remaining business modules are deferred until their corresponding sprint stories.
 
-The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001), real Google/Apple sign-in buttons on the Phone Entry screen (AUTH-002), and secure cross-restart session persistence, a silent-refresh Dio interceptor, and a "Log out" action on the Home stub (AUTH-003), are implemented. A dedicated Manage Sessions UI was deliberately not built this story (see AUTH-003's Walkthrough). The full Home screen and all other feature areas remain unbuilt.
+The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001), real Google/Apple sign-in buttons on the Phone Entry screen (AUTH-002), and secure cross-restart session persistence, a silent-refresh Dio interceptor, and a "Log out" action on the Home stub (AUTH-003), are implemented. A dedicated Manage Sessions UI was deliberately not built this story (see AUTH-003's Walkthrough). CUS-001 added a new `features/customer/` module and a Profile & Settings screen (reachable via a temporary entry point on the Home stub, not yet a bottom-nav tab) plus an `AcceptLanguageInterceptor` on `ApiClient`. The full Home screen, a bottom-navigation shell, and all other feature areas remain unbuilt.
 
 ---
 
@@ -370,7 +397,7 @@ The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/
 Not yet implemented:
 
 - Authentication / Identity & Access — complete: mobile OTP registration/login (AUTH-001), Google/Apple OAuth (AUTH-002), session/refresh-token management (AUTH-003), and role-based authorization + audit logging (AUTH-004) are all done. RBAC/audit is no longer a gap. Note: a permission-catalog/ABAC layer beyond simple role-name checks, and an admin-facing audit-log-viewing endpoint, remain out of scope until a future story requires them.
-- Customer profile
+- Customer profile — no longer a gap: auto-provisioned profile/preferences (display name, avatar, language, notification channel) and `GET`/`PATCH /customers/me` shipped in CUS-001. Saved addresses (CUS-002) is still a gap — pending, now unblocked.
 - Provider profile (Business / Freelancer)
 - Category taxonomy
 - Conversation / AI Intake
@@ -380,7 +407,7 @@ Not yet implemented:
 - Review / Outcome Tag
 - Notifications
 - Administration
-- Flutter application (beyond the AUTH-001 auth flow — Home screen and all other feature areas)
+- Flutter application (beyond the auth flow and the Profile & Settings screen — Home screen, a bottom-navigation shell, and all other feature areas)
 
 These will be implemented according to the approved sprint backlog, gated by the open decisions in `13_OPEN_DECISIONS.md` — category taxonomy in particular blocks the AI intake work.
 
@@ -400,26 +427,31 @@ Backend Foundation — 100%
 
 Identity & Access — Complete (4 of 4 stories done: AUTH-001, AUTH-002, AUTH-003, AUTH-004)
 
-Provider / Customer Profiles — Not Started
+Customer Domain — In Progress (1 of 2 Sprint 3 stories done: CUS-001; CUS-002 pending)
+
+Provider Profile — Not Started
 
 Conversation / AI Intake — Not Started
 
-Flutter Application — In Progress (auth flow only: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out)
+Flutter Application — In Progress (auth flow: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out; plus Profile & Settings screen with live language switching, CUS-001)
 
 Deployment — Not Started
 
-Overall Estimated Project Completion: Approximately 30-35%
+Overall Estimated Project Completion: Approximately 35-40%
 
 ---
 
 # 17. Next Planned Story
 
-Sprint 2 (Identity & Access) is now **complete** — AUTH-001, AUTH-002, AUTH-003, and AUTH-004 have all shipped
+Sprint 2 (Identity & Access) is **complete** — AUTH-001, AUTH-002, AUTH-003, and AUTH-004 have all shipped
 and been signed off.
 
-There is currently no Sprint 3 defined in this tracker document. The next sprint's stories need to be
-identified from `docs/AI/Project_Tracker.xlsx` (the authoritative backlog source, which this document cannot
-open directly) before planning can continue. Do not assume or invent a next story ahead of that lookup.
+Sprint 3 (Customer Profile & Locations) is **in progress** — CUS-001 (set up my customer profile and
+preferences) has shipped and been signed off.
+
+**Next planned story: CUS-002 — "Manage my service locations."** It depends on CUS-001 (the customer profile
+this story just created) and is now unblocked. Full scope should be re-confirmed against
+`docs/AI/Project_Tracker.xlsx` (the authoritative backlog source) before planning, per the usual process.
 
 ---
 

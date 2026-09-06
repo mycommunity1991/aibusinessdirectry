@@ -11,4 +11,10 @@ class AppRoutes {
   /// Minimal stub landed on after a successful `verify-otp`. Full Home
   /// (S-06) is a separate future Customer Core Loop story.
   static const String homePlaceholder = '/home-placeholder';
+
+  /// Profile & Settings (S-14, CUS-001). Reached directly from a temporary
+  /// entry point on [homePlaceholder] — not a bottom-nav tab, since the
+  /// full Home/Activity/Profile shell needs real Home/Activity screens
+  /// that don't exist yet (`Plan_S03_CUS-001.md` Decision 7).
+  static const String profileSettings = '/profile-settings';
 }

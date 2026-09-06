@@ -11,6 +11,29 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Customer profile and preferences (Story CUS-001): new `customer` Postgres schema with `customer_profiles`
+  and `customer_preferences` tables (one-to-one with `identity.users`) via a reversible Alembic migration;
+  `customer_preferences.language` reuses the existing `identity.language_code` enum (`create_type=False`)
+  rather than duplicating it, and a new `notification_channel` enum (`whatsapp`/`sms`/`email`, default
+  `whatsapp`) is scoped to the `customer` schema as its first consumer. Completing registration via mobile OTP
+  (AUTH-001) or Google/Apple sign-in (AUTH-002) now also creates a `customer_profiles` row and a
+  `customer_preferences` row in the same database transaction as the `User` row — `AuthService` gained a
+  `CustomerService` constructor dependency and calls it inline inside its existing `is_new_user` branch, flush
+  only, mirroring the `identity → audit` cross-module pattern already shipped in AUTH-004. Default language is
+  derived from the `Accept-Language` request header (q-value aware), falling back to English on a missing or
+  malformed header; `identity`'s endpoints now read and forward this header, never interpreting it themselves.
+  New `GET`/`PATCH /api/v1/customers/me`, both gated by `require_role(customer)`, resolving the target
+  exclusively from the caller's JWT — no `{id}` path parameter exists, so cross-account access is structurally
+  impossible rather than defensively checked. Sprint-2 accounts that predate this story are backfilled lazily:
+  `get_my_profile`/`update_my_profile` are get-or-create, so a legacy caller's first `GET`/`PATCH` call
+  transparently provisions their row instead of 404ing.
+- Mobile Profile & Settings screen (Story CUS-001): a new `features/customer/` module (editable display name,
+  avatar URL, language toggle, notification-channel picker), reachable via a temporary entry point from the
+  Home placeholder screen. Changing language calls the `PATCH` endpoint and updates the existing
+  `LanguageController` in the same call, taking effect immediately with no app restart. A new
+  `AcceptLanguageInterceptor` was added to `ApiClient`, closing a pre-existing gap where no outgoing request
+  ever sent an `Accept-Language` header. First automated RTL test in this codebase (`pumpApp`/`pumpScreen`
+  gained an optional `Locale?` parameter), establishing the pattern for future RTL acceptance criteria.
 - Role-based authorization and audit logging (Story AUTH-004): a new `require_role()` FastAPI dependency
   (`app/api/dependencies.py`), composable and layered on top of the existing `get_current_user` — a
   missing/invalid/expired token still 401s inside `get_current_user`; `require_role()` raises the new

@@ -61,6 +61,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
     from sqlalchemy.ext.asyncio import create_async_engine
 
     import app.modules.audit.models  # noqa: F401 - registers the audit_logs table
+    import app.modules.customer.models  # noqa: F401 - registers customer tables
     import app.modules.identity.models  # noqa: F401 - registers identity tables
     from app.database.base import Base
 
@@ -69,6 +70,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
     async with engine.begin() as conn:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS identity"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS audit"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS customer"))
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
@@ -77,6 +79,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.execute(text("DROP SCHEMA IF EXISTS identity CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS audit CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS customer CASCADE"))
     await engine.dispose()
 
 
@@ -88,6 +91,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     of whether the test (or the code under test) committed.
     """
     from app.modules.audit.models import AuditLog
+    from app.modules.customer.models import CustomerPreferences, CustomerProfile
     from app.modules.identity.models import (
         Device,
         OtpVerification,
@@ -108,6 +112,8 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     async with db_engine.begin() as conn:
         for model in (
             AuditLog,
+            CustomerPreferences,
+            CustomerProfile,
             RefreshToken,
             Session,
             OtpVerification,

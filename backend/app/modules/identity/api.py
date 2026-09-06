@@ -259,6 +259,7 @@ async def verify_otp(
         payload.device.device_name,
         ip_address,
         user_agent,
+        request.headers.get("accept-language"),
     )
     await db.commit()
 
@@ -309,6 +310,7 @@ async def _sign_in_with_oauth(
         payload.device.device_name,
         ip_address,
         user_agent,
+        request.headers.get("accept-language"),
     )
     await db.commit()
 

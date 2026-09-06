@@ -168,5 +168,54 @@
   "logOutLabel": "Log out",
   "@logOutLabel": {
     "description": "Label for the sign-out action on the temporary post-authentication placeholder screen (AUTH-003)."
+  },
+
+  "profileSettingsTooltip": "Profile & Settings",
+  "@profileSettingsTooltip": {
+    "description": "Tooltip/label for the temporary Profile & Settings entry point icon on the Home placeholder screen (Plan_S03_CUS-001.md Decision 7 — no bottom-nav shell yet)."
+  },
+  "profileSettingsTitle": "Profile & Settings",
+  "@profileSettingsTitle": {
+    "description": "Title on the Profile & Settings screen (S-14, CUS-001)."
+  },
+  "profileDisplayNameLabel": "Display name",
+  "@profileDisplayNameLabel": {
+    "description": "Label for the editable display name field on the Profile & Settings screen."
+  },
+  "profileAvatarUrlLabel": "Avatar URL",
+  "@profileAvatarUrlLabel": {
+    "description": "Label for the editable avatar field on the Profile & Settings screen — a plain string URL field, not a photo picker/upload (Plan_S03_CUS-001.md Decision 6)."
+  },
+  "profileAvatarUrlHint": "https://example.com/avatar.png",
+  "@profileAvatarUrlHint": {
+    "description": "Example hint text for the avatar URL field."
+  },
+  "profileLanguageLabel": "Language",
+  "@profileLanguageLabel": {
+    "description": "Section header above the language toggle on the Profile & Settings screen (AC6 — takes effect immediately, no restart)."
+  },
+  "profileNotificationChannelLabel": "Notification channel",
+  "@profileNotificationChannelLabel": {
+    "description": "Section header above the notification channel picker on the Profile & Settings screen."
+  },
+  "notificationChannelWhatsapp": "WhatsApp",
+  "@notificationChannelWhatsapp": {
+    "description": "Label for the WhatsApp notification channel option."
+  },
+  "notificationChannelSms": "SMS",
+  "@notificationChannelSms": {
+    "description": "Label for the SMS notification channel option."
+  },
+  "notificationChannelEmail": "Email",
+  "@notificationChannelEmail": {
+    "description": "Label for the Email notification channel option."
+  },
+  "saveLabel": "Save",
+  "@saveLabel": {
+    "description": "Generic label/tooltip for a per-field save action."
+  },
+  "retryLabel": "Try again",
+  "@retryLabel": {
+    "description": "Generic retry action label shown alongside an error message."
   }
 }

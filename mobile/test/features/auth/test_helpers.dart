@@ -24,19 +24,27 @@ List<Override> _withDefaultStorage(List<Override> overrides) {
 }
 
 /// Pumps the full app router (Splash/Language/Phone Entry/OTP Entry/Home
-/// placeholder), starting at [initialLocation], with the given provider
-/// [overrides]. Used by tests that exercise real GoRouter navigation
-/// between two or more of this story's screens.
+/// placeholder/Profile & Settings), starting at [initialLocation], with the
+/// given provider [overrides]. Used by tests that exercise real GoRouter
+/// navigation between two or more of this story's screens.
+///
+/// [locale] is optional and defaults to `null` (device-locale resolution,
+/// matching every pre-CUS-001 call site unchanged) — pass
+/// `const Locale('ar')` to pump a screen under test in Arabic/RTL (AC9,
+/// `Plan_S03_CUS-001.md` Decision 8), the first RTL-specific automated
+/// check in this codebase.
 Future<void> pumpApp(
   WidgetTester tester, {
   List<Override> overrides = const [],
   String initialLocation = AppRoutes.splash,
+  Locale? locale,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: _withDefaultStorage(overrides),
       child: MaterialApp.router(
         theme: AppTheme.light(),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: buildAppRouter(initialLocation: initialLocation),
@@ -50,10 +58,14 @@ Future<void> pumpApp(
 /// reached via `extra` data rather than a bare path, and whose
 /// `context.pop()`/`context.go()` calls just need *some* router ancestor
 /// to resolve against.
+///
+/// [locale] is optional and defaults to `null` — see [pumpApp]'s doc for
+/// the AC9/RTL use case this exists for.
 Future<void> pumpScreen(
   WidgetTester tester, {
   required Widget child,
   List<Override> overrides = const [],
+  Locale? locale,
 }) async {
   final router = GoRouter(
     initialLocation: '/under-test',
@@ -77,6 +89,7 @@ Future<void> pumpScreen(
       overrides: _withDefaultStorage(overrides),
       child: MaterialApp.router(
         theme: AppTheme.light(),
+        locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,

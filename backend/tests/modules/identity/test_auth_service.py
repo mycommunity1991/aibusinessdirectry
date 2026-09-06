@@ -87,6 +87,20 @@ def mock_audit_service() -> AsyncMock:
 
 
 @pytest.fixture
+def mock_customer_service() -> AsyncMock:
+    """
+    CUS-001: `AuthService` calls this inline, inside its `is_new_user`
+    branch, using the same request-scoped session (mirrors
+    `mock_audit_service` exactly). `provision_default_profile` is mocked
+    here -- the real, same-transaction guarantee is proven at the
+    integration level (`test_auth_endpoints.py`), not here.
+    """
+    service = AsyncMock()
+    service.provision_default_profile = AsyncMock()
+    return service
+
+
+@pytest.fixture
 def auth_service(
     mock_session: MagicMock,
     mock_user_repository: MagicMock,
@@ -94,6 +108,7 @@ def auth_service(
     mock_otp_service: AsyncMock,
     mock_session_service: AsyncMock,
     mock_audit_service: AsyncMock,
+    mock_customer_service: AsyncMock,
 ) -> AuthService:
     return AuthService(
         session=mock_session,
@@ -102,6 +117,7 @@ def auth_service(
         otp_service=mock_otp_service,
         session_service=mock_session_service,
         audit_service=mock_audit_service,
+        customer_service=mock_customer_service,
     )
 
 
@@ -113,6 +129,7 @@ async def test_verify_otp_and_authenticate_creates_user_and_assigns_customer_rol
     mock_session: MagicMock,
     mock_session_service: AsyncMock,
     mock_audit_service: AsyncMock,
+    mock_customer_service: AsyncMock,
 ) -> None:
     """AC6: a verified OTP for an unrecognized number creates a new User
     with auth_provider=mobile_otp and assigns the customer role."""
@@ -180,6 +197,13 @@ async def test_verify_otp_and_authenticate_creates_user_and_assigns_customer_rol
         ip_address="127.0.0.1",
     )
 
+    # CUS-001, AC2: a new user provisions a default customer
+    # profile/preferences row, inline, inside the same `is_new_user`
+    # branch as the audit/role-assignment calls above.
+    mock_customer_service.provision_default_profile.assert_awaited_once_with(
+        user_id=created_user.id, accept_language_header=None
+    )
+
 
 @pytest.mark.anyio
 async def test_verify_otp_and_authenticate_existing_user_does_not_duplicate(
@@ -188,6 +212,7 @@ async def test_verify_otp_and_authenticate_existing_user_does_not_duplicate(
     mock_role_repository: MagicMock,
     mock_session: MagicMock,
     mock_audit_service: AsyncMock,
+    mock_customer_service: AsyncMock,
 ) -> None:
     """AC7: a verified OTP for an existing phone number authenticates that
     User without creating a duplicate."""
@@ -229,6 +254,50 @@ async def test_verify_otp_and_authenticate_existing_user_does_not_duplicate(
         user_id=existing_user.id,
         auth_provider=AuthProvider.MOBILE_OTP.value,
         ip_address=None,
+    )
+
+    # CUS-001, AC8: a returning user never gets a second (or first, if
+    # somehow missing) customer profile provisioned.
+    mock_customer_service.provision_default_profile.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_verify_otp_and_authenticate_passes_accept_language_header_through(
+    auth_service: AuthService,
+    mock_user_repository: MagicMock,
+    mock_role_repository: MagicMock,
+    mock_customer_service: AsyncMock,
+) -> None:
+    """
+    CUS-001, Decision 3: the raw `Accept-Language` header value is passed
+    through to `CustomerService.provision_default_profile` verbatim --
+    `identity` never parses it itself.
+    """
+    mock_user_repository.get_by_phone.return_value = None
+    created_user = User(
+        id=uuid.uuid4(),
+        phone_country_code="+971",
+        phone_number="501234568",
+        auth_provider=AuthProvider.MOBILE_OTP,
+        status=UserStatus.ACTIVE,
+        preferred_language=LanguageCode.EN,
+    )
+    mock_user_repository.create.return_value = created_user
+    mock_role_repository.get_by_name.return_value = None
+
+    await auth_service.verify_otp_and_authenticate(
+        "+971",
+        "501234568",
+        "123456",
+        DevicePlatform.IOS,
+        None,
+        None,
+        None,
+        "ar-AE,ar;q=0.9,en;q=0.8",
+    )
+
+    mock_customer_service.provision_default_profile.assert_awaited_once_with(
+        user_id=created_user.id, accept_language_header="ar-AE,ar;q=0.9,en;q=0.8"
     )
 
 
@@ -291,6 +360,7 @@ class TestAuthenticateWithOauth:
         mock_session: MagicMock,
         mock_session_service: AsyncMock,
         mock_audit_service: AsyncMock,
+        mock_customer_service: AsyncMock,
     ) -> None:
         """AC3: a new (provider, subject) pair creates a new User and
         assigns the customer role."""
@@ -353,6 +423,12 @@ class TestAuthenticateWithOauth:
             ip_address="127.0.0.1",
         )
 
+        # CUS-001, AC2: a new OAuth-registered user also provisions a
+        # default customer profile/preferences row, inline.
+        mock_customer_service.provision_default_profile.assert_awaited_once_with(
+            user_id=created_user.id, accept_language_header=None
+        )
+
     @pytest.mark.anyio
     async def test_existing_pair_authenticates_without_duplicating(
         self,
@@ -361,6 +437,7 @@ class TestAuthenticateWithOauth:
         mock_role_repository: MagicMock,
         mock_session: MagicMock,
         mock_audit_service: AsyncMock,
+        mock_customer_service: AsyncMock,
     ) -> None:
         """AC4: an existing (provider, subject) pair authenticates the
         existing User without creating a duplicate."""
@@ -403,6 +480,10 @@ class TestAuthenticateWithOauth:
             auth_provider=AuthProvider.GOOGLE.value,
             ip_address=None,
         )
+
+        # CUS-001, AC8: a returning OAuth user never gets a customer
+        # profile provisioned a second time.
+        mock_customer_service.provision_default_profile.assert_not_awaited()
 
     @pytest.mark.anyio
     async def test_email_is_not_overwritten_on_a_login_where_claims_omit_it(

@@ -4,9 +4,13 @@ and the Google/Apple OAuth path (AUTH-002).
 
 Coordinates OTP verification or already-verified OAuth identity claims
 with find-or-create User semantics, then delegates device/session/
-refresh-token issuance to `SessionService` (AUTH-003). Deliberately does
-not touch `customer_profiles`/`customer_preferences` (AC12 — Customer
-domain, CUS-001).
+refresh-token issuance to `SessionService` (AUTH-003). Also provisions a
+default `customer_profiles`/`customer_preferences` row for every new
+Account (CUS-001, AC2), via `CustomerService.provision_default_profile`
+-- called inline inside each `is_new_user` branch, using this same
+request-scoped `AsyncSession` (flush only, never commit), mirroring the
+already-shipped `identity -> audit` cross-module pattern exactly
+(Decision 1, `Plan_S03_CUS-001.md`).
 """
 
 import uuid
@@ -17,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.constants import ROLE_CUSTOMER
 from app.core.exceptions import AuthenticationRequiredError
 from app.modules.audit.services.audit_service import AuditService
+from app.modules.customer.services.customer_service import CustomerService
 from app.modules.identity.models import (
     AuthProvider,
     DevicePlatform,
@@ -44,6 +49,7 @@ class AuthService:
         otp_service: OtpService,
         session_service: SessionService,
         audit_service: AuditService,
+        customer_service: CustomerService,
     ) -> None:
         self.session = session
         self.user_repository = user_repository
@@ -51,6 +57,7 @@ class AuthService:
         self.otp_service = otp_service
         self.session_service = session_service
         self.audit_service = audit_service
+        self.customer_service = customer_service
 
     async def get_current_user_summary(
         self, user_id: uuid.UUID
@@ -89,13 +96,17 @@ class AuthService:
         device_name: str | None,
         ip_address: str | None,
         user_agent: str | None,
+        accept_language_header: str | None = None,
     ) -> tuple[User, str, str, list[str]]:
         """
         Verify the submitted OTP, then transparently find-or-create the
         `User` for this phone number (AC6/AC7), start a new session/
         device/refresh-token (AUTH-003), and return the authenticated
         `User`, the access token, the raw refresh token, and the user's
-        current role names.
+        current role names. `accept_language_header` is only ever read
+        for a brand-new `User` (CUS-001, AC3) -- passed through as-is
+        from the request's raw `Accept-Language` header, never parsed
+        here.
         """
         await self.otp_service.verify_otp(
             phone_country_code, phone_number, OtpPurpose.LOGIN, code
@@ -126,6 +137,12 @@ class AuthService:
             if customer_role is not None:
                 self.session.add(UserRole(user_id=user.id, role_id=customer_role.id))
                 await self.session.flush()
+            # CUS-001, AC2: provisions `customer_profiles`/
+            # `customer_preferences` in the same transaction as the
+            # `User` row above -- flush only, never commit.
+            await self.customer_service.provision_default_profile(
+                user_id=user.id, accept_language_header=accept_language_header
+            )
 
         role_names = await self.role_repository.get_role_names_for_user(user.id)
         (
@@ -163,6 +180,7 @@ class AuthService:
         device_name: str | None,
         ip_address: str | None,
         user_agent: str | None,
+        accept_language_header: str | None = None,
     ) -> tuple[User, str, str, list[str]]:
         """
         Find-or-create the `User` for this `(auth_provider,
@@ -172,7 +190,8 @@ class AuthService:
         current role names -- mirrors `verify_otp_and_authenticate`'s
         shape exactly (Decision 5, `Plan_S02_AUTH-002.md`). `claims` must
         already be server-verified by `OAuthService`; this method never
-        performs its own token verification.
+        performs its own token verification. `accept_language_header` is
+        only ever read for a brand-new `User` (CUS-001, AC3).
 
         A different provider presenting the same email as an existing
         account is a distinct row here by design (AC5) -- matching is
@@ -213,6 +232,12 @@ class AuthService:
             if customer_role is not None:
                 self.session.add(UserRole(user_id=user.id, role_id=customer_role.id))
                 await self.session.flush()
+            # CUS-001, AC2: provisions `customer_profiles`/
+            # `customer_preferences` in the same transaction as the
+            # `User` row above -- flush only, never commit.
+            await self.customer_service.provision_default_profile(
+                user_id=user.id, accept_language_header=accept_language_header
+            )
 
         role_names = await self.role_repository.get_role_names_for_user(user.id)
         (

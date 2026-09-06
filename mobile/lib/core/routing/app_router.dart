@@ -6,6 +6,7 @@ import '../../features/auth/presentation/screens/language_selection_screen.dart'
 import '../../features/auth/presentation/screens/otp_entry_screen.dart';
 import '../../features/auth/presentation/screens/phone_entry_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
+import '../../features/customer/presentation/screens/profile_settings_screen.dart';
 import '../../features/home/presentation/screens/home_placeholder_screen.dart';
 import 'app_routes.dart';
 
@@ -46,6 +47,10 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
       GoRoute(
         path: AppRoutes.homePlaceholder,
         builder: (context, state) => const HomePlaceholderScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.profileSettings,
+        builder: (context, state) => const ProfileSettingsScreen(),
       ),
     ],
   );

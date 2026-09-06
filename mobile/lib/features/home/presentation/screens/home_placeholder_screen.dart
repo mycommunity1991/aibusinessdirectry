@@ -14,6 +14,11 @@ import '../../../auth/state/auth_session_controller.dart';
 /// stub exists only so AUTH-001 has somewhere authenticated to land. Its
 /// only added behavior (AUTH-003) is a bare "Log out" action — no dedicated
 /// "Manage Sessions" screen is built this story (Plan Decision 11).
+///
+/// The app-bar person icon is a temporary entry point to Profile & Settings
+/// (S-14, CUS-001) — not a bottom-nav tab, since the real 3-tab
+/// Home/Activity/Profile shell needs real Home/Activity screens that don't
+/// exist yet (`Plan_S03_CUS-001.md` Decision 7).
 class HomePlaceholderScreen extends ConsumerWidget {
   const HomePlaceholderScreen({super.key});
 
@@ -32,6 +37,15 @@ class HomePlaceholderScreen extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
+      appBar: AppBar(
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: l10n.profileSettingsTooltip,
+            onPressed: () => context.push(AppRoutes.profileSettings),
+          ),
+        ],
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.lg),

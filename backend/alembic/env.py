@@ -12,6 +12,7 @@ from app.database.database import engine
 # autogenerate/DDL purposes. Every new domain module's `models` module
 # must be imported here.
 import app.modules.audit.models  # noqa: E402,F401
+import app.modules.customer.models  # noqa: E402,F401
 import app.modules.identity.models  # noqa: E402,F401
 
 # this is the Alembic Config object, which provides

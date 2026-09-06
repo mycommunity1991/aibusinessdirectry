@@ -10,6 +10,8 @@ from app.core.config import settings
 from app.database.session import get_db
 from app.modules.audit.dependencies import get_audit_service
 from app.modules.audit.services.audit_service import AuditService
+from app.modules.customer.dependencies import get_customer_service
+from app.modules.customer.services.customer_service import CustomerService
 from app.modules.identity.models import AuthProvider
 from app.modules.identity.repositories.device_repository import DeviceRepository
 from app.modules.identity.repositories.otp_verification_repository import (
@@ -159,6 +161,7 @@ def get_auth_service(
     otp_service: Annotated[OtpService, Depends(get_otp_service)],
     session_service: Annotated[SessionService, Depends(get_session_service)],
     audit_service: Annotated[AuditService, Depends(get_audit_service)],
+    customer_service: Annotated[CustomerService, Depends(get_customer_service)],
 ) -> AuthService:
     """Provides an `AuthService` bound to the request-scoped DB session."""
     return AuthService(
@@ -168,4 +171,5 @@ def get_auth_service(
         otp_service=otp_service,
         session_service=session_service,
         audit_service=audit_service,
+        customer_service=customer_service,
     )

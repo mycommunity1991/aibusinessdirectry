@@ -4,12 +4,16 @@ import 'package:ai_marketplace_app/features/auth/domain/models/auth_token.dart';
 import 'package:ai_marketplace_app/features/auth/domain/models/auth_user.dart';
 import 'package:ai_marketplace_app/features/auth/presentation/screens/phone_entry_screen.dart';
 import 'package:ai_marketplace_app/features/auth/state/auth_session_controller.dart';
+import 'package:ai_marketplace_app/features/customer/data/customer_repository.dart';
+import 'package:ai_marketplace_app/features/customer/presentation/screens/profile_settings_screen.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../auth/fakes/fake_auth_repository.dart';
 import '../auth/test_helpers.dart';
+import '../customer/fakes/fake_customer_repository.dart';
 
 /// AUTH-003 — the bare "Log out" action added to the existing
 /// `HomePlaceholderScreen` stub (Plan Decision 11 — no new "Manage
@@ -58,6 +62,43 @@ void main() {
         tester.element(find.byType(PhoneEntryScreen)),
       );
       expect(container.read(authSessionProvider), isNull);
+    },
+  );
+
+  testWidgets(
+    'tapping the profile icon opens Profile & Settings (S-14, CUS-001, '
+    'Plan Decision 7 — a temporary entry point, not a bottom-nav tab)',
+    (tester) async {
+      const token = AuthToken(
+        accessToken: 'current-access-token',
+        refreshToken: 'current-refresh-token',
+        tokenType: 'bearer',
+        user: AuthUser(
+          id: 'user-1',
+          phoneCountryCode: '+971',
+          phoneNumber: '501234567',
+          status: 'active',
+          preferredLanguage: 'en',
+          roles: ['customer'],
+        ),
+      );
+
+      await pumpApp(
+        tester,
+        initialLocation: AppRoutes.homePlaceholder,
+        overrides: [
+          authSessionProvider.overrideWith((ref) => token),
+          customerRepositoryProvider.overrideWithValue(
+            FakeCustomerRepository(),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.person_outline));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ProfileSettingsScreen), findsOneWidget);
     },
   );
 }

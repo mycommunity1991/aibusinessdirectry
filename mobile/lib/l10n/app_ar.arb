@@ -44,5 +44,18 @@
   "homePlaceholderTitle": "تم تسجيل الدخول",
   "homePlaceholderMessage": "الصفحة الرئيسية قادمة قريباً.",
 
-  "logOutLabel": "تسجيل الخروج"
+  "logOutLabel": "تسجيل الخروج",
+
+  "profileSettingsTooltip": "الملف الشخصي والإعدادات",
+  "profileSettingsTitle": "الملف الشخصي والإعدادات",
+  "profileDisplayNameLabel": "الاسم المعروض",
+  "profileAvatarUrlLabel": "رابط الصورة الرمزية",
+  "profileAvatarUrlHint": "https://example.com/avatar.png",
+  "profileLanguageLabel": "اللغة",
+  "profileNotificationChannelLabel": "قناة الإشعارات",
+  "notificationChannelWhatsapp": "واتساب",
+  "notificationChannelSms": "رسالة نصية",
+  "notificationChannelEmail": "البريد الإلكتروني",
+  "saveLabel": "حفظ",
+  "retryLabel": "حاول مرة أخرى"
 }

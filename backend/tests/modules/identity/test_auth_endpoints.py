@@ -26,6 +26,7 @@ from app.core.redis import get_redis_client
 from app.core.security import create_access_token, hash_otp_code
 from app.database.session import get_db
 from app.main import app
+from app.modules.customer.models import CustomerPreferences, CustomerProfile
 from app.modules.identity.dependencies import (
     APPLE_ISSUERS,
     APPLE_JWKS_URL,
@@ -317,27 +318,99 @@ class TestVerifyOtpRegistrationAndLogin:
         assert len(result.scalars().all()) == 1
 
     @pytest.mark.anyio
-    async def test_no_customer_profile_row_is_created(
+    async def test_registration_creates_customer_profile_and_preferences_row(
         self, client: TestClient, sms_spy: SpySmsSender, db_session
     ) -> None:
-        """AC12: registering via mobile OTP must not create a
-        customer_profiles/customer_preferences row. Those tables belong to
-        the Customer domain (CUS-001) and are not created by this
-        (identity-only) migration at all."""
+        """
+        CUS-001, AC2/AC8: registering via mobile OTP creates exactly one
+        `customer_profiles` row and one `customer_preferences` row, in
+        the same database transaction as the `User` row -- proven here
+        by querying both tables directly against the DB, in the same
+        test as the `User`-creation check, rather than trusting the
+        service call succeeded.
+        """
         await seed_roles(db_session)
         await db_session.commit()
 
         code = await _request_otp(client, sms_spy, "502000003")
         response = _verify_otp(client, "502000003", code)
         assert response.status_code == 200
+        user_id = response.json()["data"]["user"]["id"]
 
-        # `customer.customer_profiles` doesn't exist at all — this
-        # migration only creates the `identity` schema. `to_regclass`
-        # returns NULL for a relation that doesn't exist.
-        schema_check = await db_session.execute(
-            text("SELECT to_regclass('customer.customer_profiles') AS reg")
+        user_result = await db_session.execute(
+            select(User).where(User.phone_number == "502000003")
         )
-        assert schema_check.scalar() is None
+        users = user_result.scalars().all()
+        assert len(users) == 1
+        assert str(users[0].id) == user_id
+
+        profile_result = await db_session.execute(
+            select(CustomerProfile).where(CustomerProfile.user_id == uuid.UUID(user_id))
+        )
+        profiles = profile_result.scalars().all()
+        assert len(profiles) == 1
+        assert profiles[0].display_name == "New Customer"
+
+        preferences_result = await db_session.execute(
+            select(CustomerPreferences).where(
+                CustomerPreferences.customer_id == profiles[0].id
+            )
+        )
+        preferences = preferences_result.scalars().all()
+        assert len(preferences) == 1
+        assert preferences[0].notification_channel == "whatsapp"
+        assert preferences[0].language == "en"
+
+    @pytest.mark.anyio
+    async def test_registration_derives_language_from_accept_language_header(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        """CUS-001, AC3: an `Accept-Language: ar-AE,ar;q=0.9,en;q=0.8`
+        header on the registering request results in `language=ar`."""
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        code = await _request_otp(client, sms_spy, "502000023")
+        response = client.post(
+            "/api/v1/auth/verify-otp",
+            json=_verify_otp_json("502000023", code),
+            headers={"Accept-Language": "ar-AE,ar;q=0.9,en;q=0.8"},
+        )
+        assert response.status_code == 200
+        user_id = response.json()["data"]["user"]["id"]
+
+        result = await db_session.execute(
+            text(
+                "SELECT cpr.language FROM customer.customer_preferences cpr "
+                "JOIN customer.customer_profiles cp ON cp.id = cpr.customer_id "
+                "WHERE cp.user_id = :user_id"
+            ),
+            {"user_id": user_id},
+        )
+        assert result.scalar() == "ar"
+
+    @pytest.mark.anyio
+    async def test_returning_user_does_not_get_a_second_customer_profile_row(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        """CUS-001, AC8: a second login for an already-registered phone
+        number never provisions a second `customer_profiles` row."""
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        first_code = await _request_otp(client, sms_spy, "502000024")
+        first_response = _verify_otp(client, "502000024", first_code)
+        assert first_response.status_code == 200
+        user_id = first_response.json()["data"]["user"]["id"]
+
+        second_code = await _request_otp(client, sms_spy, "502000024")
+        second_response = _verify_otp(client, "502000024", second_code)
+        assert second_response.status_code == 200
+
+        result = await db_session.execute(
+            select(CustomerProfile).where(CustomerProfile.user_id == uuid.UUID(user_id))
+        )
+        assert len(result.scalars().all()) == 1
 
     @pytest.mark.anyio
     async def test_repeat_login_from_the_same_device_updates_not_duplicates_device(
@@ -607,6 +680,21 @@ class TestGoogleSignIn:
         assert users[0].auth_provider == "google"
         assert users[0].email == "new@example.com"
 
+        # CUS-001, AC2/AC8: the OAuth registration path also provisions a
+        # customer_profiles/customer_preferences row, same transaction,
+        # queried directly against the DB in this same test.
+        profile_result = await db_session.execute(
+            select(CustomerProfile).where(CustomerProfile.user_id == users[0].id)
+        )
+        profiles = profile_result.scalars().all()
+        assert len(profiles) == 1
+        preferences_result = await db_session.execute(
+            select(CustomerPreferences).where(
+                CustomerPreferences.customer_id == profiles[0].id
+            )
+        )
+        assert len(preferences_result.scalars().all()) == 1
+
     @pytest.mark.anyio
     async def test_existing_subject_authenticates_without_duplicate(
         self,
@@ -636,6 +724,15 @@ class TestGoogleSignIn:
             select(User).where(User.external_auth_subject == "google-sub-002")
         )
         assert len(result.scalars().all()) == 1
+
+        # CUS-001, AC8: a returning OAuth user never gets a second
+        # customer_profiles row.
+        profile_result = await db_session.execute(
+            select(CustomerProfile).where(
+                CustomerProfile.user_id == uuid.UUID(first_user_id)
+            )
+        )
+        assert len(profile_result.scalars().all()) == 1
 
     @pytest.mark.anyio
     async def test_tampered_token_returns_generic_401(
