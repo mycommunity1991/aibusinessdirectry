@@ -12,6 +12,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from app.core.authorization import ensure_owner_or_not_found
 from app.core.config import settings
 from app.core.exceptions import InvalidRefreshTokenError, SessionNotFoundError
 from app.core.security import (
@@ -19,6 +20,7 @@ from app.core.security import (
     generate_refresh_token,
     hash_refresh_token,
 )
+from app.modules.audit.services.audit_service import AuditService
 from app.modules.identity.models import DevicePlatform, Session, User
 from app.modules.identity.repositories.device_repository import DeviceRepository
 from app.modules.identity.repositories.refresh_token_repository import (
@@ -53,12 +55,14 @@ class SessionService:
         refresh_token_repository: RefreshTokenRepository,
         user_repository: UserRepository,
         role_repository: RoleRepository,
+        audit_service: AuditService,
     ) -> None:
         self.device_repository = device_repository
         self.session_repository = session_repository
         self.refresh_token_repository = refresh_token_repository
         self.user_repository = user_repository
         self.role_repository = role_repository
+        self.audit_service = audit_service
 
     async def start_session(
         self,
@@ -186,31 +190,66 @@ class SessionService:
             for session, device in rows
         ]
 
-    async def revoke_session(self, user_id: uuid.UUID, session_id: uuid.UUID) -> None:
+    async def revoke_session(
+        self,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+        *,
+        current_session_id: uuid.UUID | None = None,
+        ip_address: str | None = None,
+    ) -> None:
         """
         Revokes a single session and every refresh token in its chain
-        (AC8). Ownership is enforced: a session that doesn't exist, or
-        exists but belongs to a different user, raises the same
-        `SessionNotFoundError` (AC10) -- never revealing which.
+        (AC8). Ownership is enforced via `ensure_owner_or_not_found`
+        (AUTH-004, AC4): a session that doesn't exist, or exists but
+        belongs to a different user, raises the same `SessionNotFoundError`
+        (AC10) -- never revealing which.
+
+        Records an audit event (AUTH-004, AC8): `logout` when the
+        revoked session IS the caller's own current session (`session_id
+        == current_session_id`, the ordinary "log out of this device"
+        action), or `session_revocation` when it's a *different* session
+        (the more security-relevant case) -- see `Plan_S02_AUTH-004.md`
+        Decision 5.
         """
         session = await self.session_repository.get_active_by_id(session_id)
-        if session is None or session.user_id != user_id:
-            raise SessionNotFoundError()
+        ensure_owner_or_not_found(
+            session.user_id if session is not None else None,
+            user_id,
+            not_found_exc=SessionNotFoundError(),
+        )
 
         now = datetime.now(UTC)
         await self.session_repository.revoke(session_id, now)
         await self.refresh_token_repository.revoke_all_for_session(session_id, now)
+
+        if current_session_id is not None and session_id == current_session_id:
+            await self.audit_service.record_logout(
+                user_id=user_id, session_id=session_id, ip_address=ip_address
+            )
+        else:
+            await self.audit_service.record_session_revocation(
+                user_id=user_id, session_id=session_id, ip_address=ip_address
+            )
 
     async def revoke_all_sessions(
         self,
         user_id: uuid.UUID,
         current_session_id: uuid.UUID | None,
         keep_current: bool,
+        *,
+        ip_address: str | None = None,
     ) -> None:
         """
         "Log out everywhere" (AC9) -- revokes every active session for a
         user, optionally excluding the caller's own current session. A
         distinct, separately named action from `revoke_session`.
+
+        Always records a `session_revocation` audit event (AUTH-004,
+        AC8), unconditionally -- this is a bulk action, never a plain
+        "logout", even when `keep_current=True`. `entity_id=None` since
+        it targets every session, not a single one; `after_state`
+        records the scope and whether the current session was kept.
         """
         except_session_id = (
             current_session_id if keep_current and current_session_id else None
@@ -221,4 +260,11 @@ class SessionService:
         )
         await self.refresh_token_repository.revoke_all_for_user(
             user_id, now, except_session_id=except_session_id
+        )
+
+        await self.audit_service.record_session_revocation(
+            user_id=user_id,
+            session_id=None,
+            ip_address=ip_address,
+            after_state={"scope": "all_sessions", "kept_current": keep_current},
         )

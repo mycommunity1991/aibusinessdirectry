@@ -9,11 +9,14 @@ not touch `customer_profiles`/`customer_preferences` (AC12 — Customer
 domain, CUS-001).
 """
 
+import uuid
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.constants import ROLE_CUSTOMER
+from app.core.exceptions import AuthenticationRequiredError
+from app.modules.audit.services.audit_service import AuditService
 from app.modules.identity.models import (
     AuthProvider,
     DevicePlatform,
@@ -40,12 +43,32 @@ class AuthService:
         role_repository: RoleRepository,
         otp_service: OtpService,
         session_service: SessionService,
+        audit_service: AuditService,
     ) -> None:
         self.session = session
         self.user_repository = user_repository
         self.role_repository = role_repository
         self.otp_service = otp_service
         self.session_service = session_service
+        self.audit_service = audit_service
+
+    async def get_current_user_summary(
+        self, user_id: uuid.UUID
+    ) -> tuple[User, list[str]]:
+        """
+        Backs `GET /auth/me` (AUTH-004, AC5): the caller's own id, roles,
+        and account status. `user_id` comes from an already-validated
+        JWT's `sub` claim (`require_role()`/`get_current_user` ran
+        first), so a missing row here would indicate the user was
+        deleted after the token was issued -- treated the same as "not
+        authenticated" rather than a more specific error, since the
+        token itself is no longer meaningful.
+        """
+        user = await self.user_repository.get_by_id(user_id)
+        if user is None:
+            raise AuthenticationRequiredError()
+        role_names = await self.role_repository.get_role_names_for_user(user_id)
+        return user, role_names
 
     async def request_otp(self, phone_country_code: str, phone_number: str) -> None:
         """
@@ -117,6 +140,19 @@ class AuthService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
+
+        if is_new_user:
+            await self.audit_service.record_registration(
+                user_id=user.id,
+                auth_provider=AuthProvider.MOBILE_OTP.value,
+                ip_address=ip_address,
+            )
+        await self.audit_service.record_login(
+            user_id=user.id,
+            auth_provider=AuthProvider.MOBILE_OTP.value,
+            ip_address=ip_address,
+        )
+
         return user, access_token, refresh_token, role_names
 
     async def authenticate_with_oauth(
@@ -191,4 +227,17 @@ class AuthService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
+
+        if is_new_user:
+            await self.audit_service.record_registration(
+                user_id=user.id,
+                auth_provider=provider.value,
+                ip_address=ip_address,
+            )
+        await self.audit_service.record_login(
+            user_id=user.id,
+            auth_provider=provider.value,
+            ip_address=ip_address,
+        )
+
         return user, access_token, refresh_token, role_names

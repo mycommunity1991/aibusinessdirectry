@@ -11,6 +11,22 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Role-based authorization and audit logging (Story AUTH-004): a new `require_role()` FastAPI dependency
+  (`app/api/dependencies.py`), composable and layered on top of the existing `get_current_user` — a
+  missing/invalid/expired token still 401s inside `get_current_user`; `require_role()` raises the new
+  `InsufficientRoleError` (403) only for a validly authenticated caller whose `roles` claim doesn't intersect
+  the endpoint's allowed set. New `ensure_owner_or_not_found` helper (`app/core/authorization.py`) collapses
+  "resource doesn't exist" and "exists but isn't yours" into the same non-revealing 404; `SessionService`'s
+  session-ownership check was refactored to use it (no behavior change). New `audit` module
+  (`app/modules/audit/`) with an immutable `audit.audit_logs` table (`identity.users`-linked, no
+  soft-delete/version columns) via a reversible Alembic migration, backing a new `AuditService` with four
+  explicit event methods (`record_registration`, `record_login`, `record_logout`,
+  `record_session_revocation`), wired into `AuthService` (registration/login on every OTP/OAuth
+  authentication) and `SessionService` (logout vs. session_revocation, including bulk revoke-all) — no
+  secrets, tokens, or PII appear in any audit row. New `GET /api/v1/auth/me`, protected by
+  `require_role(customer, provider, admin)`, returning the caller's own id/roles/status via the existing
+  `UserSummaryResponse` schema. Auth-endpoint rate limiting (Redis, 10/min, generic 429 message) from
+  AUTH-001/AUTH-002 was re-confirmed intact and untouched.
 - Session management and refresh-token rotation (Story AUTH-003): `identity.sessions` and
   `identity.refresh_tokens` tables (linked to `users`/`devices`) via a reversible Alembic migration. Access
   tokens are now 15 minutes (down from 30) and their JWT payload is narrowed to exactly `sub`, `exp`, `iat`,

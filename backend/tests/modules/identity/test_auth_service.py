@@ -79,12 +79,21 @@ def mock_session_service() -> AsyncMock:
 
 
 @pytest.fixture
+def mock_audit_service() -> AsyncMock:
+    service = AsyncMock()
+    service.record_registration = AsyncMock()
+    service.record_login = AsyncMock()
+    return service
+
+
+@pytest.fixture
 def auth_service(
     mock_session: MagicMock,
     mock_user_repository: MagicMock,
     mock_role_repository: MagicMock,
     mock_otp_service: AsyncMock,
     mock_session_service: AsyncMock,
+    mock_audit_service: AsyncMock,
 ) -> AuthService:
     return AuthService(
         session=mock_session,
@@ -92,6 +101,7 @@ def auth_service(
         role_repository=mock_role_repository,
         otp_service=mock_otp_service,
         session_service=mock_session_service,
+        audit_service=mock_audit_service,
     )
 
 
@@ -102,6 +112,7 @@ async def test_verify_otp_and_authenticate_creates_user_and_assigns_customer_rol
     mock_role_repository: MagicMock,
     mock_session: MagicMock,
     mock_session_service: AsyncMock,
+    mock_audit_service: AsyncMock,
 ) -> None:
     """AC6: a verified OTP for an unrecognized number creates a new User
     with auth_provider=mobile_otp and assigns the customer role."""
@@ -156,6 +167,19 @@ async def test_verify_otp_and_authenticate_creates_user_and_assigns_customer_rol
     assert refresh_token == "refresh-token-value"
     assert roles == [ROLE_CUSTOMER]
 
+    # AUTH-004, AC8/AC9: a new user records exactly one `registration`
+    # audit event plus one `login` audit event.
+    mock_audit_service.record_registration.assert_awaited_once_with(
+        user_id=created_user.id,
+        auth_provider=AuthProvider.MOBILE_OTP.value,
+        ip_address="127.0.0.1",
+    )
+    mock_audit_service.record_login.assert_awaited_once_with(
+        user_id=created_user.id,
+        auth_provider=AuthProvider.MOBILE_OTP.value,
+        ip_address="127.0.0.1",
+    )
+
 
 @pytest.mark.anyio
 async def test_verify_otp_and_authenticate_existing_user_does_not_duplicate(
@@ -163,6 +187,7 @@ async def test_verify_otp_and_authenticate_existing_user_does_not_duplicate(
     mock_user_repository: MagicMock,
     mock_role_repository: MagicMock,
     mock_session: MagicMock,
+    mock_audit_service: AsyncMock,
 ) -> None:
     """AC7: a verified OTP for an existing phone number authenticates that
     User without creating a duplicate."""
@@ -196,6 +221,15 @@ async def test_verify_otp_and_authenticate_existing_user_does_not_duplicate(
     mock_session.add.assert_not_called()  # no new UserRole row
     assert user is existing_user
     assert access_token == "access-token-value"
+
+    # AUTH-004, AC8/AC9: a returning user records exactly one `login`
+    # audit event -- no `registration` event.
+    mock_audit_service.record_registration.assert_not_awaited()
+    mock_audit_service.record_login.assert_awaited_once_with(
+        user_id=existing_user.id,
+        auth_provider=AuthProvider.MOBILE_OTP.value,
+        ip_address=None,
+    )
 
 
 @pytest.mark.anyio
@@ -256,6 +290,7 @@ class TestAuthenticateWithOauth:
         mock_role_repository: MagicMock,
         mock_session: MagicMock,
         mock_session_service: AsyncMock,
+        mock_audit_service: AsyncMock,
     ) -> None:
         """AC3: a new (provider, subject) pair creates a new User and
         assigns the customer role."""
@@ -305,6 +340,19 @@ class TestAuthenticateWithOauth:
         assert refresh_token == "refresh-token-value"
         assert roles == [ROLE_CUSTOMER]
 
+        # AUTH-004, AC8/AC9: a new user records exactly one
+        # `registration` audit event plus one `login` audit event.
+        mock_audit_service.record_registration.assert_awaited_once_with(
+            user_id=created_user.id,
+            auth_provider=AuthProvider.GOOGLE.value,
+            ip_address="127.0.0.1",
+        )
+        mock_audit_service.record_login.assert_awaited_once_with(
+            user_id=created_user.id,
+            auth_provider=AuthProvider.GOOGLE.value,
+            ip_address="127.0.0.1",
+        )
+
     @pytest.mark.anyio
     async def test_existing_pair_authenticates_without_duplicating(
         self,
@@ -312,6 +360,7 @@ class TestAuthenticateWithOauth:
         mock_user_repository: MagicMock,
         mock_role_repository: MagicMock,
         mock_session: MagicMock,
+        mock_audit_service: AsyncMock,
     ) -> None:
         """AC4: an existing (provider, subject) pair authenticates the
         existing User without creating a duplicate."""
@@ -345,6 +394,15 @@ class TestAuthenticateWithOauth:
         assert user is existing_user
         assert user.last_login_at is not None
         assert access_token == "access-token-value"
+
+        # AUTH-004, AC8/AC9: a returning user records exactly one
+        # `login` audit event -- no `registration` event.
+        mock_audit_service.record_registration.assert_not_awaited()
+        mock_audit_service.record_login.assert_awaited_once_with(
+            user_id=existing_user.id,
+            auth_provider=AuthProvider.GOOGLE.value,
+            ip_address=None,
+        )
 
     @pytest.mark.anyio
     async def test_email_is_not_overwritten_on_a_login_where_claims_omit_it(

@@ -6,7 +6,11 @@ from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 
 from app.core.constants import API_PREFIX
-from app.core.exceptions import AuthenticationRequiredError, InvalidTokenError
+from app.core.exceptions import (
+    AuthenticationRequiredError,
+    InsufficientRoleError,
+    InvalidTokenError,
+)
 from app.core.security import decode_token
 
 # OAuth2 scheme for token extraction
@@ -74,3 +78,33 @@ def get_current_user(token: Annotated[str, Depends(get_token)]) -> CurrentUser:
         raise InvalidTokenError() from exc
 
     return CurrentUser(id=user_id, session_id=session_id, roles=list(roles))
+
+
+class RequireRole:
+    """
+    A parametrized, composable FastAPI dependency enforcing a role check
+    (AUTH-004, AC1) on top of `get_current_user` -- not a replacement for
+    it. Because this depends on `get_current_user`, a missing/invalid/
+    expired token 401s before the role check ever runs; this class only
+    ever raises `InsufficientRoleError` (403), for a validly authenticated
+    caller whose `roles` claim doesn't intersect the allowed set (AC2/
+    AC3 -- 401 and 403 are structurally never used interchangeably).
+
+    Usable on any endpoint via `Depends(require_role(ROLE_ADMIN))`, etc.
+    """
+
+    def __init__(self, *allowed_roles: str) -> None:
+        self.allowed_roles = frozenset(allowed_roles)
+
+    def __call__(
+        self,
+        current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
+    ) -> CurrentUser:
+        if not self.allowed_roles.intersection(current_user.roles):
+            raise InsufficientRoleError()
+        return current_user
+
+
+def require_role(*allowed_roles: str) -> RequireRole:
+    """Builds a `RequireRole` dependency for the given allowed role names."""
+    return RequireRole(*allowed_roles)

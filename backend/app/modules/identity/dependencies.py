@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.database.session import get_db
+from app.modules.audit.dependencies import get_audit_service
+from app.modules.audit.services.audit_service import AuditService
 from app.modules.identity.models import AuthProvider
 from app.modules.identity.repositories.device_repository import DeviceRepository
 from app.modules.identity.repositories.otp_verification_repository import (
@@ -139,6 +141,7 @@ def get_session_service(
         RefreshTokenRepository, Depends(get_refresh_token_repository)
     ],
     db: Annotated[AsyncSession, Depends(get_db)],
+    audit_service: Annotated[AuditService, Depends(get_audit_service)],
 ) -> SessionService:
     """Provides a `SessionService` bound to the request-scoped DB session."""
     return SessionService(
@@ -147,6 +150,7 @@ def get_session_service(
         refresh_token_repository=refresh_token_repository,
         user_repository=UserRepository(db),
         role_repository=RoleRepository(db),
+        audit_service=audit_service,
     )
 
 
@@ -154,6 +158,7 @@ def get_auth_service(
     db: Annotated[AsyncSession, Depends(get_db)],
     otp_service: Annotated[OtpService, Depends(get_otp_service)],
     session_service: Annotated[SessionService, Depends(get_session_service)],
+    audit_service: Annotated[AuditService, Depends(get_audit_service)],
 ) -> AuthService:
     """Provides an `AuthService` bound to the request-scoped DB session."""
     return AuthService(
@@ -162,4 +167,5 @@ def get_auth_service(
         role_repository=RoleRepository(db),
         otp_service=otp_service,
         session_service=session_service,
+        audit_service=audit_service,
     )

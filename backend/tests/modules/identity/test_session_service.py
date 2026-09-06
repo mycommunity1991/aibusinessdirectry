@@ -16,9 +16,13 @@ revocation-then-refresh-fails / ownership-boundary trio).
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import select
 
 from app.core.exceptions import InvalidRefreshTokenError, SessionNotFoundError
 from app.core.security import hash_refresh_token
+from app.modules.audit.models import AuditLog
+from app.modules.audit.repositories.audit_log_repository import AuditLogRepository
+from app.modules.audit.services.audit_service import AuditService
 from app.modules.identity.models import (
     AuthProvider,
     DevicePlatform,
@@ -71,7 +75,19 @@ def session_service(db_session) -> SessionService:
         refresh_token_repository=RefreshTokenRepository(db_session),
         user_repository=UserRepository(db_session),
         role_repository=RoleRepository(db_session),
+        audit_service=AuditService(AuditLogRepository(db_session)),
     )
+
+
+async def _last_audit_log(db_session) -> AuditLog:
+    """Fetches the most recently created `audit.audit_logs` row -- used
+    to assert the correct `action`/`entity_type`/`entity_id`/`after_state`
+    was recorded for the event under test (AUTH-004, AC8/AC9)."""
+    result = await db_session.execute(
+        select(AuditLog).order_by(AuditLog.created_at.desc()).limit(1)
+    )
+    log: AuditLog = result.scalars().one()
+    return log
 
 
 class TestStartSession:
@@ -397,6 +413,116 @@ class TestRevokeSession:
 
         with pytest.raises(SessionNotFoundError):
             await session_service.revoke_session(user.id, uuid.uuid4())
+
+
+class TestRevokeSessionAuditLogging:
+    """
+    AUTH-004, AC8/AC9: `revoke_session` records a `logout` audit row when
+    the revoked session IS the caller's own current session, or a
+    `session_revocation` row when it's a *different* session --
+    `Plan_S02_AUTH-004.md` Decision 5.
+    """
+
+    async def test_revoking_own_current_session_records_a_logout_event(
+        self, db_session, session_service: SessionService
+    ) -> None:
+        user = await _make_user(db_session, "505000060")
+        session_row, _, _ = await session_service.start_session(
+            user=user,
+            roles=[],
+            device_platform=DevicePlatform.IOS,
+            device_name=None,
+            ip_address=None,
+            user_agent=None,
+        )
+        await db_session.commit()
+
+        await session_service.revoke_session(
+            user.id,
+            session_row.id,
+            current_session_id=session_row.id,
+            ip_address="127.0.0.1",
+        )
+        await db_session.commit()
+
+        log = await _last_audit_log(db_session)
+        assert log.action == "logout"
+        assert log.entity_type == "session"
+        assert log.entity_id == session_row.id
+        assert log.actor_user_id == user.id
+        assert str(log.ip_address) == "127.0.0.1"
+        # No secrets/PII in before/after state.
+        assert log.before_state is None
+        assert log.after_state is None
+
+    async def test_revoking_a_different_session_records_a_session_revocation_event(
+        self, db_session, session_service: SessionService
+    ) -> None:
+        user = await _make_user(db_session, "505000061")
+        current_session, _, _ = await session_service.start_session(
+            user=user,
+            roles=[],
+            device_platform=DevicePlatform.IOS,
+            device_name="Current Device",
+            ip_address=None,
+            user_agent=None,
+        )
+        await db_session.commit()
+        other_session, _, _ = await session_service.start_session(
+            user=user,
+            roles=[],
+            device_platform=DevicePlatform.ANDROID,
+            device_name="Other Device",
+            ip_address=None,
+            user_agent=None,
+        )
+        await db_session.commit()
+
+        await session_service.revoke_session(
+            user.id,
+            other_session.id,
+            current_session_id=current_session.id,
+            ip_address="127.0.0.1",
+        )
+        await db_session.commit()
+
+        log = await _last_audit_log(db_session)
+        assert log.action == "session_revocation"
+        assert log.entity_type == "session"
+        assert log.entity_id == other_session.id
+        assert log.actor_user_id == user.id
+
+    async def test_revoke_all_sessions_records_a_session_revocation_event(
+        self, db_session, session_service: SessionService
+    ) -> None:
+        """`revoke_all_sessions` always records `session_revocation`,
+        never `logout`, even with `keep_current=True` -- a distinct bulk
+        action, `entity_id=None`."""
+        user = await _make_user(db_session, "505000062")
+        session_row, _, _ = await session_service.start_session(
+            user=user,
+            roles=[],
+            device_platform=DevicePlatform.IOS,
+            device_name=None,
+            ip_address=None,
+            user_agent=None,
+        )
+        await db_session.commit()
+
+        await session_service.revoke_all_sessions(
+            user.id,
+            current_session_id=session_row.id,
+            keep_current=True,
+            ip_address="10.0.0.1",
+        )
+        await db_session.commit()
+
+        log = await _last_audit_log(db_session)
+        assert log.action == "session_revocation"
+        assert log.entity_type == "session"
+        assert log.entity_id is None
+        assert log.after_state == {"scope": "all_sessions", "kept_current": True}
+        assert str(log.ip_address) == "10.0.0.1"
 
 
 class TestRevokeAllSessions:

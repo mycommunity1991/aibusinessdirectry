@@ -8,6 +8,7 @@ reused-code rejection), `POST /auth/google`/`POST /auth/apple`
 `POST /auth/sessions/logout-all` (AC1-AC11).
 """
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -22,7 +23,7 @@ from app.core.constants import (
     ROLE_CUSTOMER,
 )
 from app.core.redis import get_redis_client
-from app.core.security import hash_otp_code
+from app.core.security import create_access_token, hash_otp_code
 from app.database.session import get_db
 from app.main import app
 from app.modules.identity.dependencies import (
@@ -1087,3 +1088,78 @@ class TestSessionsEndpoints:
             json={"refresh_token": user_a_login["refresh_token"]},
         )
         assert refresh_resp.status_code == 200
+
+
+class TestGetMe:
+    """
+    AUTH-004: `GET /auth/me` (AC2/AC3/AC5/AC9) -- the full 401-vs-403
+    matrix proved against one representative, `require_role()`-protected
+    endpoint. 200/401 are exercised via ordinary authenticated calls;
+    403 is exercised via a directly-minted, validly-signed but roleless
+    token (Decision 6, `Plan_S02_AUTH-004.md`) -- no production code path
+    can currently create such an account.
+    """
+
+    @pytest.mark.anyio
+    async def test_returns_id_roles_and_status_for_a_valid_token(
+        self, client: TestClient, sms_spy: SpySmsSender, db_session
+    ) -> None:
+        await seed_roles(db_session)
+        await db_session.commit()
+
+        login_data = await _login_and_get_tokens(client, sms_spy, "507000001")
+        headers = {"Authorization": f"Bearer {login_data['access_token']}"}
+
+        response = client.get("/api/v1/auth/me", headers=headers)
+
+        assert response.status_code == 200
+        body = response.json()["data"]
+        assert body["id"] == login_data["user"]["id"]
+        assert body["roles"] == [ROLE_CUSTOMER]
+        assert body["status"] == "active"
+
+    def test_returns_401_for_a_missing_token(self, client: TestClient) -> None:
+        response = client.get("/api/v1/auth/me")
+        assert response.status_code == 401
+
+    def test_returns_401_for_a_garbage_token(self, client: TestClient) -> None:
+        response = client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": "Bearer not-a-real-token"},
+        )
+        assert response.status_code == 401
+
+    def test_returns_401_for_an_expired_token(self, client: TestClient) -> None:
+        expired_token = create_access_token(
+            subject=str(uuid.uuid4()),
+            roles=[ROLE_CUSTOMER],
+            jti=str(uuid.uuid4()),
+            expires_delta=timedelta(minutes=-5),
+        )
+
+        response = client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {expired_token}"},
+        )
+        assert response.status_code == 401
+
+    def test_returns_403_for_a_valid_token_with_no_recognized_role(
+        self, client: TestClient
+    ) -> None:
+        """AC3: a validly-signed token whose `roles` claim carries none
+        of the platform's recognized roles -- 401 and 403 are never used
+        interchangeably (a bad/missing/expired token never reaches this
+        far; only a *validly authenticated* caller can 403)."""
+        roleless_token = create_access_token(
+            subject=str(uuid.uuid4()), roles=[], jti=str(uuid.uuid4())
+        )
+
+        response = client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {roleless_token}"},
+        )
+
+        assert response.status_code == 403
+        body = response.json()
+        assert body["success"] is False
+        assert body["message"] == "You don't have permission to perform this action."

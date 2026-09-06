@@ -4,11 +4,14 @@ import uuid
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import CurrentUser, get_current_user
+from app.api.dependencies import CurrentUser, get_current_user, require_role
 from app.core.constants import (
     AUTH_RATE_LIMIT_PER_MINUTE,
     AUTH_RATE_LIMIT_WINDOW_SECONDS,
     OTP_EXPIRY_MINUTES,
+    ROLE_ADMIN,
+    ROLE_CUSTOMER,
+    ROLE_PROVIDER,
 )
 from app.core.rate_limit import RateLimitDependency
 from app.database.session import get_db
@@ -99,6 +102,57 @@ def _client_context(request: Request) -> tuple[str | None, str | None]:
             ip_address = None
     user_agent = request.headers.get("user-agent")
     return ip_address, user_agent
+
+
+@router.get(
+    "/me",
+    response_model=SuccessResponse[UserSummaryResponse],
+    responses={
+        200: {
+            "model": SuccessResponse[UserSummaryResponse],
+            "description": "The caller's own id, roles, and account status.",
+        },
+        401: {
+            "description": (
+                "No token was provided, or the token is invalid or expired."
+            ),
+        },
+        403: {
+            "description": (
+                "The token is valid, but the caller's role is not one of "
+                "the platform's recognized roles."
+            ),
+        },
+    },
+    summary="Get the Authenticated Caller's Own Profile Summary",
+    description=(
+        "Returns the authenticated caller's own id, roles, and account "
+        "status (AUTH-004, AC5). Proves `require_role()` end-to-end "
+        "against a real endpoint -- every registered account holds at "
+        "least one of the platform's three roles, so this is reachable "
+        "by any authenticated caller."
+    ),
+)
+async def get_me(
+    current_user: CurrentUser = Depends(  # noqa: B008
+        require_role(ROLE_CUSTOMER, ROLE_PROVIDER, ROLE_ADMIN)  # noqa: B008
+    ),
+    auth_service: AuthService = Depends(get_auth_service),  # noqa: B008
+) -> SuccessResponse[UserSummaryResponse]:
+    """Return the caller's own id/roles/status."""
+    user, roles = await auth_service.get_current_user_summary(current_user.id)
+    return SuccessResponse[UserSummaryResponse](
+        success=True,
+        message="Profile retrieved.",
+        data=UserSummaryResponse(
+            id=user.id,
+            phone_country_code=user.phone_country_code,
+            phone_number=user.phone_number,
+            status=user.status,
+            preferred_language=user.preferred_language,
+            roles=roles,
+        ),
+    )
 
 
 @router.post(
@@ -496,12 +550,19 @@ async def list_sessions(
 )
 async def revoke_session(
     session_id: uuid.UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db),  # noqa: B008
     current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
     session_service: SessionService = Depends(get_session_service),  # noqa: B008
 ) -> SuccessResponse[None]:
     """Revoke a single session owned by the caller."""
-    await session_service.revoke_session(current_user.id, session_id)
+    ip_address, _user_agent = _client_context(request)
+    await session_service.revoke_session(
+        current_user.id,
+        session_id,
+        current_session_id=current_user.session_id,
+        ip_address=ip_address,
+    )
     await db.commit()
     return SuccessResponse[None](success=True, message="Session revoked.", data=None)
 
@@ -526,13 +587,18 @@ async def revoke_session(
 )
 async def logout_all_sessions(
     payload: LogoutAllRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db),  # noqa: B008
     current_user: CurrentUser = Depends(get_current_user),  # noqa: B008
     session_service: SessionService = Depends(get_session_service),  # noqa: B008
 ) -> SuccessResponse[None]:
     """Revoke every session for the caller (optionally keeping the current one)."""
+    ip_address, _user_agent = _client_context(request)
     await session_service.revoke_all_sessions(
-        current_user.id, current_user.session_id, payload.keep_current
+        current_user.id,
+        current_user.session_id,
+        payload.keep_current,
+        ip_address=ip_address,
     )
     await db.commit()
     return SuccessResponse[None](

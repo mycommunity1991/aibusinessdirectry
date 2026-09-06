@@ -6,6 +6,7 @@ from app.core.exceptions.exceptions import (
     AuthenticationRequiredError,
     BusinessException,
     ExpiredTokenError,
+    InsufficientRoleError,
     InvalidIdentityTokenError,
     InvalidOtpError,
     InvalidRefreshTokenError,
@@ -26,4 +27,5 @@ __all__ = [
     "SessionNotFoundError",
     "OtpLockedError",
     "RateLimitExceededError",
+    "InsufficientRoleError",
 ]

@@ -649,6 +649,85 @@ real benefit, consistent with `08_CODING_STANDARDS.md`'s "avoid unnecessary abst
 
 ---
 
+# ADR-013
+
+## Title
+
+Test Suite Bypasses Alembic — Schemas Created Directly via `Base.metadata.create_all`/`drop_all`
+
+**Date**
+
+2026-09-06
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`04_DATABASE.md`'s Migration Strategy section states schema changes are "managed exclusively through
+Alembic." That is true for how any real database (dev, staging, production) reaches a given schema state —
+but it does not describe how the backend's own pytest suite gets there. Since Sprint 1, `backend/tests/conftest.py`'s
+function-scoped `db_engine` fixture has created every domain schema and table directly via SQLAlchemy's
+`Base.metadata.create_all`, and torn them down via `Base.metadata.drop_all` plus `DROP SCHEMA ... CASCADE`, at
+the start/end of every single test — never invoking Alembic at all. Story AUTH-004 extended this same fixture,
+in kind, to also cover the new `audit` schema, and in doing so both the `tester` and `architect` agents
+independently investigated *why* — confirming this is a genuine structural necessity, not a shortcut: the
+shared `ai_marketplace_test` database has an `alembic_version` table that is out of sync with the real
+migration chain, and running `alembic upgrade head` directly against it would only make that worse, because
+the suite's own per-test teardown (`DROP SCHEMA ... CASCADE`) would immediately delete the migrated schemas on
+the very next test run while leaving `alembic_version` still claiming `head` — an actively self-desyncing
+combination, not merely stale bookkeeping. This trade-off previously lived only in a fixture's docstring and
+in two agents' independent investigative write-ups during AUTH-004's review — not written down anywhere in
+`docs/AI/`, which meant every future engineer/agent extending the fixture to a new domain schema would have to
+re-derive the same reasoning from scratch.
+
+### Decision
+
+The backend's automated test suite (`backend/tests/conftest.py` and any fixture built on the same pattern)
+creates and tears down its own schema/table structure directly via SQLAlchemy metadata operations
+(`Base.metadata.create_all`/`drop_all`), independently of Alembic, for every test run. This is deliberate and
+correct for the test suite specifically — it is not a statement that migrations are optional or that the
+Alembic chain is unreliable for real deployments. Migration reversibility (`upgrade head` → `downgrade -1` →
+`upgrade head` → `downgrade base`) continues to be verified manually against a disposable scratch database
+per story (never the shared `ai_marketplace`/`ai_marketplace_test` databases), as has been done for every
+migration-adding story since AUTH-001.
+
+Every future domain module's test fixtures should follow this same pattern (import the new module's models so
+its tables are included in `Base.metadata`, add its schema to the same create/drop lifecycle) rather than
+attempting to invoke Alembic inside the test suite.
+
+### Alternatives Considered
+
+- Run `alembic upgrade head` against the shared `ai_marketplace_test` database once, outside the test loop
+  (rejected — the suite's own per-test teardown drops schemas via `metadata.drop_all` regardless of
+  `alembic_version`'s state, so this would desync `alembic_version` from reality on the very next test run;
+  confirmed by directly inspecting the shared test DB).
+- Stand up a dedicated, Alembic-migrated, long-lived test database that the suite never tears down (rejected
+  as out of scope for this ADR — a bigger tooling investment than the story that surfaced this question
+  warranted; may be revisited later if the fixture's current approach becomes a real bottleneck).
+
+### Consequences
+
+- Test-suite schema setup and real-database schema setup are two genuinely different code paths by design;
+  this must not be read as evidence that a story can skip writing a real, reversible Alembic migration —
+  every story that changes the schema still needs one, verified independently against a scratch database.
+- Future engineers/agents extending `conftest.py`'s fixtures for a new domain module can cite this ADR instead
+  of re-deriving the reasoning, and should follow the same pattern rather than introducing a second,
+  inconsistent test-DB strategy.
+
+### Related Documents
+
+- 04_DATABASE.md
+- docs/implementation/plans/Plan_S02_AUTH-004.md
+- docs/implementation/walkthroughs/Walkthrough_S02_AUTH-004.md
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

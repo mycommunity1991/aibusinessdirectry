@@ -3,10 +3,10 @@
 
 **Project:** AI Marketplace
 **Current Phase:** MVP Development
-**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (In Progress — 3 of 4 stories done)
-**Completed Story:** AUTH-003 Stay Signed In and Manage Active Sessions
-**Status:** Identity & Access domain underway — mobile OTP, Google/Apple sign-in, and session/refresh-token management shipped
-**Last Updated:** 05 September 2026
+**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done)
+**Completed Story:** AUTH-004 Access the App According to My Role
+**Status:** Identity & Access domain complete — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging all shipped
+**Last Updated:** 06 September 2026
 **Owner:** CTO
 
 ---
@@ -19,7 +19,7 @@ The engineering team follows a Specification-Driven Development approach where e
 
 The objective is to build production-quality software from Day One while avoiding architectural drift and unnecessary technical debt.
 
-Sprint 1 delivered a complete backend foundation (BF-001 through BF-018). Sprint 2 (Identity & Access) is underway: AUTH-001 (mobile OTP registration/login) shipped the first business domain module, establishing the `identity` schema and the `backend/app/modules/<domain>/...` structural convention every later domain will follow. AUTH-002 (Google/Apple sign-in) shipped on top of it, adding server-side ID-token verification and the `(auth_provider, external_auth_subject)` account-matching pattern both OAuth providers and future auth methods share. AUTH-003 (stay signed in and manage active sessions) has since shipped on top of both: `sessions`/`refresh_tokens`/`devices` tables, a narrowed 15-minute JWT payload, rotating opaque refresh tokens with reuse-detection cascade-revocation, and real session listing/revocation endpoints, replacing the BF-011 `get_current_user` placeholder with a real implementation.
+Sprint 1 delivered a complete backend foundation (BF-001 through BF-018). Sprint 2 (Identity & Access) is now complete: AUTH-001 (mobile OTP registration/login) shipped the first business domain module, establishing the `identity` schema and the `backend/app/modules/<domain>/...` structural convention every later domain will follow. AUTH-002 (Google/Apple sign-in) shipped on top of it, adding server-side ID-token verification and the `(auth_provider, external_auth_subject)` account-matching pattern both OAuth providers and future auth methods share. AUTH-003 (stay signed in and manage active sessions) shipped on top of both: `sessions`/`refresh_tokens`/`devices` tables, a narrowed 15-minute JWT payload, rotating opaque refresh tokens with reuse-detection cascade-revocation, and real session listing/revocation endpoints, replacing the BF-011 `get_current_user` placeholder with a real implementation. AUTH-004 (access the app according to my role) has since shipped on top of all three: a composable `require_role()` dependency, an ownership-check helper (404, not 403), a new `audit` module with an immutable `audit_logs` table recording registration/login/logout/session-revocation events, and `GET /auth/me` — closing out Sprint 2 in full.
 
 ---
 
@@ -214,7 +214,7 @@ No story may introduce functionality outside its defined scope.
 
 Full detail in `docs/sprints/sprint_01_summary.md`.
 
-## Sprint 2 — Identity & Access (In Progress — 3 of 4 stories done)
+## Sprint 2 — Identity & Access (Complete — 4 of 4 stories done)
 
 **Correction (18 July 2026):** This section previously described a stale 9-story AUTH-001..009 backlog (models → OTP service → mobile auth → OAuth → JWT → sessions → RBAC → rate limiting → audit logging) that no longer matches `docs/AI/Project_Tracker.xlsx`, the authoritative backlog source. The Tracker defines a smaller, 4-story Sprint 2, each a full vertical slice (backend + mobile + tests), not a layered breakdown. The table below reflects the current, real backlog. See `docs/implementation/plans/Plan_S02_AUTH-001.md`'s Supersession Notice for the full history of this correction.
 
@@ -225,9 +225,12 @@ Scope is limited strictly to the Identity & Access domain (`03_DOMAIN_MODEL.md`)
 | AUTH-001 | Register and sign in with Mobile OTP | ✅ Done |
 | AUTH-002 | Register and sign in with Google or Apple | ✅ Done |
 | AUTH-003 | Stay signed in and manage active sessions | ✅ Done |
-| AUTH-004 | Access the app according to my role | 🔲 Not Started |
+| AUTH-004 | Access the app according to my role | ✅ Done |
 
-**Note:** `docs/implementation/plans/Plan_S02_AUTH-004.md` (and any remaining `_AUTH-005` through `_AUTH-009` plans) still describe the old 9-story breakdown and do not correspond 1:1 to the current tracker's AUTH-004. It is stale/superseded and must be re-planned against the current 4-story tracker scope before that story is picked up — do not implement against it as-is. `Plan_S02_AUTH-002.md` and `Plan_S02_AUTH-003.md` were both re-planned against the current tracker scope and are no longer stale; see their respective Walkthroughs for completed implementation detail.
+**Sprint 2 (Identity & Access) is now complete.** All four plans (`Plan_S02_AUTH-001.md` through
+`Plan_S02_AUTH-004.md`) were re-planned against the current, authoritative 4-story tracker scope and are no
+longer stale; see each story's respective Walkthrough for completed implementation detail. The next sprint's
+stories have not yet been identified in this tracker document — see Section 17.
 
 ---
 
@@ -253,8 +256,9 @@ The backend currently provides:
 ✓ Identity & Access domain (mobile OTP registration/login — AUTH-001): `identity` schema, roles/permissions scaffolding, `request-otp`/`verify-otp` endpoints, stateless JWT issuance
 ✓ Google/Apple sign-in (AUTH-002): JWKS-based ID-token verification (`IdTokenVerifier`/`JwksIdTokenVerifier`), `OAuthService`, `POST /auth/google`/`POST /auth/apple`, find-or-create by `(auth_provider, external_auth_subject)`
 ✓ Session management and refresh-token rotation (AUTH-003): `identity.sessions`/`identity.refresh_tokens` tables, 15-minute JWT access tokens narrowed to `{sub, exp, iat, jti, roles}`, opaque SHA-256-hashed refresh tokens with rotation and reuse-detection cascade-revocation, `SessionService`, `POST /auth/refresh`, `GET /auth/sessions`, `DELETE /auth/sessions/{id}`, `POST /auth/sessions/logout-all`, and a real `get_current_user` dependency (replacing the BF-011 placeholder)
+✓ Role-based authorization and audit logging (AUTH-004): a composable `require_role()` dependency (401 vs. 403 structurally guaranteed, never interchangeable), an `ensure_owner_or_not_found` ownership-check helper (404, not 403), a new `audit` module with an immutable `audit.audit_logs` table recording registration/login/logout/session_revocation events with no secrets/tokens/PII, and `GET /auth/me` (role-protected, returns id/roles/status)
 
-The first business module (Identity & Access, partial — mobile OTP, Google/Apple sign-in, and session/refresh-token management) has landed. RBAC enforcement remains (AUTH-004).
+The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete.
 
 ---
 
@@ -353,7 +357,7 @@ Implemented layers include:
 - Logging & exception handling
 - Repository layer
 - Testing & code quality tooling
-- Identity & Access module (`backend/app/modules/identity/`) — mobile OTP registration/login (AUTH-001), establishing the `backend/app/modules/<domain>/...` structural convention every later domain module will follow; Google/Apple sign-in (AUTH-002) built on top of it, adding JWKS-based ID-token verification and `OAuthService`; session management and refresh-token rotation (AUTH-003) built on top of both, adding `SessionService`, `sessions`/`refresh_tokens` tables, and a real `get_current_user` dependency
+- Identity & Access module (`backend/app/modules/identity/`) — mobile OTP registration/login (AUTH-001), establishing the `backend/app/modules/<domain>/...` structural convention every later domain module will follow; Google/Apple sign-in (AUTH-002) built on top of it, adding JWKS-based ID-token verification and `OAuthService`; session management and refresh-token rotation (AUTH-003) built on top of both, adding `SessionService`, `sessions`/`refresh_tokens` tables, and a real `get_current_user` dependency; role-based authorization and audit logging (AUTH-004) built on top of all three, adding `require_role()`, `ensure_owner_or_not_found`, a new `backend/app/modules/audit/` module (immutable `audit_logs` table), and `GET /auth/me` — completing Sprint 2
 
 Remaining business modules are deferred until their corresponding sprint stories.
 
@@ -365,7 +369,7 @@ The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/
 
 Not yet implemented:
 
-- Authentication / Identity & Access — partial: mobile OTP registration/login (AUTH-001), Google/Apple OAuth (AUTH-002), and session/refresh-token management (AUTH-003) are done; RBAC enforcement (AUTH-004) remains
+- Authentication / Identity & Access — complete: mobile OTP registration/login (AUTH-001), Google/Apple OAuth (AUTH-002), session/refresh-token management (AUTH-003), and role-based authorization + audit logging (AUTH-004) are all done. RBAC/audit is no longer a gap. Note: a permission-catalog/ABAC layer beyond simple role-name checks, and an admin-facing audit-log-viewing endpoint, remain out of scope until a future story requires them.
 - Customer profile
 - Provider profile (Business / Freelancer)
 - Category taxonomy
@@ -394,7 +398,7 @@ AI Knowledge Base — 100%
 
 Backend Foundation — 100%
 
-Identity & Access — In Progress (3 of 4 stories done: AUTH-001, AUTH-002, AUTH-003)
+Identity & Access — Complete (4 of 4 stories done: AUTH-001, AUTH-002, AUTH-003, AUTH-004)
 
 Provider / Customer Profiles — Not Started
 
@@ -404,17 +408,18 @@ Flutter Application — In Progress (auth flow only: Splash with session recover
 
 Deployment — Not Started
 
-Overall Estimated Project Completion: Approximately 25-30%
+Overall Estimated Project Completion: Approximately 30-35%
 
 ---
 
 # 17. Next Planned Story
 
-Sprint 2 — AUTH-004 (Access the app according to my role), fourth and last story in the current backlog defined in Section 8.
+Sprint 2 (Identity & Access) is now **complete** — AUTH-001, AUTH-002, AUTH-003, and AUTH-004 have all shipped
+and been signed off.
 
-Identity & Access domain concludes with role-based authorization enforcement, built on top of the `roles` claim AUTH-003's access tokens already carry and the `User`/session infrastructure AUTH-001/002/003 established.
-
-AUTH-001 (mobile OTP registration/login), AUTH-002 (Google/Apple sign-in), and AUTH-003 (session/refresh-token management) are all done. Note: `docs/implementation/plans/Plan_S02_AUTH-004.md` is stale (written against the old 9-story backlog) and must be re-planned against the current tracker scope before AUTH-004 implementation begins — the same re-planning process AUTH-002 and AUTH-003 both went through.
+There is currently no Sprint 3 defined in this tracker document. The next sprint's stories need to be
+identified from `docs/AI/Project_Tracker.xlsx` (the authoritative backlog source, which this document cannot
+open directly) before planning can continue. Do not assume or invent a next story ahead of that lookup.
 
 ---
 

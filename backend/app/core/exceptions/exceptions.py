@@ -129,6 +129,27 @@ class SessionNotFoundError(BusinessException):
         super().__init__(message=message, status_code=404)
 
 
+class InsufficientRoleError(BusinessException):
+    """
+    Raised by `require_role()` (AUTH-004, AC3) when a caller is
+    authenticated (a valid, unexpired token was already accepted by
+    `get_current_user`) but their `roles` claim does not intersect the
+    endpoint's allowed set.
+
+    Deliberately distinct from every 401 exception above: this is only
+    ever raised for a *validly authenticated* caller, so 401 and 403 are
+    never used interchangeably (AC2/AC3). Deliberately generic -- never
+    reveals which role(s) were required, mirroring this project's
+    established non-revealing-error philosophy.
+    """
+
+    def __init__(
+        self,
+        message: str = "You don't have permission to perform this action.",
+    ):
+        super().__init__(message=message, status_code=403)
+
+
 class RateLimitExceededError(BusinessException):
     """
     Raised when a client exceeds a Redis-backed fixed-window rate limit

@@ -2,8 +2,12 @@ import uuid
 
 import pytest
 
-from app.api.dependencies import CurrentUser, get_current_user, get_token
-from app.core.exceptions import AuthenticationRequiredError, InvalidTokenError
+from app.api.dependencies import CurrentUser, get_current_user, get_token, require_role
+from app.core.exceptions import (
+    AuthenticationRequiredError,
+    InsufficientRoleError,
+    InvalidTokenError,
+)
 from app.core.security import create_access_token
 
 
@@ -59,3 +63,44 @@ def test_get_current_user_rejects_a_token_missing_required_claims():
 
     with pytest.raises(InvalidTokenError):
         get_current_user(token)
+
+
+def _make_current_user(roles: list[str]) -> CurrentUser:
+    return CurrentUser(id=uuid.uuid4(), session_id=uuid.uuid4(), roles=roles)
+
+
+class TestRequireRole:
+    """
+    AUTH-004, AC1/AC3: `require_role()` unit tests, constructing a
+    `CurrentUser` directly rather than going through `get_current_user`
+    -- this isolates the role-check branch itself (the 401 side is
+    already fully covered by `get_current_user`'s own tests above, and
+    `require_role()` structurally can never raise a 401, only the new
+    403 `InsufficientRoleError`).
+    """
+
+    def test_passes_through_for_an_allowed_role(self) -> None:
+        current_user = _make_current_user(["customer"])
+        dependency = require_role("customer", "admin")
+
+        result = dependency(current_user)
+
+        assert result is current_user
+
+    def test_raises_insufficient_role_error_for_a_disallowed_role(self) -> None:
+        current_user = _make_current_user(["customer"])
+        dependency = require_role("admin")
+
+        with pytest.raises(InsufficientRoleError):
+            dependency(current_user)
+
+    def test_raises_insufficient_role_error_for_a_roleless_user(self) -> None:
+        """The AC3 scenario: a validly authenticated caller whose
+        `roles` claim is empty -- no production code path can currently
+        create such an account, but a directly-minted token can carry
+        this shape (see `TestGetMe` in `test_auth_endpoints.py`)."""
+        current_user = _make_current_user([])
+        dependency = require_role("customer", "provider", "admin")
+
+        with pytest.raises(InsufficientRoleError):
+            dependency(current_user)
