@@ -81,6 +81,11 @@ Future<void> pumpScreen(
         builder: (context, state) =>
             const Scaffold(body: Text('home-placeholder-stub')),
       ),
+      GoRoute(
+        path: AppRoutes.addFirstAddress,
+        builder: (context, state) =>
+            const Scaffold(body: Text('add-first-address-stub')),
+      ),
     ],
   );
 

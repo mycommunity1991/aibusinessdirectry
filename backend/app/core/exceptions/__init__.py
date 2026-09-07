@@ -13,6 +13,7 @@ from app.core.exceptions.exceptions import (
     InvalidTokenError,
     OtpLockedError,
     RateLimitExceededError,
+    SavedAddressNotFoundError,
     SessionNotFoundError,
 )
 
@@ -28,4 +29,5 @@ __all__ = [
     "OtpLockedError",
     "RateLimitExceededError",
     "InsufficientRoleError",
+    "SavedAddressNotFoundError",
 ]

@@ -217,5 +217,160 @@
   "retryLabel": "Try again",
   "@retryLabel": {
     "description": "Generic retry action label shown alongside an error message."
+  },
+
+  "skipLabel": "Skip",
+  "@skipLabel": {
+    "description": "Generic skip action label (e.g. the first-address prompt, S-05, AC4)."
+  },
+
+  "locationPickerTitle": "Set location",
+  "@locationPickerTitle": {
+    "description": "Title on the full-screen map-pin location picker (CUS-002, AC3)."
+  },
+  "useCurrentLocationLabel": "Use current location",
+  "@useCurrentLocationLabel": {
+    "description": "Label for the button that fetches the device's current GPS position (CUS-002, AC3)."
+  },
+  "confirmLocationLabel": "Confirm this location",
+  "@confirmLocationLabel": {
+    "description": "Primary action on the map-pin location picker that confirms the currently-centered pin."
+  },
+  "locationPermissionDeniedMessage": "Location permission is needed to use your current location.",
+  "@locationPermissionDeniedMessage": {
+    "description": "Plain-language error shown when the device denies the location permission."
+  },
+  "locationServiceDisabledMessage": "Turn on location services to use your current location.",
+  "@locationServiceDisabledMessage": {
+    "description": "Plain-language error shown when the device's location services (GPS) are off."
+  },
+
+  "savedAddressNotFoundMessage": "That address is no longer available.",
+  "@savedAddressNotFoundMessage": {
+    "description": "Plain-language error shown when a saved address can no longer be found (backend 404 SavedAddressNotFoundError, AC8) -- deliberately generic, never reveals whether it was deleted or never belonged to the caller."
+  },
+
+  "addressFormAddTitle": "Add address",
+  "@addressFormAddTitle": {
+    "description": "Title on the Add Address screen (S-05/S-12/AC5 re-prompt) in add mode."
+  },
+  "addressFormEditTitle": "Edit address",
+  "@addressFormEditTitle": {
+    "description": "Title on the Add Address screen (S-12) in edit mode."
+  },
+  "addressLabelFieldLabel": "Label (optional)",
+  "@addressLabelFieldLabel": {
+    "description": "Label for the optional short address label field, e.g. \"Home\", \"Work\"."
+  },
+  "addressLineFieldLabel": "Address",
+  "@addressLineFieldLabel": {
+    "description": "Label for the required street address line field."
+  },
+  "addressCityFieldLabel": "City",
+  "@addressCityFieldLabel": {
+    "description": "Label for the optional city field."
+  },
+  "addressRegionFieldLabel": "State / Region",
+  "@addressRegionFieldLabel": {
+    "description": "Label for the optional state/region/emirate field."
+  },
+  "addressCountryCodeFieldLabel": "Country code",
+  "@addressCountryCodeFieldLabel": {
+    "description": "Label for the required ISO 3166-1 alpha-2 country code field (Plan_S03_CUS-002.md Decision 5 -- plain validated text, not a picker)."
+  },
+  "addressCountryCodeHint": "AE",
+  "@addressCountryCodeHint": {
+    "description": "Example hint text for the country code field."
+  },
+  "pickOnMapLabel": "Pick on map",
+  "@pickOnMapLabel": {
+    "description": "Label for the button that opens the full-screen map-pin location picker."
+  },
+  "locationPinnedLabel": "Location set: {latitude}, {longitude}",
+  "@locationPinnedLabel": {
+    "description": "Shown once a location has been picked (via map or current location), confirming coordinates were captured.",
+    "placeholders": {
+      "latitude": {"type": "String", "example": "25.2048"},
+      "longitude": {"type": "String", "example": "55.2708"}
+    }
+  },
+  "locationNotSetLabel": "No location set yet",
+  "@locationNotSetLabel": {
+    "description": "Shown before a location has been picked -- Save stays disabled until one is set (AC3)."
+  },
+  "setAsDefaultLabel": "Set as default address",
+  "@setAsDefaultLabel": {
+    "description": "Label for the switch marking this address as the customer's default."
+  },
+  "addressFormLocationRequiredHint": "Set a location using the map or your current location before saving.",
+  "@addressFormLocationRequiredHint": {
+    "description": "Inline hint explaining why Save is disabled until a location has been picked (AC3)."
+  },
+
+  "addFirstAddressTitle": "Add your first address",
+  "@addFirstAddressTitle": {
+    "description": "Title on the skippable first-address prompt shown right after registration (S-05, AC4)."
+  },
+  "addFirstAddressSubtitle": "Save an address so it's ready when you need it. You can always add this later.",
+  "@addFirstAddressSubtitle": {
+    "description": "Subtitle on the skippable first-address prompt, making clear skipping is safe (AC4)."
+  },
+  "addressRequiredForSearchSubtitle": "Add an address to search for services near you.",
+  "@addressRequiredForSearchSubtitle": {
+    "description": "Subtitle shown on the non-skippable re-prompt reached from the Home \"Find a Service\" stub when the customer has zero saved addresses (AC5)."
+  },
+
+  "savedAddressesTitle": "Saved addresses",
+  "@savedAddressesTitle": {
+    "description": "Title on the Saved Addresses screen (S-12), and label for its entry point on Profile & Settings (S-14)."
+  },
+  "savedAddressesEmptyState": "No saved addresses yet. Add one to get started.",
+  "@savedAddressesEmptyState": {
+    "description": "Shown on the Saved Addresses screen when the customer has no saved addresses."
+  },
+  "defaultAddressBadgeLabel": "Default",
+  "@defaultAddressBadgeLabel": {
+    "description": "Badge shown on the customer's default address (AC6)."
+  },
+  "noDefaultAddressLabel": "No default address set",
+  "@noDefaultAddressLabel": {
+    "description": "Shown on the Saved Addresses screen when at least one address exists but none is marked default (AC7)."
+  },
+  "editAddressTooltip": "Edit address",
+  "@editAddressTooltip": {
+    "description": "Tooltip for the edit action on a saved address row."
+  },
+  "deleteAddressTooltip": "Delete address",
+  "@deleteAddressTooltip": {
+    "description": "Tooltip for the delete action on a saved address row."
+  },
+  "addressDeletedSnackbar": "Address deleted",
+  "@addressDeletedSnackbar": {
+    "description": "Snackbar confirmation shown after deleting a saved address, paired with an Undo action (AC7, 16_UX_GUIDELINES.md)."
+  },
+  "undoLabel": "Undo",
+  "@undoLabel": {
+    "description": "Label for the Undo action on the delete-address snackbar."
+  },
+  "chooseNewDefaultTitle": "Choose a new default address",
+  "@chooseNewDefaultTitle": {
+    "description": "Title on the bottom sheet offering to pick a new default address after the previous default was deleted (AC7)."
+  },
+  "notNowLabel": "Not now",
+  "@notNowLabel": {
+    "description": "Option on the \"choose a new default\" bottom sheet to decline choosing one right now (AC7)."
+  },
+  "addAddressLabel": "Add address",
+  "@addAddressLabel": {
+    "description": "Label/tooltip for the floating action button that adds a new saved address (S-12)."
+  },
+
+  "findServiceButtonLabel": "Find a Service",
+  "@findServiceButtonLabel": {
+    "description": "Temporary stand-in for the real AI Conversation / Search Request entry point (S-06/S-07, a future story) on the Home placeholder screen -- its only current behavior is enforcing the address-required gate for AC5 (Plan_S03_CUS-002.md Decision 6)."
+  },
+  "searchComingSoonMessage": "Search coming soon.",
+  "@searchComingSoonMessage": {
+    "description": "Snackbar shown when tapping \"Find a Service\" while the customer already has at least one saved address -- no real Search feature exists yet (Decision 6)."
   }
 }

@@ -7,6 +7,9 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../auth/state/auth_session_controller.dart';
+import '../../../customer/data/saved_address_repository.dart';
+import '../../../customer/domain/models/address_form_mode.dart';
+import '../../../customer/domain/models/saved_address_exception.dart';
 
 /// Minimal placeholder landed on after a successful `verify-otp`.
 ///
@@ -19,6 +22,13 @@ import '../../../auth/state/auth_session_controller.dart';
 /// (S-14, CUS-001) — not a bottom-nav tab, since the real 3-tab
 /// Home/Activity/Profile shell needs real Home/Activity screens that don't
 /// exist yet (`Plan_S03_CUS-001.md` Decision 7).
+///
+/// The "Find a Service" button (CUS-002, Plan Decision 6) is an explicitly
+/// **temporary** stand-in for the real AI Conversation / Search Request
+/// entry point (S-06/S-07, a future story) — its only current behavior is
+/// enforcing the address-required gate for AC5. Whichever future story
+/// builds the real Search feature replaces this button's target, not the
+/// gate itself.
 class HomePlaceholderScreen extends ConsumerWidget {
   const HomePlaceholderScreen({super.key});
 
@@ -28,6 +38,35 @@ class HomePlaceholderScreen extends ConsumerWidget {
     await ref.read(authSessionControllerProvider).clear();
     if (context.mounted) {
       context.go(AppRoutes.phoneEntry);
+    }
+  }
+
+  Future<void> _onFindService(WidgetRef ref, BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      final addresses = await ref.read(savedAddressRepositoryProvider).list();
+      if (!context.mounted) return;
+      if (addresses.isEmpty) {
+        // AC5: no real Search feature exists yet -- re-prompt for an
+        // address (non-skippable this time) instead of proceeding.
+        await context.push<bool>(
+          AppRoutes.addressForm,
+          extra: (
+            mode: AddressFormMode.add,
+            existingAddress: null,
+            subtitle: l10n.addressRequiredForSearchSubtitle,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.searchComingSoonMessage)));
+      }
+    } on SavedAddressException {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(l10n.genericErrorMessage)));
     }
   }
 
@@ -70,6 +109,11 @@ class HomePlaceholderScreen extends ConsumerWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.xl),
+              OutlinedButton(
+                onPressed: () => _onFindService(ref, context),
+                child: Text(l10n.findServiceButtonLabel),
+              ),
+              const SizedBox(height: AppSpacing.md),
               TextButton(
                 onPressed: () => _onLogOut(ref, context),
                 child: Text(l10n.logOutLabel),

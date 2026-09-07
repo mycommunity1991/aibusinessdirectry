@@ -11,6 +11,28 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Saved service-location addresses (Story CUS-002): new `customer.saved_addresses` table (label, address line,
+  city, region, country code, latitude/longitude, default flag), linked to `customer_profiles`, via a
+  reversible Alembic migration — this codebase's first genuine soft-delete pattern (`deleted_at`/`is_active`,
+  never a hard `session.delete()`; every read path filters `is_active`). Default-address uniqueness is enforced
+  transactionally in the service layer (unset every other active default before writing the new one, same
+  session) with a partial unique index (`uq_saved_addresses_customer_default`, on `customer_id` WHERE
+  `is_default = true AND is_active = true`) as defense-in-depth, not the sole mechanism. New `GET`/`POST
+  /api/v1/customers/me/addresses` and `PATCH`/`DELETE /api/v1/customers/me/addresses/{address_id}`, gated by
+  `require_role(customer)` — a client-`{id}`-addressable collection (unlike CUS-001's `/me` singleton),
+  ownership enforced defensively via AUTH-004's `ensure_owner_or_not_found` (404, never 403, on both a missing
+  row and a row owned by another customer). Unpaginated per ADR-012's small/single-owner-scoped carve-out.
+- Mobile Saved Addresses feature (Story CUS-002): three new Flutter dependencies (`google_maps_flutter`,
+  `geolocator`, `geocoding`) back a new shared, reusable `LocationPickerScreen`
+  (`shared/widgets/location_picker/`, zero Customer-domain coupling, built for future Provider-domain reuse) —
+  map-pin selection, manual entry, and "use current location," all reverse-geocoded into editable address
+  fields. A skippable first-address prompt is now inserted into both registration success paths (mobile OTP and
+  Google/Apple sign-in), after session establishment so Skip can never block registration; a temporary "Find a
+  Service" button on the Home placeholder screen re-prompts (non-skippable) only when the customer has zero
+  addresses and attempts to search — the real AI Conversation/Search feature doesn't exist until Sprint 7/8.
+  New Saved Addresses management screen (linked from Profile & Settings) with an Undo-on-delete snackbar and,
+  when deleting the current default, either a "choose a new default" bottom sheet or a clear "no default set"
+  indicator.
 - Customer profile and preferences (Story CUS-001): new `customer` Postgres schema with `customer_profiles`
   and `customer_preferences` tables (one-to-one with `identity.users`) via a reversible Alembic migration;
   `customer_preferences.language` reuses the existing `identity.language_code` enum (`create_type=False`)

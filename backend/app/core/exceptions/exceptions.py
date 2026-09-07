@@ -129,6 +129,21 @@ class SessionNotFoundError(BusinessException):
         super().__init__(message=message, status_code=404)
 
 
+class SavedAddressNotFoundError(BusinessException):
+    """
+    Raised by `GET`/`PATCH`/`DELETE /customers/me/addresses/{id}` when a
+    saved address either doesn't exist at all, or exists but is not
+    owned by the requesting customer (CUS-002, AC8).
+
+    Deliberately collapses both cases into the same 404 rather than a
+    403 for the ownership case -- mirrors `SessionNotFoundError`'s
+    non-revealing design exactly (Decision 1, `Plan_S03_CUS-002.md`).
+    """
+
+    def __init__(self, message: str = "Address not found."):
+        super().__init__(message=message, status_code=404)
+
+
 class InsufficientRoleError(BusinessException):
     """
     Raised by `require_role()` (AUTH-004, AC3) when a caller is

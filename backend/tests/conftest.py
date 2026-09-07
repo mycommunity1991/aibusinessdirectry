@@ -91,7 +91,11 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     of whether the test (or the code under test) committed.
     """
     from app.modules.audit.models import AuditLog
-    from app.modules.customer.models import CustomerPreferences, CustomerProfile
+    from app.modules.customer.models import (
+        CustomerPreferences,
+        CustomerProfile,
+        SavedAddress,
+    )
     from app.modules.identity.models import (
         Device,
         OtpVerification,
@@ -112,6 +116,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     async with db_engine.begin() as conn:
         for model in (
             AuditLog,
+            SavedAddress,
             CustomerPreferences,
             CustomerProfile,
             RefreshToken,

@@ -158,7 +158,10 @@ class _OtpEntryScreenState extends ConsumerState<OtpEntryScreen> {
 
     await ref.read(authSessionControllerProvider).setSession(token);
     if (!mounted) return;
-    context.go(AppRoutes.homePlaceholder);
+    // Session is already fully live at this point (CUS-002, AC4) — routes
+    // to the skippable first-address prompt (S-05) instead of Home
+    // directly; skipping there still reaches Home with no blocking step.
+    context.go(AppRoutes.addFirstAddress);
   }
 
   Future<void> _onResend(OtpEntryController controller) async {

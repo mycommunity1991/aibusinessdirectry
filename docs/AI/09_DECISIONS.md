@@ -819,6 +819,89 @@ this same shape rather than re-deriving a new mechanism.
 
 ---
 
+# ADR-015
+
+## Title
+
+Endpoint Shape Rule: Client-`{id}`-Addressable Collections Use `ensure_owner_or_not_found`; Singleton `/me`
+Resources Rely on Structural Ownership
+
+**Date**
+
+2026-09-07
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Three stories have now each shipped one of two distinct endpoint shapes for "a resource that belongs to the
+calling user": AUTH-003/AUTH-004 built `GET /auth/sessions` and `DELETE /auth/sessions/{session_id}` (a genuine
+1:N collection the client must address by id — one specific session among several); CUS-001 built `GET`/`PATCH
+/customers/me` (a 1:1 resource with no `{id}` at all — there is nothing else for a caller to even attempt to
+address); CUS-002 built `GET`/`POST /customers/me/addresses` and `PATCH`/`DELETE
+/customers/me/addresses/{address_id}` (another genuine 1:N collection, correctly following the sessions shape
+rather than the `/me` shape it extends). Each story derived the correct choice independently by reasoning from
+first principles, and both `tester` and `architect` flagged during CUS-002's review that this reasoning should
+be written down once, rather than re-derived by every future story that ships a "my own resource(s)" endpoint.
+
+### Decision
+
+When a new endpoint exposes a resource scoped to the authenticated caller, the shape is chosen as follows:
+
+- **If the resource is inherently 1:1 with the caller** (there is at most one instance, ever, per user —
+  e.g. a profile, a preferences record), expose it at a fixed path with no `{id}` parameter at all (e.g.
+  `/customers/me`). Ownership is then **structurally guaranteed**, not defensively checked: there is no route
+  shape through which a caller could even attempt to address another user's instance, because the path never
+  carries a client-suppliable identifier. No `ensure_owner_or_not_found` call is needed or appropriate here —
+  there is no id to check.
+- **If the resource is a genuine 1:N collection** (the caller can have zero, one, or many, and must address
+  one specific instance to read/update/delete it — e.g. sessions, saved addresses), expose it as a normal
+  client-`{id}`-addressable resource (e.g. `/auth/sessions/{session_id}`, `/customers/me/addresses/{address_id}`).
+  Because the `{id}` in the path is real and client-supplied, ownership **must** be defensively enforced on
+  every read/write of a specific instance via `ensure_owner_or_not_found` (`app/core/authorization.py`),
+  collapsing "row doesn't exist" and "row exists but isn't yours" into the same non-revealing 404 — never a
+  403, which would leak that the id is valid but belongs to someone else.
+
+This is not a new mechanism — `ensure_owner_or_not_found` already existed from AUTH-004. This ADR records the
+*rule for choosing between* the two already-proven shapes, so a future story doesn't have to re-derive it, and
+so a future PR that puts an `{id}` on a genuinely 1:1 resource (or omits the ownership check on a genuinely 1:N
+one) is recognized as a design smell against a documented rule, not a fresh judgment call.
+
+### Alternatives Considered
+
+- Always use `{id}`-addressable paths, even for 1:1 resources, for uniformity (rejected — adds a meaningless
+  client-supplied identifier to a resource that can only ever be "mine," and would require either a fake `id`
+  the client must first look up, or `id=me` string-literal indirection; CUS-001's `/me`-only shape is simpler,
+  safer by construction, and already shipped and reviewed clean).
+- Always require `ensure_owner_or_not_found` on every "my resource" endpoint regardless of shape (rejected —
+  on a true `/me` singleton there is no `{id}` to check against, so the call would be checking a caller-derived
+  id against itself, a no-op that adds code without adding safety, as CUS-001's own architect review already
+  concluded).
+
+### Consequences
+
+- Every future "my own resource(s)" endpoint should pick its shape using this rule up front, rather than
+  re-deriving the sessions-vs-profile reasoning from scratch.
+- `04_DATABASE.md`/`05_API_GUIDELINES.md` readers can now cite this ADR for why some caller-owned endpoints
+  carry `{id}` and defend ownership at runtime, while others (`/me`) do not and structurally cannot need to.
+
+### Related Documents
+
+- 05_API_GUIDELINES.md
+- 06_SECURITY.md
+- docs/implementation/plans/Plan_S02_AUTH-004.md (origin of `ensure_owner_or_not_found`)
+- docs/implementation/plans/Plan_S03_CUS-001.md (the `/me` singleton precedent)
+- docs/implementation/plans/Plan_S03_CUS-002.md (Decision 1 — the collection precedent this ADR generalizes)
+- docs/implementation/walkthroughs/Walkthrough_S03_CUS-002.md
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

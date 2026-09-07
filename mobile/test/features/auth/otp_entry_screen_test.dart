@@ -215,23 +215,24 @@ void main() {
       },
     );
 
-    testWidgets('a successful verification navigates past authentication', (
-      tester,
-    ) async {
-      final fakeRepository = FakeAuthRepository();
-      await pumpScreen(
-        tester,
-        child: _otpScreen,
-        overrides: [authRepositoryProvider.overrideWithValue(fakeRepository)],
-      );
-      await tester.pump();
+    testWidgets(
+      'a successful verification navigates to the first-address prompt (CUS-002, AC4), not straight to Home',
+      (tester) async {
+        final fakeRepository = FakeAuthRepository();
+        await pumpScreen(
+          tester,
+          child: _otpScreen,
+          overrides: [authRepositoryProvider.overrideWithValue(fakeRepository)],
+        );
+        await tester.pump();
 
-      await _enterCode(tester, '123456');
-      await tester.tap(find.widgetWithText(FilledButton, 'Verify'));
-      await tester.pumpAndSettle();
+        await _enterCode(tester, '123456');
+        await tester.tap(find.widgetWithText(FilledButton, 'Verify'));
+        await tester.pumpAndSettle();
 
-      expect(fakeRepository.verifyOtpCallCount, 1);
-      expect(find.text('home-placeholder-stub'), findsOneWidget);
-    });
+        expect(fakeRepository.verifyOtpCallCount, 1);
+        expect(find.text('add-first-address-stub'), findsOneWidget);
+      },
+    );
   });
 }

@@ -2,6 +2,7 @@ import 'package:ai_marketplace_app/core/routing/app_routes.dart';
 import 'package:ai_marketplace_app/features/auth/data/auth_repository.dart';
 import 'package:ai_marketplace_app/features/auth/domain/models/auth_exception.dart';
 import 'package:ai_marketplace_app/features/auth/state/auth_session_controller.dart';
+import 'package:ai_marketplace_app/features/customer/presentation/screens/add_first_address_screen.dart';
 import 'package:ai_marketplace_app/features/home/presentation/screens/home_placeholder_screen.dart';
 import 'package:ai_marketplace_app/shared/widgets/app_error_message.dart';
 import 'package:flutter/material.dart';
@@ -53,7 +54,7 @@ void main() {
 
   group('OAuthSignInController — successful sign-in', () {
     testWidgets(
-      'a successful Google sign-in navigates to the home placeholder and populates authSessionProvider',
+      'a successful Google sign-in navigates to the first-address prompt (CUS-002, AC4) and populates authSessionProvider',
       (tester) async {
         final fakeRepository = FakeAuthRepository();
         await pumpApp(
@@ -67,10 +68,10 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(fakeRepository.signInWithGoogleCallCount, 1);
-        expect(find.byType(HomePlaceholderScreen), findsOneWidget);
+        expect(find.byType(AddFirstAddressScreen), findsOneWidget);
 
         final container = ProviderScope.containerOf(
-          tester.element(find.byType(HomePlaceholderScreen)),
+          tester.element(find.byType(AddFirstAddressScreen)),
         );
         expect(container.read(authSessionProvider), isNotNull);
         expect(
@@ -81,7 +82,7 @@ void main() {
     );
 
     testWidgets(
-      'a successful Apple sign-in navigates to the home placeholder and populates authSessionProvider',
+      'a successful Apple sign-in navigates to the first-address prompt (CUS-002, AC4) and populates authSessionProvider',
       (tester) async {
         final fakeRepository = FakeAuthRepository();
         await pumpApp(
@@ -95,10 +96,10 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(fakeRepository.signInWithAppleCallCount, 1);
-        expect(find.byType(HomePlaceholderScreen), findsOneWidget);
+        expect(find.byType(AddFirstAddressScreen), findsOneWidget);
 
         final container = ProviderScope.containerOf(
-          tester.element(find.byType(HomePlaceholderScreen)),
+          tester.element(find.byType(AddFirstAddressScreen)),
         );
         expect(container.read(authSessionProvider), isNotNull);
       },

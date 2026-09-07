@@ -57,5 +57,48 @@
   "notificationChannelSms": "رسالة نصية",
   "notificationChannelEmail": "البريد الإلكتروني",
   "saveLabel": "حفظ",
-  "retryLabel": "حاول مرة أخرى"
+  "retryLabel": "حاول مرة أخرى",
+
+  "skipLabel": "تخطي",
+
+  "locationPickerTitle": "تحديد الموقع",
+  "useCurrentLocationLabel": "استخدام الموقع الحالي",
+  "confirmLocationLabel": "تأكيد هذا الموقع",
+  "locationPermissionDeniedMessage": "يلزم إذن الموقع لاستخدام موقعك الحالي.",
+  "locationServiceDisabledMessage": "يرجى تفعيل خدمات الموقع لاستخدام موقعك الحالي.",
+
+  "savedAddressNotFoundMessage": "هذا العنوان لم يعد متاحاً.",
+
+  "addressFormAddTitle": "إضافة عنوان",
+  "addressFormEditTitle": "تعديل العنوان",
+  "addressLabelFieldLabel": "التسمية (اختياري)",
+  "addressLineFieldLabel": "العنوان",
+  "addressCityFieldLabel": "المدينة",
+  "addressRegionFieldLabel": "الإمارة / المنطقة",
+  "addressCountryCodeFieldLabel": "رمز الدولة",
+  "addressCountryCodeHint": "AE",
+  "pickOnMapLabel": "تحديد على الخريطة",
+  "locationPinnedLabel": "تم تحديد الموقع: {latitude}, {longitude}",
+  "locationNotSetLabel": "لم يتم تحديد الموقع بعد",
+  "setAsDefaultLabel": "تعيين كعنوان افتراضي",
+  "addressFormLocationRequiredHint": "حدد الموقع باستخدام الخريطة أو موقعك الحالي قبل الحفظ.",
+
+  "addFirstAddressTitle": "أضف عنوانك الأول",
+  "addFirstAddressSubtitle": "احفظ عنواناً ليكون جاهزاً عند الحاجة. يمكنك دائماً إضافته لاحقاً.",
+  "addressRequiredForSearchSubtitle": "أضف عنواناً للبحث عن خدمات بالقرب منك.",
+
+  "savedAddressesTitle": "العناوين المحفوظة",
+  "savedAddressesEmptyState": "لا توجد عناوين محفوظة بعد. أضف عنواناً للبدء.",
+  "defaultAddressBadgeLabel": "افتراضي",
+  "noDefaultAddressLabel": "لا يوجد عنوان افتراضي محدد",
+  "editAddressTooltip": "تعديل العنوان",
+  "deleteAddressTooltip": "حذف العنوان",
+  "addressDeletedSnackbar": "تم حذف العنوان",
+  "undoLabel": "تراجع",
+  "chooseNewDefaultTitle": "اختر عنواناً افتراضياً جديداً",
+  "notNowLabel": "ليس الآن",
+  "addAddressLabel": "إضافة عنوان",
+
+  "findServiceButtonLabel": "ابحث عن خدمة",
+  "searchComingSoonMessage": "البحث قادم قريباً."
 }

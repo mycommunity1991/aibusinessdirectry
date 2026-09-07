@@ -3,10 +3,10 @@
 
 **Project:** AI Marketplace
 **Current Phase:** MVP Development
-**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (In Progress — 1 of 2 stories done)
-**Completed Story:** CUS-001 Set Up My Customer Profile and Preferences
-**Status:** Identity & Access domain complete. Customer domain now underway: customer profile/preferences auto-provisioning and the `GET`/`PATCH /customers/me` endpoints have shipped; saved addresses (CUS-002) is next and now unblocked.
-**Last Updated:** 06 September 2026
+**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (Complete — 2 of 2 stories done) → Sprint 4 (Not Started)
+**Completed Story:** CUS-002 Manage My Service Locations
+**Status:** Identity & Access domain complete. Customer domain complete: profile/preferences auto-provisioning, `GET`/`PATCH /customers/me`, and saved service-location addresses (`GET`/`POST`/`PATCH`/`DELETE /customers/me/addresses`) have all shipped. Sprint 4 (Provider Storefront), first story PRO-001, is next and now unblocked.
+**Last Updated:** 07 September 2026
 **Owner:** CTO
 
 ---
@@ -21,7 +21,7 @@ The objective is to build production-quality software from Day One while avoidin
 
 Sprint 1 delivered a complete backend foundation (BF-001 through BF-018). Sprint 2 (Identity & Access) is now complete: AUTH-001 (mobile OTP registration/login) shipped the first business domain module, establishing the `identity` schema and the `backend/app/modules/<domain>/...` structural convention every later domain will follow. AUTH-002 (Google/Apple sign-in) shipped on top of it, adding server-side ID-token verification and the `(auth_provider, external_auth_subject)` account-matching pattern both OAuth providers and future auth methods share. AUTH-003 (stay signed in and manage active sessions) shipped on top of both: `sessions`/`refresh_tokens`/`devices` tables, a narrowed 15-minute JWT payload, rotating opaque refresh tokens with reuse-detection cascade-revocation, and real session listing/revocation endpoints, replacing the BF-011 `get_current_user` placeholder with a real implementation. AUTH-004 (access the app according to my role) has since shipped on top of all three: a composable `require_role()` dependency, an ownership-check helper (404, not 403), a new `audit` module with an immutable `audit_logs` table recording registration/login/logout/session-revocation events, and `GET /auth/me` — closing out Sprint 2 in full.
 
-Sprint 3 (Customer Profile & Locations) is now underway. Its first story, CUS-001 (set up my customer profile and preferences), has shipped: a new `customer` domain module (`customer_profiles`/`customer_preferences`, one-to-one with `users`), auto-provisioned in the same database transaction as registration via a new `identity → customer` cross-module service dependency that deliberately mirrors the `identity → audit` pattern AUTH-004 already established (recorded as ADR-014), sensible defaults (WhatsApp notification channel, `Accept-Language`-derived language falling back to English), and `GET`/`PATCH /customers/me` with no `{id}` parameter — ownership is structurally guaranteed rather than defensively checked. On mobile, a new Profile & Settings screen delivers live language switching (no app restart) and this codebase's first automated RTL test. CUS-002 (manage my service locations), which depends on CUS-001, is next and now unblocked.
+Sprint 3 (Customer Profile & Locations) is now complete. Its first story, CUS-001 (set up my customer profile and preferences), shipped a new `customer` domain module (`customer_profiles`/`customer_preferences`, one-to-one with `users`), auto-provisioned in the same database transaction as registration via a new `identity → customer` cross-module service dependency that deliberately mirrors the `identity → audit` pattern AUTH-004 already established (recorded as ADR-014), sensible defaults (WhatsApp notification channel, `Accept-Language`-derived language falling back to English), and `GET`/`PATCH /customers/me` with no `{id}` parameter — ownership is structurally guaranteed rather than defensively checked. On mobile, a new Profile & Settings screen delivers live language switching (no app restart) and this codebase's first automated RTL test. Its second and final story, CUS-002 (manage my service locations), has since shipped on top of it: `customer.saved_addresses` (this codebase's first genuine soft-delete pattern), transactional default-address uniqueness backed by a partial unique index as defense-in-depth, and `GET`/`POST /customers/me/addresses` + `PATCH`/`DELETE /customers/me/addresses/{address_id}` — a client-`{id}`-addressable collection, deliberately shaped differently from CUS-001's `/me` singleton (the distinction is now recorded as ADR-015). On mobile, a new shared, reusable `LocationPickerScreen` (map-pin/manual/current-location entry, zero Customer-domain coupling, built for future Provider-domain reuse) backs a skippable first-address prompt at registration and a Saved Addresses management screen with Undo-on-delete. Sprint 4 (Provider Storefront), whose first story PRO-001 depends on both AUTH-004 and CUS-002, is next and now unblocked.
 
 ---
 
@@ -233,19 +233,21 @@ Scope is limited strictly to the Identity & Access domain (`03_DOMAIN_MODEL.md`)
 `Plan_S02_AUTH-004.md`) were re-planned against the current, authoritative 4-story tracker scope and are no
 longer stale; see each story's respective Walkthrough for completed implementation detail.
 
-## Sprint 3 — Customer Profile & Locations (In Progress — 1 of 2 stories done)
+## Sprint 3 — Customer Profile & Locations (Complete — 2 of 2 stories done)
 
 Scope is limited to the Customer domain (`03_DOMAIN_MODEL.md`): the customer-facing profile/preferences record
-auto-provisioned at registration, and (in CUS-002) the customer's saved service-location addresses. Does not
-include the Provider-side profile equivalent (PRO-001/002) or a full bottom-navigation shell — both deferred
-to their own later stories.
+auto-provisioned at registration, and the customer's saved service-location addresses. Does not include the
+Provider-side profile equivalent (PRO-001/002) or a full bottom-navigation shell — both deferred to their own
+later stories.
 
 | Story | Description | Status |
 |--------|-------------|--------|
 | CUS-001 | Set up my customer profile and preferences | ✅ Done |
-| CUS-002 | Manage my service locations | ⬜ Pending — depends on CUS-001 (now unblocked) |
+| CUS-002 | Manage my service locations | ✅ Done |
 
-See `docs/implementation/walkthroughs/Walkthrough_S03_CUS-001.md` for CUS-001's completed implementation
+**Sprint 3 (Customer Profile & Locations) is now complete.** See
+`docs/implementation/walkthroughs/Walkthrough_S03_CUS-001.md` and
+`docs/implementation/walkthroughs/Walkthrough_S03_CUS-002.md` for each story's completed implementation
 detail.
 
 ---
@@ -279,8 +281,16 @@ new `identity → customer` cross-module service dependency (`CustomerService`, 
 (WhatsApp notification channel, `Accept-Language`-derived language with English fallback); `GET`/`PATCH
 /customers/me` (no `{id}` parameter — ownership structurally guaranteed); lazy get-or-create backfill so
 Sprint-2 accounts that predate this story never 404 on first access
+✓ Customer domain — saved service-location addresses (CUS-002): `customer.saved_addresses` table (label,
+address line, city, region, country code, latitude/longitude, default flag) via a reversible Alembic migration
+— this codebase's first genuine soft-delete pattern (`deleted_at`/`is_active`, never a hard delete); default-
+address uniqueness enforced transactionally in the service layer (unset-then-set, same session) with a partial
+unique index (`uq_saved_addresses_customer_default`) as defense-in-depth; `GET`/`POST /customers/me/addresses`
+and `PATCH`/`DELETE /customers/me/addresses/{address_id}` — a client-`{id}`-addressable collection (unlike
+CUS-001's `/me` singleton), ownership enforced via AUTH-004's `ensure_owner_or_not_found` (404, never 403);
+endpoint-shape choice recorded as ADR-015
 
-The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain has now landed its first module (CUS-001) on top of it, following the same modular structure.
+The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain is now fully shipped as well — profile/preferences (CUS-001) and saved addresses (CUS-002) — completing Sprint 3.
 
 ---
 
@@ -384,11 +394,15 @@ Implemented layers include:
   new Customer domain: `customer_profiles`/`customer_preferences` tables, `CustomerService` (auto-provisioning,
   get-or-create, `Accept-Language` parsing), and `GET`/`PATCH /customers/me`. Required one edit to `identity`
   (`AuthService` gained a `CustomerService` constructor dependency, mirroring AUTH-004's `AuditService` wiring)
-  — no other existing module was touched.
+  — no other existing module was touched. Saved service-location addresses (CUS-002) built on top of it in the
+  same module: `saved_addresses` table, `SavedAddressRepository` (this codebase's first genuine soft-delete
+  method), `SavedAddressService` (default-uniqueness, ownership enforcement, reuses `CustomerService`'s
+  get-or-create rather than duplicating it), and `GET`/`POST`/`PATCH`/`DELETE /customers/me/addresses`. Touched
+  no other existing module. This completes the Customer domain's Sprint 3 scope.
 
 Remaining business modules are deferred until their corresponding sprint stories.
 
-The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001), real Google/Apple sign-in buttons on the Phone Entry screen (AUTH-002), and secure cross-restart session persistence, a silent-refresh Dio interceptor, and a "Log out" action on the Home stub (AUTH-003), are implemented. A dedicated Manage Sessions UI was deliberately not built this story (see AUTH-003's Walkthrough). CUS-001 added a new `features/customer/` module and a Profile & Settings screen (reachable via a temporary entry point on the Home stub, not yet a bottom-nav tab) plus an `AcceptLanguageInterceptor` on `ApiClient`. The full Home screen, a bottom-navigation shell, and all other feature areas remain unbuilt.
+The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001), real Google/Apple sign-in buttons on the Phone Entry screen (AUTH-002), and secure cross-restart session persistence, a silent-refresh Dio interceptor, and a "Log out" action on the Home stub (AUTH-003), are implemented. A dedicated Manage Sessions UI was deliberately not built this story (see AUTH-003's Walkthrough). CUS-001 added a new `features/customer/` module and a Profile & Settings screen (reachable via a temporary entry point on the Home stub, not yet a bottom-nav tab) plus an `AcceptLanguageInterceptor` on `ApiClient`. CUS-002 extended `features/customer/` with a Saved Addresses management screen and a skippable first-address prompt wired into registration, plus a new shared, reusable `LocationPickerScreen` (`shared/widgets/location_picker/`) and three new Flutter dependencies (`google_maps_flutter`, `geolocator`, `geocoding`). The full Home screen, a bottom-navigation shell, and all other feature areas remain unbuilt.
 
 ---
 
@@ -397,8 +411,8 @@ The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/
 Not yet implemented:
 
 - Authentication / Identity & Access — complete: mobile OTP registration/login (AUTH-001), Google/Apple OAuth (AUTH-002), session/refresh-token management (AUTH-003), and role-based authorization + audit logging (AUTH-004) are all done. RBAC/audit is no longer a gap. Note: a permission-catalog/ABAC layer beyond simple role-name checks, and an admin-facing audit-log-viewing endpoint, remain out of scope until a future story requires them.
-- Customer profile — no longer a gap: auto-provisioned profile/preferences (display name, avatar, language, notification channel) and `GET`/`PATCH /customers/me` shipped in CUS-001. Saved addresses (CUS-002) is still a gap — pending, now unblocked.
-- Provider profile (Business / Freelancer)
+- Customer domain — no longer a gap, fully shipped: auto-provisioned profile/preferences (display name, avatar, language, notification channel) and `GET`/`PATCH /customers/me` (CUS-001); saved service-location addresses, map-pin/manual/current-location entry, and a skippable first-address-at-registration flow (CUS-002).
+- Provider profile (Business / Freelancer) — next up, Sprint 4, PRO-001
 - Category taxonomy
 - Conversation / AI Intake
 - Search & Matching
@@ -427,17 +441,17 @@ Backend Foundation — 100%
 
 Identity & Access — Complete (4 of 4 stories done: AUTH-001, AUTH-002, AUTH-003, AUTH-004)
 
-Customer Domain — In Progress (1 of 2 Sprint 3 stories done: CUS-001; CUS-002 pending)
+Customer Domain — Complete (2 of 2 Sprint 3 stories done: CUS-001, CUS-002)
 
-Provider Profile — Not Started
+Provider Profile — Not Started (Sprint 4, PRO-001, unblocked and next)
 
 Conversation / AI Intake — Not Started
 
-Flutter Application — In Progress (auth flow: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out; plus Profile & Settings screen with live language switching, CUS-001)
+Flutter Application — In Progress (auth flow: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out; Profile & Settings screen with live language switching, CUS-001; Saved Addresses management, a shared Location Picker, and a skippable first-address-at-registration flow, CUS-002)
 
 Deployment — Not Started
 
-Overall Estimated Project Completion: Approximately 35-40%
+Overall Estimated Project Completion: Approximately 40-45%
 
 ---
 
@@ -446,12 +460,13 @@ Overall Estimated Project Completion: Approximately 35-40%
 Sprint 2 (Identity & Access) is **complete** — AUTH-001, AUTH-002, AUTH-003, and AUTH-004 have all shipped
 and been signed off.
 
-Sprint 3 (Customer Profile & Locations) is **in progress** — CUS-001 (set up my customer profile and
-preferences) has shipped and been signed off.
+Sprint 3 (Customer Profile & Locations) is **complete** — CUS-001 (set up my customer profile and preferences)
+and CUS-002 (manage my service locations) have both shipped and been signed off.
 
-**Next planned story: CUS-002 — "Manage my service locations."** It depends on CUS-001 (the customer profile
-this story just created) and is now unblocked. Full scope should be re-confirmed against
-`docs/AI/Project_Tracker.xlsx` (the authoritative backlog source) before planning, per the usual process.
+**Next planned story: PRO-001 — "Create my business or freelancer listing"** (Sprint 4, Provider Storefront).
+It depends on AUTH-004 and CUS-002 (both now done) and is now unblocked. No stale `Plan_S04_PRO-001.md` exists
+in the repository from any old backlog numbering — it needs a fresh Plan written against
+`docs/AI/Project_Tracker.xlsx` (the authoritative backlog source), per the usual process.
 
 ---
 

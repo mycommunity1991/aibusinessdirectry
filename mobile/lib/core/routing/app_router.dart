@@ -6,7 +6,11 @@ import '../../features/auth/presentation/screens/language_selection_screen.dart'
 import '../../features/auth/presentation/screens/otp_entry_screen.dart';
 import '../../features/auth/presentation/screens/phone_entry_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
+import '../../features/customer/domain/models/address_form_args.dart';
+import '../../features/customer/presentation/screens/add_first_address_screen.dart';
+import '../../features/customer/presentation/screens/address_form_screen.dart';
 import '../../features/customer/presentation/screens/profile_settings_screen.dart';
+import '../../features/customer/presentation/screens/saved_addresses_screen.dart';
 import '../../features/home/presentation/screens/home_placeholder_screen.dart';
 import 'app_routes.dart';
 
@@ -51,6 +55,30 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
       GoRoute(
         path: AppRoutes.profileSettings,
         builder: (context, state) => const ProfileSettingsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.addFirstAddress,
+        builder: (context, state) => const AddFirstAddressScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.savedAddresses,
+        builder: (context, state) => const SavedAddressesScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.addressForm,
+        // The shared Add/Edit form always needs its `AddressFormArgs` —
+        // reachable only via `push(..., extra: ...)`, never a bare deep
+        // link, mirroring OTP Entry's own `extra`-required redirect.
+        redirect: (context, state) =>
+            state.extra is AddressFormArgs ? null : AppRoutes.savedAddresses,
+        builder: (context, state) {
+          final args = state.extra as AddressFormArgs;
+          return AddressFormScreen(
+            mode: args.mode,
+            existingAddress: args.existingAddress,
+            subtitle: args.subtitle,
+          );
+        },
       ),
     ],
   );

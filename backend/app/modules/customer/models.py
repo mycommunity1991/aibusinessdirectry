@@ -9,8 +9,17 @@ the architecture decisions behind this module.
 import uuid
 from enum import StrEnum
 
+from sqlalchemy import (
+    CHAR,
+    Boolean,
+    Double,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy import Enum as SqlEnum
-from sqlalchemy import ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -104,4 +113,49 @@ class CustomerPreferences(CommonColumnsMixin, Base):
         _identity_language_code_enum(),
         nullable=False,
         server_default=LanguageCode.EN.value,
+    )
+
+
+class SavedAddress(CommonColumnsMixin, Base):
+    """
+    A Customer's saved service location -- 1:N with `customer_profiles`
+    (CUS-002). Column-for-column per `docs/AI/04_DATABASE.md` (Customer
+    Domain, "saved_addresses"). Never geospatially queried in this story
+    (`latitude`/`longitude` are plain columns, no `earthdistance`/`cube`
+    extension) -- see `Plan_S03_CUS-002.md`'s scope boundary.
+
+    `uq_saved_addresses_customer_default` is a partial unique index
+    (`customer_id` WHERE `is_default` AND `is_active`) added as
+    defense-in-depth beyond what `04_DATABASE.md`'s literal table spec
+    lists (Decision 2, `Plan_S03_CUS-002.md`) -- the real uniqueness
+    guarantee is `SavedAddressService`'s transactional unset-then-set,
+    this index only backstops it.
+    """
+
+    __tablename__ = "saved_addresses"
+    __table_args__ = (
+        Index("idx_saved_addresses_customer_id", "customer_id"),
+        Index(
+            "uq_saved_addresses_customer_default",
+            "customer_id",
+            unique=True,
+            postgresql_where=text("is_default = true AND is_active = true"),
+        ),
+        {"schema": SCHEMA},
+    )
+
+    customer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{SCHEMA}.customer_profiles.id"),
+        nullable=False,
+    )
+    label: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    address_line: Mapped[str] = mapped_column(String(500), nullable=False)
+    city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    region: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    country_code: Mapped[str] = mapped_column(CHAR(2), nullable=False)
+    latitude: Mapped[float] = mapped_column(Double, nullable=False)
+    longitude: Mapped[float] = mapped_column(Double, nullable=False)
+    is_default: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
     )

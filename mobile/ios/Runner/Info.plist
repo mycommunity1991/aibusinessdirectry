@@ -4,6 +4,11 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- "Use current location" on the Add Address screen (CUS-002, AC3,
+	     `geolocator`) -- required by iOS for any foreground location
+	     request; real, user-facing copy (not a secret, safe to ship now). -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Used to set your service address and find services near you.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

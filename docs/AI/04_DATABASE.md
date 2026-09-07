@@ -1,11 +1,15 @@
 # AI Marketplace Database Design
 
 **Document ID:** AI-04
-**Version:** 3.1.0
+**Version:** 3.2.0
 **Status:** Active
 **Owner:** CTO
 **Audience:** Engineering Team, Database Engineers, AI Assistants
-**Last Updated:** 2026-07-15
+**Last Updated:** 2026-09-07
+
+**Change note (v3.1.0 → v3.2.0):** Documented `saved_addresses`' `uq_saved_addresses_customer_default` partial
+unique index, added by Story CUS-002 (Sprint 3) as defense-in-depth alongside the primary transactional
+default-uniqueness mechanism — see ADR-015 in `09_DECISIONS.md`.
 
 **Change note (v3.0.0 → v3.1.0):** Documented the self-dealing guard on `contact_views`/`reviews` required by the confirmed dual-role rule (one Account may hold both Customer and Provider roles) — see `03_DOMAIN_MODEL.md` v0.8.1.
 
@@ -298,6 +302,11 @@ Reused across every OTP use case in the product — registration/login, arrival-
 | latitude | DOUBLE PRECISION | No | |
 | longitude | DOUBLE PRECISION | No | |
 | is_default | BOOLEAN | No | Default `false` |
+
+**Constraints:** `uq_saved_addresses_customer_default` — partial unique index on `customer_id` WHERE
+`is_default = true AND is_active = true`. Defense-in-depth only: the primary correctness mechanism is
+transactional (the service layer unsets every other active default for that customer before writing the new
+one, on the same session, before this index would ever need to reject a write) — see CUS-002 and ADR-015.
 
 **Indexes:** `idx_saved_addresses_customer_id`
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/app_error_message.dart';
@@ -10,14 +12,16 @@ import '../../domain/models/customer_profile.dart';
 import '../../state/customer_profile_controller.dart';
 import '../utils/customer_error_copy.dart';
 
-/// S-14 — Profile & Settings, scoped to this story's fields only (CUS-001,
-/// AC5/AC6): display name, avatar (a plain URL text field — no file-upload
-/// picker, `Plan_S03_CUS-001.md` Decision 6), a visible EN/AR language
-/// toggle with immediate effect (AC6), and a notification-channel picker.
+/// S-14 — Profile & Settings, scoped to CUS-001's fields (display name,
+/// avatar — a plain URL text field, no file-upload picker,
+/// `Plan_S03_CUS-001.md` Decision 6 — a visible EN/AR language toggle with
+/// immediate effect (AC6), and a notification-channel picker) plus
+/// CUS-002's Saved Addresses entry point (the S-14 link slot CUS-001's own
+/// Plan named but explicitly deferred, `Plan_S03_CUS-002.md` item 22).
 ///
-/// Deliberately does **not** add Saved Addresses, "List Your Business",
-/// delete-account, or legal-link entries — those belong to their own
-/// not-yet-built stories (Decision 7, out-of-scope list).
+/// Deliberately does **not** add "List Your Business", delete-account, or
+/// legal-link entries — those belong to their own not-yet-built stories
+/// (`Plan_S03_CUS-001.md` Decision 7, out-of-scope list).
 class ProfileSettingsScreen extends ConsumerStatefulWidget {
   const ProfileSettingsScreen({super.key});
 
@@ -162,6 +166,16 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
                             enabled: !state.isSaving,
                           ),
                         ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xl),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: ListTile(
+                        leading: const Icon(Icons.location_on_outlined),
+                        title: Text(l10n.savedAddressesTitle),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => context.push(AppRoutes.savedAddresses),
                       ),
                     ),
                   ],

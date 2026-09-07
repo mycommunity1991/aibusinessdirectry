@@ -49,6 +49,16 @@ dependencies:
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^8.2.0
 
+  # Saved Addresses map-pin selection / current-location / reverse-geocoding
+  # (CUS-002, Plan_S03_CUS-002.md "Decisions Needing Explicit User Sign-Off"
+  # — user-approved new dependencies). Real-device rendering needs a Google
+  # Maps API key/billing-enabled Cloud project, supplied later as an
+  # external prerequisite (mirrors AUTH-002's accepted gap); automated
+  # tests never depend on real plugin/platform-channel behavior.
+  google_maps_flutter: ^2.9.0
+  geolocator: ^13.0.2
+  geocoding: ^3.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -1,8 +1,23 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- "Use current location" on the Add Address screen (CUS-002, AC3,
+         `geolocator`). Standard foreground-only location permissions -- no
+         background location is ever requested. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <application
         android:label="ai_marketplace_app"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Map-pin selection (CUS-002, AC3, `google_maps_flutter`). Blank
+             placeholder value -- a real key is an external prerequisite
+             (Google Cloud Console project + billing account) supplied
+             later, mirroring AUTH-002's accepted native-config gap
+             (`Plan_S03_CUS-002.md`, "Decisions Needing Explicit User
+             Sign-Off"). Maps will not render on a real device until a real
+             key replaces this. -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="" />
         <activity
             android:name=".MainActivity"
             android:exported="true"
