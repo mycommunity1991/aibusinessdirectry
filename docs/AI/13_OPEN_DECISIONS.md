@@ -1,8 +1,9 @@
 # AI Marketplace — Open Decisions
 
 **Document ID:** AI-13
-**Version:** 0.1.0 (reconstructed)
-**Status:** Draft — Reconstructed, pending CTO review
+**Version:** 0.2.0
+**Status:** Draft — Reconstructed; items 4 resolved and 3 given an interim sequencing decision by the CTO on
+08 September 2026, items 1/5/8/10/11 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
 **Owner:** CTO
 **Audience:** Engineering Team, Product Team, AI Assistants
 **Last Updated:** 08 September 2026
@@ -87,41 +88,67 @@ number.
 
 ## Item 3 — Google Places Data Legal Review
 
-**Status:** Open
+**Status:** Open — interim sequencing decision made (08 September 2026), underlying legal question still
+unresolved
 
 **Description:** The platform plans to seed initial Business listings from Google Places data
 (`listing_source = 'google_seeded_unclaimed'`) before a real owner claims them. Whether this is legally
 permissible to do at scale, and under what terms (attribution, deletion-on-request, data-retention limits), has
-not been reviewed.
+not been reviewed. This is a real, non-trivial concern, not a formality: Google's Places API / Google Maps
+Platform Terms of Service have historically placed specific restrictions on caching and persistently storing
+Place data to build an independent directory (as opposed to querying live and using data only for the display
+Google's terms permit) — bulk-importing many businesses as permanent, pre-claim `providers` rows, exactly as
+`CLM-001` originally scoped it, is close to the pattern those terms are written to restrict. This needs an
+actual reading of Google's *current* Terms of Service (they are revised periodically) and, given personal data
+(names, phone numbers) is involved, a check against UAE PDPL — neither of which this document or any engineering
+agent can perform; it requires either legal counsel or a careful first-party reading of Google's current terms
+by someone at the company.
 
-**Current workaround:** `04_DATABASE.md` already models `providers.listing_source` and `google_place_id` (unique
-when set) as the exact filter needed if legal review later forces deletion of imported data (Section 14): "if
-legal review forces deletion of imported data, `listing_source = 'google_seeded_unclaimed'` rows are the exact
-filter needed."
+**Interim decision (08 September 2026):** rather than build `CLM-001` against an unreviewed legal assumption,
+the CTO chose to **defer `CLM-001` entirely** until this item is actually resolved. Sprint 6 proceeds with
+`DIR-001` only, which does not depend on this item at all — confirmed directly from the Tracker: `DIR-001`
+("Browse nearby providers by category and location") depends only on `CUS-002`/`PRO-002`/`VER-002` (all done)
+and searches only self-registered providers with `is_discoverable=true`; it never touches Google Places data or
+the `google_seeded_unclaimed`/`is_claimed` columns. `CLM-001` alone (depends on `DIR-001`, `VER-002`) is the one
+blocked by this item, and stays out of Sprint 6's delivered scope until it resolves. This decision only concerns
+*when* `CLM-001` is built, not the underlying legal question, which remains genuinely open.
 
-**Blocks:** The Directory & Listing Claims sprint (Sprint 6: DIR-001, CLM-001) and any Google Places API
-integration work.
+**Current workaround (unchanged, still relevant once this resolves):** `04_DATABASE.md` already models
+`providers.listing_source` and `google_place_id` (unique when set) as the exact filter needed if legal review
+later forces deletion of imported data (Section 14): "if legal review forces deletion of imported data,
+`listing_source = 'google_seeded_unclaimed'` rows are the exact filter needed."
 
-**Related:** `04_DATABASE.md` (`providers` table, Section 14), `14_USER_FLOWS.md` Flow 3 (Claim-Your-Listing).
+**Blocks:** `CLM-001` only (not `DIR-001`, confirmed above) and any Google Places API integration work.
+
+**Related:** `04_DATABASE.md` (`providers` table, Section 14), `14_USER_FLOWS.md` Flow 3 (Claim-Your-Listing),
+`docs/AI/Project_Tracker.xlsx` (`DIR-001`/`CLM-001` rows, Sprint 6).
 
 ---
 
 ## Item 4 — Unclaimed Listing UX
 
-**Status:** Open
+**Status:** Resolved (08 September 2026) — design decided; build deferred alongside item 3/`CLM-001`
 
 **Description:** How an unclaimed, Google-seeded listing should be visually presented to customers browsing the
 directory — specifically how prominently/how it's labeled as "unclaimed" versus a claimed, verified listing —
-has not been finalized.
+had not been finalized.
 
-**Current workaround:** `04_DATABASE.md` keeps `providers.is_claimed`/`is_discoverable` as independent flags, so
-"hidden until claimed" vs. "shown with an unclaimed label" is a query-time filter on existing columns, not a
-schema change (Section 14). `16_UX_GUIDELINES.md` already states the constraint this decision must satisfy once
-made: an unclaimed listing "must be visually distinct at a glance — not just a small badge a user could miss."
+**Resolution:** a full-width banner across the top of both the provider card (`S-08`) and the provider profile
+(`S-09`), in the Warning color (`#F59E0B`, already reserved for this in `16_UX_GUIDELINES.md`'s color table),
+reading "Unclaimed — Is this your business? Claim it" with an inline CTA opening the Claim flow (`S-21`,
+Flow 3) — chosen over a smaller badge or a separate "not yet verified" section specifically to satisfy the
+existing "visually distinct at a glance, not a small badge a user could miss" constraint directly and
+unambiguously. Recorded in full in `16_UX_GUIDELINES.md`'s Trust & Verification UX Patterns section.
 
-**Blocks:** The Directory screens (S-08, S-09, Sprint 6) and the Claim-Your-Listing entry point (Flow 3).
+**Note:** this is a design decision only. Nothing gets built from it yet — no unclaimed listing exists in the
+product until `CLM-001` ships, and `CLM-001` itself is deferred pending item 3. When `CLM-001` is eventually
+planned, this resolution is ready to implement directly, no re-derivation needed.
 
-**Related:** `04_DATABASE.md` (`providers` table, Section 14), `14_USER_FLOWS.md` Flow 3, `16_UX_GUIDELINES.md`.
+**Blocks:** Nothing further — the design question itself is settled. `CLM-001`'s own build timeline is gated by
+item 3, not by this item.
+
+**Related:** `04_DATABASE.md` (`providers` table, Section 14), `14_USER_FLOWS.md` Flow 3, `16_UX_GUIDELINES.md`
+(Trust & Verification UX Patterns — the resolution's full text lives there).
 
 ---
 
@@ -265,6 +292,11 @@ ADR-018, `.agents/skills/identity-verification/SKILL.md`.
   recorded as Resolved (UAE confirmed) per `00_PROJECT_CONTEXT.md`'s own changelog. Items 2, 6, 7 recorded as
   unrecoverable numbering gaps. Items 10 and 11 newly added, surfaced by `03_DOMAIN_MODEL.md`'s Administration
   section and VER-001's OCR findings respectively.
+- **08 September 2026 (same day, ahead of Sprint 6)** — Item 4 (Unclaimed Listing UX) resolved: full-width
+  Warning-color banner, recorded in full in `16_UX_GUIDELINES.md`. Item 3 (Google Places Data Legal Review)
+  given an interim sequencing decision, not a resolution of the underlying legal question: `CLM-001` is
+  deferred until a real legal/PDPL review happens; `DIR-001` proceeds in Sprint 6 unaffected, confirmed
+  independent of this item via the Tracker's own `Depends On` field.
 
 ---
 

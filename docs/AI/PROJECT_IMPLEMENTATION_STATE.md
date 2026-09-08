@@ -318,10 +318,9 @@ during review — an atomic conditional-`UPDATE` optimistic-concurrency pattern 
 use of it). VER-002 is backend-only by deliberate design (the admin dashboard is out of the mobile MVP's screen
 inventory).
 
-**Caveat carried forward, not yet independently re-verified:** this and prior closeouts could not independently
-open `Project_Tracker.xlsx` (no xlsx-reading tool available) to directly confirm the Tracker's own exact
-dependency-field wiring for Sprint 6 stories beyond what `docs/AI/` narrative documents already imply — see
-Section 17 below for the specific, still-open question this raises for DIR-001.
+**Caveat resolved:** the Tracker's own `Depends On` field for both Sprint 6 stories was directly opened and
+confirmed on 08 September 2026 — see Section 17 below. `DIR-001` depends only on already-done stories; `CLM-001`
+alone carries the dependency the earlier version of this caveat was worried about.
 
 ---
 
@@ -661,23 +660,20 @@ PRO-002 ("manage my provider storefront") have both shipped and been signed off;
 `docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md` and
 `docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md`.
 
-**Next planned story: DIR-001**, the first story of Sprint 6 ("Directory & Listing Claims"), per this codebase's
-working knowledge of the Tracker's sprint structure. **This cannot be asserted as fully unblocked with
-confidence, stated honestly rather than assumed away:** `docs/AI/13_OPEN_DECISIONS.md` Item 3 (Google Places
-Data Legal Review) and Item 4 (Unclaimed Listing UX) both explicitly name "the Directory & Listing Claims sprint
-(Sprint 6: DIR-001, CLM-001)" as blocked by their still-open status — and that document itself remains a
-reconstruction explicitly marked "pending CTO review," not an authoritative source (see Section 6 above). A
-fresh Plan for DIR-001 should explicitly re-derive and confirm (or seek clarification on) whether DIR-001's own
-scope actually depends on either open item before proceeding, rather than assuming it is unblocked because the
-Sprint sequence otherwise follows.
-
-**Separately flagged, not a blocker for DIR-001 planning:** `docs/AI/Project_Tracker.xlsx`'s Stories sheet
-still needs both its VER-001 and VER-002 rows' Status updated from "Planned" to "Done" (direct raw-XML
-cell-patching, per the method established at prior closeouts — a normal openpyxl load/save round-trip drops
-this workbook's conditional-formatting extensions); and `docs/AI/13_OPEN_DECISIONS.md`, while no longer
-nonexistent, remains a reconstruction pending real CTO review, not a finished record — the next story that cites
-it (very plausibly DIR-001, given Items 3/4 above) should treat it as such rather than as either fully
-authoritative or as still missing entirely.
+**Next planned story: DIR-001** ("browse nearby providers by category and location"), the first story of Sprint 6
+("Directory & Listing Claims"). **Confirmed unblocked**, not assumed: the CTO reviewed `docs/AI/13_OPEN_DECISIONS.md`
+Items 3 (Google Places Data Legal Review) and 4 (Unclaimed Listing UX) on 08 September 2026, both of which had
+previously been flagged as blocking "the Directory & Listing Claims sprint" without distinguishing its two
+stories. On inspection, only `CLM-001` ("claim my Google-seeded business listing") actually depends on either
+item — confirmed directly from `docs/AI/Project_Tracker.xlsx`'s own `Depends On` field (`DIR-001` depends only
+on `CUS-002`/`PRO-002`/`VER-002`, all done; `CLM-001` depends on `DIR-001` and `VER-002`, and is the story whose
+own description explicitly names the Google Places legal review as a precondition). `DIR-001` itself never
+touches Google-seeded listings or the `is_claimed`/`google_place_id` columns — it searches only self-registered,
+`is_discoverable=true` providers. Resolution: `CLM-001` is **deferred** until Item 3 gets a real legal/UAE-PDPL
+review (not something any engineering agent can perform); Item 4's design question was resolved the same day
+(a full-width Warning-color banner, recorded in `16_UX_GUIDELINES.md`) so `CLM-001` has no open design question
+left once it does get built. Sprint 6 proceeds with `DIR-001` now; `CLM-001` is out of this sprint's near-term
+delivered scope pending that legal review.
 
 ---
 
