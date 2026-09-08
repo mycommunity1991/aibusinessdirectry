@@ -509,7 +509,7 @@ async def update_my_availability(
     ),
 ) -> CollectionResponse[WeekdayAvailabilityResponse]:
     """Upsert the caller's weekly availability."""
-    entries = [
+    entries: list[dict[str, object]] = [
         {
             "weekday": entry.weekday,
             "open_time": _parse_hour(entry.open_time) if entry.open_time else None,
