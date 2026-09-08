@@ -16,30 +16,22 @@ from fastapi import UploadFile
 
 from app.core.config import settings
 from app.core.exceptions import InvalidPortfolioUploadError
+from app.shared.storage.file_signatures import is_jpeg, is_png, is_webp
 
 _ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
-
-
-def _is_jpeg(content: bytes) -> bool:
-    return content.startswith(b"\xff\xd8\xff")
-
-
-def _is_png(content: bytes) -> bool:
-    return content.startswith(b"\x89PNG\r\n\x1a\n")
-
-
-def _is_webp(content: bytes) -> bool:
-    return content[:4] == b"RIFF" and content[8:12] == b"WEBP"
 
 
 # Ordered (checker, safe extension, allowed declared `Content-Type` values)
 # tuples -- the first match wins. The returned extension always comes from
 # here (the *validated* detected type), never from the client's original
 # filename (`06_SECURITY.md`: "Original filenames must never be trusted").
+# Checkers are shared with `document_validation.py` via `file_signatures.py`
+# (VER-001, Decision 8) -- behavior-preserving extraction, same checks as
+# before.
 _IMAGE_SIGNATURES: list[tuple[Callable[[bytes], bool], str, frozenset[str]]] = [
-    (_is_jpeg, ".jpg", frozenset({"image/jpeg", "image/jpg"})),
-    (_is_png, ".png", frozenset({"image/png"})),
-    (_is_webp, ".webp", frozenset({"image/webp"})),
+    (is_jpeg, ".jpg", frozenset({"image/jpeg", "image/jpg"})),
+    (is_png, ".png", frozenset({"image/png"})),
+    (is_webp, ".webp", frozenset({"image/webp"})),
 ]
 
 

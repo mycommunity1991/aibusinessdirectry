@@ -72,3 +72,8 @@ venv.bak/
 # `LocalFileStorage`'s default `UPLOAD_DIR`, explicitly interim until a
 # future story adds real cloud (S3) storage.
 /uploads/
+
+# Private local file uploads (VER-001, Decision 7, `Plan_S05_VER-001.md`)
+# -- `LocalFileStorage`'s default `VERIFICATION_UPLOAD_DIR`, a second,
+# separate root from `/uploads/` above, never served publicly.
+/uploads_private/

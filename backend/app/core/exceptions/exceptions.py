@@ -299,6 +299,122 @@ class SubtypeDetailsMismatchError(BusinessException):
         super().__init__(message=message, status_code=400)
 
 
+class VerificationRecordNotFoundError(BusinessException):
+    """
+    Raised by `GET /providers/me/verification` (VER-001, AC6) when the
+    caller has never submitted a verification cycle. Plain, not
+    non-revealing -- this is always the caller's own status, never
+    another user's data.
+    """
+
+    def __init__(self, message: str = "No verification submission found."):
+        super().__init__(message=message, status_code=404)
+
+
+class VerificationDocumentNotFoundError(BusinessException):
+    """
+    Raised by `GET /providers/me/verification/documents/{document_id}/file`
+    (VER-001, Decision 4/7) when a document either doesn't exist at all,
+    or exists but its parent record is not owned by the requesting
+    provider.
+
+    Deliberately collapses both cases into the same 404 rather than a
+    403 for the ownership case -- mirrors `PortfolioPhotoNotFoundError`'s
+    non-revealing design exactly (ADR-015).
+    """
+
+    def __init__(self, message: str = "Verification document not found."):
+        super().__init__(message=message, status_code=404)
+
+
+class VerificationSubmissionNotAllowedError(BusinessException):
+    """
+    Raised by `POST /providers/me/verification` (VER-001, Decision 4,
+    `Plan_S05_VER-001.md`) when the caller's latest existing verification
+    record is anything other than absent or `rejected` -- i.e. a
+    `pending`/`under_review`/`approved` cycle is already active, so a
+    duplicate submission is rejected rather than creating a second
+    concurrent cycle.
+    """
+
+    def __init__(
+        self,
+        message: str = (
+            "You already have an active verification submission in progress."
+        ),
+    ):
+        super().__init__(message=message, status_code=409)
+
+
+class VerificationDocumentRequiredError(BusinessException):
+    """
+    Raised by `POST /providers/me/verification` (VER-001, AC2) when the
+    resolved `verification_type` requires a document (always true for
+    Freelancer; configurable for Business) but no pending-slot file
+    exists for the caller -- i.e. `POST .../documents/preview` was never
+    called, or was called with a different `document_type` than the one
+    the submission actually requires (AC2's Freelancer-must-submit-
+    Emirates-ID rule).
+    """
+
+    def __init__(
+        self,
+        message: str = "Please upload and confirm your document before submitting.",
+    ):
+        super().__init__(message=message, status_code=422)
+
+
+class VerificationDocumentTooLargeError(BusinessException):
+    """
+    Raised by `document_validation.validate_verification_document_upload`
+    (VER-001, Decision 8, AC3) when an uploaded document is empty or
+    exceeds `MAX_VERIFICATION_DOCUMENT_SIZE_BYTES`. Deliberately distinct
+    from `VerificationDocumentInvalidTypeError` -- AC3 requires a
+    specific, actionable error per failure category, not one generic
+    message.
+    """
+
+    def __init__(
+        self,
+        message: str = "This file is too large. The maximum size is 10 MB.",
+    ):
+        super().__init__(message=message, status_code=422)
+
+
+class VerificationDocumentInvalidTypeError(BusinessException):
+    """
+    Raised by `document_validation.validate_verification_document_upload`
+    (VER-001, Decision 8, AC3) when an uploaded document's extension is
+    disallowed, or its actual content (magic bytes) does not match its
+    declared extension/`Content-Type`. Deliberately distinct from
+    `VerificationDocumentTooLargeError` (AC3).
+    """
+
+    def __init__(
+        self,
+        message: str = (
+            "Unsupported file type. Please upload a JPG, PNG, WEBP, or PDF file."
+        ),
+    ):
+        super().__init__(message=message, status_code=422)
+
+
+class InvalidVerificationFieldsError(BusinessException):
+    """
+    Raised by `POST /providers/me/verification` (VER-001) when the
+    submitted `confirmed_fields` are malformed -- e.g. an unparseable
+    `expiry_date` or an oversized text field. Distinct from FastAPI's own
+    schema-level 422s only in that this is a service-layer business-rule
+    check, not a pure type-shape check.
+    """
+
+    def __init__(
+        self,
+        message: str = "Some of the submitted details could not be understood.",
+    ):
+        super().__init__(message=message, status_code=422)
+
+
 class RateLimitExceededError(BusinessException):
     """
     Raised when a client exceeds a Redis-backed fixed-window rate limit

@@ -14,6 +14,7 @@ from app.core.exceptions.exceptions import (
     InvalidPortfolioUploadError,
     InvalidRefreshTokenError,
     InvalidTokenError,
+    InvalidVerificationFieldsError,
     OtpLockedError,
     PortfolioLimitExceededError,
     PortfolioPhotoNotFoundError,
@@ -23,6 +24,12 @@ from app.core.exceptions.exceptions import (
     SavedAddressNotFoundError,
     SessionNotFoundError,
     SubtypeDetailsMismatchError,
+    VerificationDocumentInvalidTypeError,
+    VerificationDocumentNotFoundError,
+    VerificationDocumentRequiredError,
+    VerificationDocumentTooLargeError,
+    VerificationRecordNotFoundError,
+    VerificationSubmissionNotAllowedError,
 )
 
 __all__ = [
@@ -46,4 +53,11 @@ __all__ = [
     "PortfolioLimitExceededError",
     "InvalidCategoryLabelsError",
     "SubtypeDetailsMismatchError",
+    "VerificationRecordNotFoundError",
+    "VerificationDocumentNotFoundError",
+    "VerificationSubmissionNotAllowedError",
+    "VerificationDocumentRequiredError",
+    "VerificationDocumentTooLargeError",
+    "VerificationDocumentInvalidTypeError",
+    "InvalidVerificationFieldsError",
 ]

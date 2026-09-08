@@ -94,6 +94,22 @@ class Settings(BaseSettings):
     MAX_PORTFOLIO_PHOTO_SIZE_BYTES: int = 5_242_880
     MAX_PORTFOLIO_PHOTOS_PER_PROVIDER: int = 20
 
+    # Verification-document upload settings (VER-001, Decision 7,
+    # `Plan_S05_VER-001.md`). A second, separate root from `UPLOAD_DIR`
+    # above -- never mounted as `StaticFiles` (`app/main.py`), since
+    # these documents (Emirates ID scans, trade licenses) are private
+    # PII, unlike public portfolio photos.
+    VERIFICATION_UPLOAD_DIR: str = "uploads_private/verification"
+    MAX_VERIFICATION_DOCUMENT_SIZE_BYTES: int = 10_485_760
+
+    # Business verification bar (VER-001, Decision 3,
+    # `Plan_S04_PRO-001.md`'s successor `Plan_S05_VER-001.md`) --
+    # config-driven per `04_DATABASE.md` Section 14's own stated intent,
+    # since `13_OPEN_DECISIONS.md` item 5 remains unresolved. Freelancer
+    # is never config-driven (always `freelancer_id`, always required).
+    BUSINESS_VERIFICATION_TYPE: str = "business_lightweight"
+    BUSINESS_VERIFICATION_DOCUMENT_REQUIRED: bool = False
+
     # Config dict to support loading from parent .env or current .env
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

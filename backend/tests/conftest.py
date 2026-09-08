@@ -64,6 +64,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
     import app.modules.customer.models  # noqa: F401 - registers customer tables
     import app.modules.identity.models  # noqa: F401 - registers identity tables
     import app.modules.provider.models  # noqa: F401 - registers provider tables
+    import app.modules.verification.models  # noqa: F401 - registers verification tables
     from app.database.base import Base
 
     engine = create_async_engine(TEST_DATABASE_URL, future=True)
@@ -73,6 +74,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS audit"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS customer"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS provider"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS verification"))
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
@@ -83,6 +85,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("DROP SCHEMA IF EXISTS audit CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS customer CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS provider CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS verification CASCADE"))
     await engine.dispose()
 
 
@@ -119,6 +122,10 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         ProviderCategoryLabel,
         ServiceArea,
     )
+    from app.modules.verification.models import (
+        VerificationDocument,
+        VerificationRecord,
+    )
 
     session_factory = async_sessionmaker(bind=db_engine, expire_on_commit=False)
     async with session_factory() as session:
@@ -131,6 +138,8 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             SavedAddress,
             CustomerPreferences,
             CustomerProfile,
+            VerificationDocument,
+            VerificationRecord,
             Portfolio,
             ProviderAvailability,
             ServiceArea,
