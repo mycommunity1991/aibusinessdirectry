@@ -6,6 +6,7 @@ import 'package:ai_marketplace_app/features/provider/domain/models/provider_type
 import 'package:ai_marketplace_app/features/provider/presentation/screens/choose_provider_type_screen.dart';
 import 'package:ai_marketplace_app/features/provider/presentation/screens/storefront_screen.dart';
 import 'package:ai_marketplace_app/features/provider/state/provider_onboarding_controller.dart';
+import 'package:ai_marketplace_app/features/verification/data/verification_repository.dart';
 import 'package:ai_marketplace_app/shared/widgets/location_picker/location_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../shared/widgets/location_picker/fakes/fake_location_service.dart';
 import '../auth/test_helpers.dart';
 import '../customer/fakes/fake_customer_repository.dart';
+import '../verification/fakes/fake_verification_repository.dart';
 import 'fakes/fake_provider_repository.dart';
 import 'test_helpers.dart';
 
@@ -177,6 +179,12 @@ void main() {
             ),
             providerRepositoryProvider.overrideWithValue(
               fakeProviderRepository,
+            ),
+            // The Storefront screen now renders a verification-status
+            // chip (VER-001, Plan item 30) -- keep this test hermetic
+            // rather than letting it hit the real Dio client.
+            verificationRepositoryProvider.overrideWithValue(
+              FakeVerificationRepository(),
             ),
           ],
           initialLocation: AppRoutes.profileSettings,

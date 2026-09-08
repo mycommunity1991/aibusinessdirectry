@@ -62,4 +62,22 @@ class AppRoutes {
   /// `getMyProvider()` confirms the caller already has a listing (the
   /// branch that previously only showed a snackbar, PRO-001 Decision 9).
   static const String storefront = '/storefront';
+
+  /// S-19 — Verification Upload (VER-001). Reached immediately after a
+  /// successful `POST /providers/me` at the end of the onboarding wizard
+  /// (replacing [homePlaceholder] as that destination, `Plan_S05_
+  /// VER-001.md` item 30), or from [storefront]'s verification-status
+  /// link / [verificationStatus]'s "Resubmit" action.
+  static const String verificationUpload = '/verification-upload';
+
+  /// The "OCR confirm" step (VER-001, AC4) — always reached via
+  /// `push(..., extra: VerificationConfirmArgs(...))` from
+  /// [verificationUpload], never a bare deep link (mirrors [otpEntry]/
+  /// [addressForm]'s `extra`-required pattern).
+  static const String verificationConfirm = '/verification-confirm';
+
+  /// S-20 — Verification Status (VER-001). Reached from [storefront]'s
+  /// verification status chip, and landed on after a successful
+  /// submission from [verificationUpload]/[verificationConfirm].
+  static const String verificationStatus = '/verification-status';
 }

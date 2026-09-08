@@ -18,6 +18,10 @@ import '../../features/provider/presentation/screens/freelancer_details_screen.d
 import '../../features/provider/presentation/screens/provider_basic_info_screen.dart';
 import '../../features/provider/presentation/screens/provider_intro_screen.dart';
 import '../../features/provider/presentation/screens/storefront_screen.dart';
+import '../../features/verification/domain/models/verification_confirm_args.dart';
+import '../../features/verification/presentation/screens/verification_confirm_screen.dart';
+import '../../features/verification/presentation/screens/verification_status_screen.dart';
+import '../../features/verification/presentation/screens/verification_upload_screen.dart';
 import 'app_routes.dart';
 
 /// Builds the app's [GoRouter]. Exposed as a factory (rather than a single
@@ -109,6 +113,28 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
       GoRoute(
         path: AppRoutes.storefront,
         builder: (context, state) => const StorefrontScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.verificationUpload,
+        builder: (context, state) => const VerificationUploadScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.verificationConfirm,
+        // The confirm step always needs its `VerificationConfirmArgs` --
+        // reachable only via `push(..., extra: ...)`, never a bare deep
+        // link, mirroring `AddressFormScreen`'s own `extra`-required
+        // redirect.
+        redirect: (context, state) => state.extra is VerificationConfirmArgs
+            ? null
+            : AppRoutes.verificationUpload,
+        builder: (context, state) {
+          final args = state.extra as VerificationConfirmArgs;
+          return VerificationConfirmScreen(args: args);
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.verificationStatus,
+        builder: (context, state) => const VerificationStatusScreen(),
       ),
     ],
   );

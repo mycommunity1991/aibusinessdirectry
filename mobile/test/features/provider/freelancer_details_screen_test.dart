@@ -1,5 +1,6 @@
 import 'package:ai_marketplace_app/features/provider/data/provider_repository.dart';
 import 'package:ai_marketplace_app/features/provider/domain/models/provider_type.dart';
+import 'package:ai_marketplace_app/features/verification/presentation/screens/verification_upload_screen.dart';
 import 'package:ai_marketplace_app/shared/widgets/location_picker/location_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -184,8 +185,9 @@ void main() {
           expect(request.freelancerDetails!.yearsExperience, 5);
           expect(request.businessDetails, isNull);
 
-          // Wizard-ending navigation lands on Home.
-          expect(find.text("You're signed in"), findsOneWidget);
+          // Wizard-ending navigation lands on Verification Upload (S-19,
+          // VER-001, Plan item 30), not Home.
+          expect(find.byType(VerificationUploadScreen), findsOneWidget);
         },
       );
     },

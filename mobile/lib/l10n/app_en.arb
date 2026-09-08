@@ -604,5 +604,138 @@
   "emergencyAvailableLabel": "Available for emergencies",
   "@emergencyAvailableLabel": {
     "description": "Label for the per-weekday emergency-availability toggle in the shared WeeklyHoursEditor (PRO-002, AC3), shown only on the Storefront's Availability section."
+  },
+
+  "verificationUploadTitle": "Verify your account",
+  "@verificationUploadTitle": {
+    "description": "AppBar title on the Verification Upload screen (S-19, VER-001)."
+  },
+  "verificationUploadBody": "Upload a document so customers know you're a real, trustworthy business or professional.",
+  "@verificationUploadBody": {
+    "description": "Explainer copy shown at the top of the Verification Upload screen (S-19, VER-001)."
+  },
+  "verificationDocumentTypeLabel": "Document type",
+  "@verificationDocumentTypeLabel": {
+    "description": "Section header above the document-type chooser on the Verification Upload screen, shown only to Business providers (S-19, VER-001, AC2)."
+  },
+  "documentTypeEmiratesIdLabel": "Emirates ID",
+  "@documentTypeEmiratesIdLabel": {
+    "description": "Label for the Emirates ID document type (VER-001)."
+  },
+  "documentTypeTradeLicenseLabel": "Trade license",
+  "@documentTypeTradeLicenseLabel": {
+    "description": "Label for the trade license document type (VER-001)."
+  },
+  "documentTypeOtherLabel": "Other document",
+  "@documentTypeOtherLabel": {
+    "description": "Label for the \"other\" document type (VER-001)."
+  },
+  "verificationDocumentTypeEmiratesIdOnlyMessage": "Freelancers verify with an Emirates ID.",
+  "@verificationDocumentTypeEmiratesIdOnlyMessage": {
+    "description": "Informational copy on the Verification Upload screen for Freelancer providers, who have no document-type choice (S-19, VER-001, AC2)."
+  },
+  "verificationSkipDocumentLabel": "Submit without a document for now",
+  "@verificationSkipDocumentLabel": {
+    "description": "Toggle label on the Verification Upload screen, shown only to Business providers, letting them submit under the lighter verification bar with no document (S-19, VER-001, AC2/Decision 3)."
+  },
+  "takePhotoLabel": "Take Photo",
+  "@takePhotoLabel": {
+    "description": "Action on the Verification Upload screen that opens the device camera (S-19, VER-001)."
+  },
+  "chooseFileLabel": "Choose File",
+  "@chooseFileLabel": {
+    "description": "Action on the Verification Upload screen that opens the device's file browser, for documents like a trade license PDF (S-19, VER-001)."
+  },
+  "verificationNoFileSelectedMessage": "No file selected yet.",
+  "@verificationNoFileSelectedMessage": {
+    "description": "Placeholder copy on the Verification Upload screen before a document has been picked (S-19, VER-001)."
+  },
+  "verificationConfirmTitle": "Confirm your details",
+  "@verificationConfirmTitle": {
+    "description": "AppBar title on the Verification confirm screen (VER-001, AC4)."
+  },
+  "verificationOcrHonestyNotice": "We couldn't read your document automatically yet -- please fill in these details yourself.",
+  "@verificationOcrHonestyNotice": {
+    "description": "Honest framing on the Verification confirm screen (VER-001, Decision 6) -- the OCR pass is a stub that never actually reads anything, so this must never imply a real extraction happened."
+  },
+  "verificationFullNameFieldLabel": "Full name",
+  "@verificationFullNameFieldLabel": {
+    "description": "Editable field label on the Verification confirm screen (VER-001, AC4)."
+  },
+  "verificationIdNumberFieldLabel": "ID number",
+  "@verificationIdNumberFieldLabel": {
+    "description": "Editable field label on the Verification confirm screen (VER-001, AC4)."
+  },
+  "verificationExpiryDateFieldLabel": "Expiry date",
+  "@verificationExpiryDateFieldLabel": {
+    "description": "Editable field label on the Verification confirm screen (VER-001, AC4)."
+  },
+  "verificationExpiryDateFieldHint": "YYYY-MM-DD",
+  "@verificationExpiryDateFieldHint": {
+    "description": "Hint text for the expiry-date field on the Verification confirm screen (VER-001)."
+  },
+  "verificationStatusTitle": "Verification Status",
+  "@verificationStatusTitle": {
+    "description": "AppBar title on the Verification Status screen (S-20, VER-001, AC6)."
+  },
+  "verificationNotSubmittedMessage": "You haven't submitted verification yet.",
+  "@verificationNotSubmittedMessage": {
+    "description": "Empty-state copy on the Verification Status screen when the caller has never submitted (S-20, VER-001)."
+  },
+  "startVerificationLabel": "Start Verification",
+  "@startVerificationLabel": {
+    "description": "Primary CTA on the Verification Status screen's empty state, routing to S-19 (VER-001)."
+  },
+  "verificationUnderReviewMessage": "We're reviewing your documents. This usually doesn't take long.",
+  "@verificationUnderReviewMessage": {
+    "description": "Plain-language body copy for the pending/under_review statuses on the Verification Status screen (S-20, VER-001, `16_UX_GUIDELINES.md` copy mapping table)."
+  },
+  "verificationApprovedMessage": "You're verified! Customers can now see your verified badge.",
+  "@verificationApprovedMessage": {
+    "description": "Plain-language body copy for the approved status on the Verification Status screen (S-20, VER-001)."
+  },
+  "verificationRejectedMessage": "We couldn't verify this. Please review and resubmit.",
+  "@verificationRejectedMessage": {
+    "description": "Fallback plain-language body copy for the rejected status on the Verification Status screen, used when no specific rejection reason is available (S-20, VER-001)."
+  },
+  "verificationStatusUnderReviewBadge": "Under review",
+  "@verificationStatusUnderReviewBadge": {
+    "description": "Short status badge label for pending/under_review (S-20, VER-001)."
+  },
+  "verificationStatusApprovedBadge": "Approved",
+  "@verificationStatusApprovedBadge": {
+    "description": "Short status badge label for approved (S-20, VER-001)."
+  },
+  "verificationStatusRejectedBadge": "Rejected",
+  "@verificationStatusRejectedBadge": {
+    "description": "Short status badge label for rejected (S-20, VER-001)."
+  },
+  "resubmitLabel": "Resubmit",
+  "@resubmitLabel": {
+    "description": "Action on the Verification Status screen after a rejection, routing back to S-19 (S-20, VER-001, AC7)."
+  },
+  "verificationSubmittedDocumentsLabel": "Submitted documents",
+  "@verificationSubmittedDocumentsLabel": {
+    "description": "Section header above the submitted-document previews on the Verification Status screen (S-20, VER-001)."
+  },
+  "verificationDocumentTooLargeMessage": "This file is too large. The maximum size is 10 MB.",
+  "@verificationDocumentTooLargeMessage": {
+    "description": "Plain-language message for the backend's 422 VerificationDocumentTooLargeError (VER-001, AC3)."
+  },
+  "verificationDocumentInvalidTypeMessage": "Unsupported file type. Please upload a JPG, PNG, WEBP, or PDF file.",
+  "@verificationDocumentInvalidTypeMessage": {
+    "description": "Plain-language message for the backend's 422 VerificationDocumentInvalidTypeError (VER-001, AC3)."
+  },
+  "verificationDocumentRequiredMessage": "Please upload and confirm your document before submitting.",
+  "@verificationDocumentRequiredMessage": {
+    "description": "Plain-language message for the backend's 422 VerificationDocumentRequiredError (VER-001, AC2)."
+  },
+  "verificationSubmissionNotAllowedMessage": "You already have a verification submission in progress.",
+  "@verificationSubmissionNotAllowedMessage": {
+    "description": "Plain-language message for the backend's 409 VerificationSubmissionNotAllowedError (VER-001)."
+  },
+  "verificationStatusChipNotStartedLabel": "Verify your account",
+  "@verificationStatusChipNotStartedLabel": {
+    "description": "Label on the Storefront's verification-status chip when the provider hasn't submitted verification yet (PRO-002/VER-001, Decision, Mobile item 30)."
   }
 }

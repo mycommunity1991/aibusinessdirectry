@@ -1,11 +1,13 @@
 import 'package:ai_marketplace_app/features/provider/data/provider_repository.dart';
 import 'package:ai_marketplace_app/features/provider/domain/models/portfolio_photo.dart';
 import 'package:ai_marketplace_app/features/provider/presentation/screens/storefront_screen.dart';
+import 'package:ai_marketplace_app/features/verification/data/verification_repository.dart';
 import 'package:ai_marketplace_app/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../verification/fakes/fake_verification_repository.dart';
 import 'fakes/fake_provider_repository.dart';
 
 Future<void> _pumpStorefront(
@@ -14,7 +16,15 @@ Future<void> _pumpStorefront(
 ) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [providerRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        providerRepositoryProvider.overrideWithValue(repository),
+        // The Storefront screen now renders a verification-status chip
+        // (VER-001, Plan item 30) -- keep this test hermetic rather than
+        // letting it hit the real Dio client.
+        verificationRepositoryProvider.overrideWithValue(
+          FakeVerificationRepository(),
+        ),
+      ],
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,

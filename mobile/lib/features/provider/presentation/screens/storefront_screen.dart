@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/app_error_message.dart';
@@ -10,6 +12,8 @@ import '../../../../shared/widgets/location_picker/location_capture_field.dart';
 import '../../../../shared/widgets/location_picker/location_pick_result.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../../../../shared/widgets/weekly_hours_editor.dart';
+import '../../../verification/domain/models/verification_record.dart';
+import '../../../verification/state/verification_status_controller.dart';
 import '../../domain/models/portfolio_photo.dart';
 import '../../domain/models/provider.dart' as domain;
 import '../../domain/models/provider_exception.dart';
@@ -89,6 +93,8 @@ class _StorefrontSections extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const _VerificationStatusChip(),
+          const SizedBox(height: AppSpacing.lg),
           _BasicInfoSection(provider: provider),
           if (provider.providerType == ProviderType.business &&
               provider.businessProfile != null)
@@ -136,6 +142,80 @@ void _showSavedSnackBar(BuildContext context) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text(AppLocalizations.of(context).changesSavedMessage)),
   );
+}
+
+/// A small verification-status chip/banner linking to S-20 (VER-001,
+/// Decision, Mobile item 30) -- the most reasonable available entry point
+/// to Verification given the Provider Dashboard (S-23) hasn't been built
+/// by any prior story. This is the *only* place `features/provider/`
+/// reaches into `features/verification/` -- a single screen-to-screen
+/// navigation link, not a shared-widget/shared-state coupling
+/// (`docs/AI/02_ARCHITECTURE.md`: "Features must not depend directly on
+/// each other").
+class _VerificationStatusChip extends ConsumerWidget {
+  const _VerificationStatusChip();
+
+  String _labelFor(AppLocalizations l10n, VerificationRecord? record) {
+    if (record == null) return l10n.verificationStatusChipNotStartedLabel;
+    return switch (record.status) {
+      VerificationRecordStatus.pending ||
+      VerificationRecordStatus.underReview =>
+        l10n.verificationStatusUnderReviewBadge,
+      VerificationRecordStatus.approved => l10n.verificationStatusApprovedBadge,
+      VerificationRecordStatus.rejected => l10n.verificationStatusRejectedBadge,
+    };
+  }
+
+  IconData _iconFor(VerificationRecord? record) {
+    if (record == null) return Icons.verified_outlined;
+    return switch (record.status) {
+      VerificationRecordStatus.pending ||
+      VerificationRecordStatus.underReview => Icons.hourglass_top_outlined,
+      VerificationRecordStatus.approved => Icons.verified_outlined,
+      VerificationRecordStatus.rejected => Icons.error_outline,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final state = ref.watch(verificationStatusControllerProvider);
+
+    if (state.isLoading) return const SizedBox.shrink();
+
+    return InkWell(
+      key: const ValueKey('storefront-verification-status-chip'),
+      borderRadius: BorderRadius.circular(AppRadius.small),
+      onTap: () => context.push(AppRoutes.verificationStatus),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: colorScheme.secondaryContainer,
+          borderRadius: BorderRadius.circular(AppRadius.small),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              _iconFor(state.record),
+              color: colorScheme.onSecondaryContainer,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                _labelFor(l10n, state.record),
+                style: TextStyle(color: colorScheme.onSecondaryContainer),
+              ),
+            ),
+            Icon(Icons.chevron_right, color: colorScheme.onSecondaryContainer),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Section (a): basic info -- display name, phone, WhatsApp, description,

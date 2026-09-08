@@ -45,6 +45,14 @@ dependencies:
   shared_preferences: ^2.3.3
   intl: ^0.20.2
 
+  # `dio`'s own `MultipartFile.fromFile` exposes a `contentType` parameter
+  # typed from this package directly (VER-001, `verification_repository.
+  # dart` -- sets an explicit, correct `Content-Type` per validated
+  # document extension). Already a transitive dependency of `dio`; listed
+  # directly here since this module imports it, per `depend_on_referenced_
+  # packages`.
+  http_parser: ^4.1.2
+
   # OAuth sign-in (AUTH-002, Plan Decision 8 — user-approved new dependencies).
   google_sign_in: ^7.2.0
   sign_in_with_apple: ^8.2.0
@@ -66,6 +74,16 @@ dependencies:
   # on real plugin/platform-channel behavior (`PortfolioManager` accepts an
   # injectable picker for tests).
   image_picker: ^1.2.3
+
+  # Verification document selection (VER-001, `Plan_S05_VER-001.md` item
+  # 27 -- a new, flagged dependency). `image_picker` only handles
+  # camera/gallery images and cannot select a trade license PDF, so a
+  # general-purpose file picker is genuinely needed for that path. Well
+  # established, widely used Flutter package; automated tests never
+  # depend on real plugin/platform-channel behavior (the upload screen
+  # accepts an injectable picker for tests, mirroring
+  # `PortfolioImagePicker`'s pattern).
+  file_picker: ^11.0.3
 
 dev_dependencies:
   flutter_test:

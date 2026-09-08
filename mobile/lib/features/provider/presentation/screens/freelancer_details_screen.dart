@@ -105,7 +105,10 @@ class _FreelancerDetailsScreenState
 
     final provider = await controller.submit();
     if (!mounted || provider == null) return;
-    context.go(AppRoutes.homePlaceholder);
+    // VER-001, Plan item 30 -- the wizard now lands on Verification
+    // Upload (S-19) instead of Home, so a newly-listed provider is
+    // guided straight into the trust gate.
+    context.go(AppRoutes.verificationUpload);
   }
 
   @override
