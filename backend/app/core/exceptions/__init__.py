@@ -12,6 +12,8 @@ from app.core.exceptions.exceptions import (
     InvalidRefreshTokenError,
     InvalidTokenError,
     OtpLockedError,
+    ProviderAlreadyExistsError,
+    ProviderNotFoundError,
     RateLimitExceededError,
     SavedAddressNotFoundError,
     SessionNotFoundError,
@@ -30,4 +32,6 @@ __all__ = [
     "RateLimitExceededError",
     "InsufficientRoleError",
     "SavedAddressNotFoundError",
+    "ProviderAlreadyExistsError",
+    "ProviderNotFoundError",
 ]

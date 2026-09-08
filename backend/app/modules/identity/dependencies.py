@@ -30,6 +30,9 @@ from app.modules.identity.services.id_token_verifier import (
 )
 from app.modules.identity.services.oauth_service import OAuthService
 from app.modules.identity.services.otp_service import OtpService
+from app.modules.identity.services.role_assignment_service import (
+    RoleAssignmentService,
+)
 from app.modules.identity.services.session_service import SessionService
 from app.modules.identity.services.sms_sender import ConsoleSmsSender, SmsSender
 
@@ -154,6 +157,18 @@ def get_session_service(
         role_repository=RoleRepository(db),
         audit_service=audit_service,
     )
+
+
+def get_role_assignment_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> RoleAssignmentService:
+    """
+    Provides a `RoleAssignmentService` bound to the request-scoped DB
+    session (PRO-001, Decision 1). Imported into `provider/dependencies.py`
+    exactly the way `customer/dependencies.py`'s `get_customer_service` is
+    imported here today -- same shape, reversed direction.
+    """
+    return RoleAssignmentService(RoleRepository(db))
 
 
 def get_auth_service(

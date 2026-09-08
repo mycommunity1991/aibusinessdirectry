@@ -165,6 +165,35 @@ class InsufficientRoleError(BusinessException):
         super().__init__(message=message, status_code=403)
 
 
+class ProviderAlreadyExistsError(BusinessException):
+    """
+    Raised by `POST /providers/me` (PRO-001, AC8/AC10) when the caller's
+    Account already has a Provider -- regardless of the newly-requested
+    `provider_type`. This single check is what makes `provider_type`
+    immutable: a second call with a *different* type is rejected exactly
+    like a second call with the *same* type (Decision 3,
+    `Plan_S04_PRO-001.md`).
+
+    A plain 409, not the non-revealing-ownership pattern used elsewhere
+    (e.g. `SavedAddressNotFoundError`) -- this is always about the
+    caller's own resource, never another account's data.
+    """
+
+    def __init__(self, message: str = "You already have a provider listing."):
+        super().__init__(message=message, status_code=409)
+
+
+class ProviderNotFoundError(BusinessException):
+    """
+    Raised by `GET /providers/me` (PRO-001, Decision 9) when the caller
+    has not yet created a Provider. Plain, not non-revealing -- this is
+    always the caller's own account, never another user's data.
+    """
+
+    def __init__(self, message: str = "Provider not found."):
+        super().__init__(message=message, status_code=404)
+
+
 class RateLimitExceededError(BusinessException):
     """
     Raised when a client exceeds a Redis-backed fixed-window rate limit

@@ -63,6 +63,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
     import app.modules.audit.models  # noqa: F401 - registers the audit_logs table
     import app.modules.customer.models  # noqa: F401 - registers customer tables
     import app.modules.identity.models  # noqa: F401 - registers identity tables
+    import app.modules.provider.models  # noqa: F401 - registers provider tables
     from app.database.base import Base
 
     engine = create_async_engine(TEST_DATABASE_URL, future=True)
@@ -71,6 +72,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS identity"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS audit"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS customer"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS provider"))
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
@@ -80,6 +82,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("DROP SCHEMA IF EXISTS identity CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS audit CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS customer CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS provider CASCADE"))
     await engine.dispose()
 
 
@@ -107,6 +110,11 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         User,
         UserRole,
     )
+    from app.modules.provider.models import (
+        BusinessProfile,
+        FreelancerProfile,
+        Provider,
+    )
 
     session_factory = async_sessionmaker(bind=db_engine, expire_on_commit=False)
     async with session_factory() as session:
@@ -119,6 +127,9 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             SavedAddress,
             CustomerPreferences,
             CustomerProfile,
+            BusinessProfile,
+            FreelancerProfile,
+            Provider,
             RefreshToken,
             Session,
             OtpVerification,

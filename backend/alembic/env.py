@@ -14,6 +14,7 @@ from app.database.database import engine
 import app.modules.audit.models  # noqa: E402,F401
 import app.modules.customer.models  # noqa: E402,F401
 import app.modules.identity.models  # noqa: E402,F401
+import app.modules.provider.models  # noqa: E402,F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
