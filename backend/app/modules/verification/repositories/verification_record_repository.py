@@ -91,8 +91,13 @@ class VerificationRecordRepository(BaseRepository[VerificationRecord]):
         the same row blocks until the first commits, then re-evaluates
         this statement's own `WHERE` clause against the now-current
         (already-transitioned) row -- so at most one caller's `UPDATE`
-        can ever match, even under true concurrency, regardless of
-        transaction isolation level.
+        can ever match, even under true concurrency. This relies on
+        Postgres's READ COMMITTED default (this codebase's engine sets
+        no other isolation level, `app/database/database.py`); under
+        SERIALIZABLE/REPEATABLE READ the losing transaction would instead
+        raise a serialization failure rather than affect zero rows --
+        either outcome still prevents the duplicate write this fix
+        targets.
 
         Returns `True` if this call won the race and applied the
         transition, `False` if the record was no longer actionable

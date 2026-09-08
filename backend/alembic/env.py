@@ -11,10 +11,13 @@ from app.database.database import engine
 # Import all domain models so they register on Base.metadata for
 # autogenerate/DDL purposes. Every new domain module's `models` module
 # must be imported here.
+import app.modules.administration.models  # noqa: E402,F401
 import app.modules.audit.models  # noqa: E402,F401
 import app.modules.customer.models  # noqa: E402,F401
 import app.modules.identity.models  # noqa: E402,F401
+import app.modules.notification.models  # noqa: E402,F401
 import app.modules.provider.models  # noqa: E402,F401
+import app.modules.verification.models  # noqa: E402,F401
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

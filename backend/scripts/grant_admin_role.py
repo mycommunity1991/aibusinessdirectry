@@ -76,21 +76,14 @@ async def main(phone_country_code: str, phone_number: str) -> int:
         )
         if user is None:
             logger.error(
-                "No existing user found for %s %s -- this script never creates "
-                "a new account. The target person must register through the "
-                "ordinary sign-in flow first.",
-                phone_country_code,
-                phone_number,
+                "No existing user found for the given phone number -- this "
+                "script never creates a new account. The target person must "
+                "register through the ordinary sign-in flow first."
             )
             return 1
         await session.commit()
 
-    logger.info(
-        "Granted ROLE_ADMIN to user %s (%s %s).",
-        user.id,
-        phone_country_code,
-        phone_number,
-    )
+    logger.info("Granted ROLE_ADMIN to user %s.", user.id)
     return 0
 
 
