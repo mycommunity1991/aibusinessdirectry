@@ -383,6 +383,17 @@ Authentication
 - google_sign_in
 - sign_in_with_apple
 
+Maps, Location & Geocoding
+
+- google_maps_flutter
+- geolocator
+- geocoding
+
+(Added by Story CUS-002 for map-pin selection, device geolocation, and reverse geocoding in the shared
+`LocationPickerScreen`; not documented here at the time — backfilled at PRO-001's story close, the first story
+to newly reuse them, per the pre-existing documentation gap both `backend` and `architect` flagged during
+PRO-001.)
+
 ---
 
 # Approved Python Packages

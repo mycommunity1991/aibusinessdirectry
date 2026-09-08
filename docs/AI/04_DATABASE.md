@@ -347,6 +347,7 @@ The Provider aggregate root — shared columns for both subtypes. `user_id` is n
 | average_rating | NUMERIC(3,2) | Yes | Denormalized from `review.reviews`; recalculated on Review write |
 | review_count | INTEGER | No | Default `0` |
 | country_code | CHAR(2) | No | ISO 3166-1 alpha-2 — deliberately not hardcoded to UAE |
+| category_label | VARCHAR(100) | No | **Temporary stand-in, added by PRO-001 (Decision 4), not part of the original spec above.** Free-text category the user typed at onboarding (e.g. "Plumbing," "AC Repair"), stored verbatim with no validation against a taxonomy — the Category domain (`category.categories`/`category.category_question_templates`, `provider_categories` join table) does not exist yet (`13_OPEN_DECISIONS.md` item 1). When the Category domain ships, a follow-up story is expected to either (a) migrate `category_label` values into real `Category` rows (fuzzy-matched or admin-reconciled) and populate `provider_categories`, or (b) retain `category_label` as a free-text fallback/search-boost field alongside the real relationship — that migration design is deliberately deferred, not decided here. |
 
 **Constraints**
 - `uq_providers_slug`

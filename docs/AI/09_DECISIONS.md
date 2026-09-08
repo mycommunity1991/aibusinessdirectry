@@ -902,6 +902,96 @@ one) is recognized as a design smell against a documented rule, not a fresh judg
 
 ---
 
+# ADR-016
+
+## Title
+
+Cross-Module Role-Grant Trigger via Direct Service Injection — `provider → identity` (the Reverse Direction of ADR-014)
+
+**Date**
+
+2026-09-08
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story PRO-001 needed a caller who already has an authenticated Account (created at registration, per AUTH-001/
+AUTH-002) to be granted `ROLE_PROVIDER` at the moment they create their first Provider listing, in the same
+database transaction as the new `providers`/subtype-profile rows — never as a separate, possibly-failing
+follow-up call. No existing mechanism allowed a module other than `identity` to grant a role to an
+already-registered Account: `AuthService.verify_otp_and_authenticate`/`authenticate_with_oauth` assign
+`ROLE_CUSTOMER` inline, directly against `RoleRepository`/`UserRole`, only at first registration — there was no
+reusable, importable "assign this role to this user" service method anywhere in the codebase. This is the
+mirror image of ADR-014's `identity → customer`/`identity → audit` edges: those cover `identity`'s own
+registration flow triggering *another* module's provisioning logic; this story needed a *different* module
+(`provider`) to modify `identity`'s own data (`user_roles`) for an *already-authenticated* caller, not at
+registration time.
+
+### Decision
+
+A new, single-purpose `RoleAssignmentService` lives in `identity`
+(`backend/app/modules/identity/services/role_assignment_service.py`), exposing exactly one method:
+`async def ensure_role_assigned(self, user_id: uuid.UUID, role_name: str) -> None` — idempotent (checks
+`RoleRepository.get_role_names_for_user(user_id)` first; only inserts a new `UserRole` row if the role is not
+already present), flush only, never commits. `provider`'s `ProviderService` takes this as a constructor
+dependency and calls `await self.role_assignment_service.ensure_role_assigned(user_id, ROLE_PROVIDER)` inside
+`create_provider`, on the same request-scoped `AsyncSession` already in use — the `providers` row, its subtype
+profile row, and the new `user_roles` row either all land together or none do, since the endpoint's single,
+pre-existing `db.commit()` remains the only transaction boundary. Wired via a new
+`get_role_assignment_service()` in `identity/dependencies.py`, imported into `provider/dependencies.py`'s
+`get_provider_service()` — the identical shape `identity/dependencies.py`'s `get_auth_service()` already uses
+to import `customer/dependencies.py`'s `get_customer_service`, just reversed.
+
+`RoleAssignmentService` has zero imports from `provider` (only `identity.models`/`identity.repositories`), so
+this is a second, independent, one-directional edge (`provider → identity`) — it does not create a cycle with
+the existing `identity → customer`/`identity → audit` edges, since those involve entirely different files and
+service classes. `AuthService`'s own inline role-assignment logic during registration is untouched by this
+story; `RoleAssignmentService` is a new, narrower, reusable capability `AuthService` could later be refactored
+to call too, but that refactor is out of this story's scope.
+
+### Alternatives Considered
+
+- **`ProviderService` importing `RoleRepository`/`UserRole` directly** (rejected — this is exactly the
+  "Module → Another Module's Repository" pattern `02_ARCHITECTURE.md` explicitly prohibits; modules communicate
+  through services only).
+- **`provider` depending on the full `AuthService`** (rejected — `AuthService` orchestrates OTP verification,
+  OAuth claims, and session/device issuance; pulling all of that into `provider`'s dependency graph for one
+  idempotent role-grant call is far heavier coupling than needed, and violates "small, focused services").
+- **A domain event (`ProviderRegistered`) via an in-process event bus** (rejected for the same reason ADR-014
+  rejected it for `CustomerRegistered`: no event-bus infrastructure exists anywhere in this codebase; building
+  one for a single call site is premature abstraction).
+
+### Consequences
+
+- `identity` now has an incoming cross-module service dependency (`provider → identity`) in addition to its two
+  existing outgoing ones (`identity → audit`, `identity → customer`) — all three follow the same
+  constructor-injection, flush-only, same-session shape, keeping this a single, repeatable pattern for
+  cross-module same-transaction side effects rather than several different mechanisms.
+- The caller's *current* JWT was issued before `ROLE_PROVIDER` existed on their account, so `CurrentUser.roles`
+  won't reflect it until their next token refresh — already-supported behavior, since
+  `RoleRepository.get_role_names_for_user` is re-read by `SessionService.refresh` on every refresh. No new
+  token-refresh mechanism was needed.
+- Any future module needing to grant an existing Account a role outside of registration should reuse
+  `RoleAssignmentService.ensure_role_assigned` rather than re-deriving a new mechanism or reaching into
+  `identity`'s repositories directly.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md
+- 03_DOMAIN_MODEL.md
+- docs/implementation/plans/Plan_S04_PRO-001.md
+- docs/implementation/walkthroughs/Walkthrough_S04_PRO-001.md
+- docs/implementation/walkthroughs/Walkthrough_S03_CUS-001.md (ADR-014, the `identity → customer`/`identity → audit` precedent this reverses)
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

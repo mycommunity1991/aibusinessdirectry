@@ -11,6 +11,28 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Provider domain — create my business or freelancer listing (Story PRO-001): new `provider` Postgres schema
+  with `providers` (the aggregate root, plus a flagged, temporary `category_label VARCHAR(100) NOT NULL` column
+  standing in for the not-yet-built Category domain), `business_profiles`, and `freelancer_profiles` tables via
+  a reversible Alembic migration; three new enums (`provider_type`, `listing_source`, `verification_status`)
+  scoped to the `provider` schema. A new `RoleAssignmentService` in `identity`
+  (`ensure_role_assigned(user_id, role_name)`, idempotent, flush-only) lets `provider` grant `ROLE_PROVIDER` to
+  an already-authenticated caller on the same transaction as the new Provider row — the reverse direction of
+  ADR-014's `identity → customer`/`identity → audit` edges, recorded as ADR-016; `AuthService`'s own
+  registration-time role assignment is untouched. New `GET`/`POST /api/v1/providers/me` (a `/me` singleton per
+  ADR-015), gated by bare authentication only. `POST` accepts type, basic info, and subtype-specific details in
+  a single submission, generates a server-side `slug`, and unconditionally defaults
+  `verification_status=pending`/`is_discoverable=false` regardless of subtype or request input. A caller may
+  create at most one Provider per Account — enforced at the service layer (rejects both a same-type and a
+  different-type second creation attempt, since no update endpoint for `provider_type` exists anywhere in this
+  story).
+- Mobile Provider onboarding wizard (Story PRO-001): a new `features/provider/` module — five screens (intro,
+  choose type, basic info, business details, freelancer details) backed by an in-memory Riverpod draft
+  controller, submitting exactly one `createProvider()` call at the end. Reuses CUS-002's `LocationPickerScreen`
+  unmodified for both Business address and Freelancer base-location capture. This codebase's first shared
+  `StepIndicator` widget (`shared/widgets/step_indicator.dart`) satisfies the multi-step-form step-indicator
+  requirement. A new "List Your Business" tile on Profile & Settings checks for an existing listing first
+  (`getMyProvider()`) before entering the wizard.
 - Saved service-location addresses (Story CUS-002): new `customer.saved_addresses` table (label, address line,
   city, region, country code, latitude/longitude, default flag), linked to `customer_profiles`, via a
   reversible Alembic migration — this codebase's first genuine soft-delete pattern (`deleted_at`/`is_active`,
