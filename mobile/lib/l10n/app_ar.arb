@@ -146,5 +146,24 @@
   "serviceRadiusValueLabel": "نطاق الخدمة: {radius} كم",
   "skillsFieldLabel": "المهارات",
   "addASkillFieldLabel": "أضف مهارة",
-  "yearsExperienceFieldLabel": "سنوات الخبرة (اختياري)"
+  "yearsExperienceFieldLabel": "سنوات الخبرة (اختياري)",
+
+  "storefrontTitle": "إدارة متجري",
+  "storefrontBasicInfoSectionTitle": "المعلومات الأساسية",
+  "storefrontCategoriesSectionTitle": "الفئات",
+  "setPrimaryCategoryTooltip": "تعيين كفئة رئيسية",
+  "storefrontPortfolioSectionTitle": "معرض الأعمال",
+  "storefrontAvailabilitySectionTitle": "أوقات التوفر",
+  "changesSavedMessage": "تم حفظ التغييرات.",
+  "providerListingNotFoundMessage": "تعذر العثور على قائمة نشاطك التجاري.",
+  "portfolioInvalidUploadMessage": "تعذر رفع هذه الصورة. الرجاء اختيار صورة بصيغة JPG أو PNG أو WEBP بحجم أقل من 5 ميجابايت.",
+  "portfolioLimitExceededMessage": "لقد وصلت إلى الحد الأقصى لعدد صور معرض الأعمال.",
+  "portfolioReorderFailedMessage": "حدث خطأ أثناء إعادة ترتيب الصور. الرجاء المحاولة مرة أخرى.",
+  "categoryLabelsInvalidMessage": "اختر فئة رئيسية واحدة فقط، بحد أقصى 5 فئات.",
+  "portfolioEmptyStateMessage": "لم تقم بإضافة أي صور لمعرض الأعمال بعد. أضف صوراً لأعمالك ليتمكن العملاء القريبون منك من رؤيتها.",
+  "addPhotoLabel": "إضافة صورة",
+  "moveUpTooltip": "نقل لأعلى",
+  "moveDownTooltip": "نقل لأسفل",
+  "removePhotoTooltip": "إزالة الصورة",
+  "emergencyAvailableLabel": "متاح للحالات الطارئة"
 }

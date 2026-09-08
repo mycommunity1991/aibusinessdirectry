@@ -17,6 +17,7 @@ import '../../features/provider/presentation/screens/choose_provider_type_screen
 import '../../features/provider/presentation/screens/freelancer_details_screen.dart';
 import '../../features/provider/presentation/screens/provider_basic_info_screen.dart';
 import '../../features/provider/presentation/screens/provider_intro_screen.dart';
+import '../../features/provider/presentation/screens/storefront_screen.dart';
 import 'app_routes.dart';
 
 /// Builds the app's [GoRouter]. Exposed as a factory (rather than a single
@@ -104,6 +105,10 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
       GoRoute(
         path: AppRoutes.freelancerDetails,
         builder: (context, state) => const FreelancerDetailsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.storefront,
+        builder: (context, state) => const StorefrontScreen(),
       ),
     ],
   );

@@ -56,4 +56,10 @@ class AppRoutes {
   /// S-18b — Freelancer Details, the Freelancer path's final wizard step
   /// (PRO-001, AC6).
   static const String freelancerDetails = '/freelancer-details';
+
+  /// S-25 — Manage My Storefront (PRO-002). Reached from
+  /// [profileSettings]'s "List Your Business" entry point once
+  /// `getMyProvider()` confirms the caller already has a listing (the
+  /// branch that previously only showed a snackbar, PRO-001 Decision 9).
+  static const String storefront = '/storefront';
 }

@@ -200,21 +200,19 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
   }
 
   /// Handles the "List Your Business" tile (PRO-001, item 32,
-  /// `Plan_S04_PRO-001.md`): checks `getMyProvider()` first -- if the
-  /// caller already has a listing, shows a plain snackbar and never
-  /// navigates into the wizard (Decision 9, mobile mirror of AC8);
+  /// `Plan_S04_PRO-001.md`; PRO-002, item 30, `Plan_S04_PRO-002.md`):
+  /// checks `getMyProvider()` first -- if the caller already has a
+  /// listing, navigates to the Storefront screen (S-25) to manage it
+  /// (this branch previously only showed a snackbar, PRO-001 Decision 9);
   /// otherwise navigates to the onboarding intro (S-15).
   Future<void> _onListYourBusiness(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
     try {
       final existing = await ref
           .read(providerRepositoryProvider)
           .getMyProvider();
       if (!context.mounted) return;
       if (existing != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.providerAlreadyExistsMessage)),
-        );
+        context.push(AppRoutes.storefront);
         return;
       }
       context.push(AppRoutes.providerIntro);

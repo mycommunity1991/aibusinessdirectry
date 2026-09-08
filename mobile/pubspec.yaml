@@ -59,6 +59,14 @@ dependencies:
   geolocator: ^13.0.2
   geocoding: ^3.0.0
 
+  # Portfolio photo selection for the Storefront's portfolio manager
+  # (PRO-002, `Plan_S04_PRO-002.md` item 8 — a new, flagged dependency; no
+  # existing image-picker capability was available to reuse). Well
+  # established, widely used Flutter package; automated tests never depend
+  # on real plugin/platform-channel behavior (`PortfolioManager` accepts an
+  # injectable picker for tests).
+  image_picker: ^1.2.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

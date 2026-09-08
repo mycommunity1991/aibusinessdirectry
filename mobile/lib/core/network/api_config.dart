@@ -15,4 +15,16 @@ class ApiConfig {
 
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 15);
+
+  /// The origin used to resolve relative media URLs served outside
+  /// `/api/v1` (e.g. `/media/portfolios/...`, PRO-002's portfolio photos)
+  /// -- derived from [baseUrl] by stripping its `/api/v1` suffix, so a
+  /// single `--dart-define=API_BASE_URL` override configures both the API
+  /// and media origins consistently.
+  static String get mediaOrigin {
+    const apiSuffix = '/api/v1';
+    return baseUrl.endsWith(apiSuffix)
+        ? baseUrl.substring(0, baseUrl.length - apiSuffix.length)
+        : baseUrl;
+  }
 }

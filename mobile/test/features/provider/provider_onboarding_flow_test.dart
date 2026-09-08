@@ -4,6 +4,7 @@ import 'package:ai_marketplace_app/features/customer/presentation/screens/profil
 import 'package:ai_marketplace_app/features/provider/data/provider_repository.dart';
 import 'package:ai_marketplace_app/features/provider/domain/models/provider_type.dart';
 import 'package:ai_marketplace_app/features/provider/presentation/screens/choose_provider_type_screen.dart';
+import 'package:ai_marketplace_app/features/provider/presentation/screens/storefront_screen.dart';
 import 'package:ai_marketplace_app/features/provider/state/provider_onboarding_controller.dart';
 import 'package:ai_marketplace_app/shared/widgets/location_picker/location_service.dart';
 import 'package:flutter/material.dart';
@@ -159,11 +160,11 @@ void main() {
     );
   });
 
-  group('Provider onboarding wizard (PRO-001, Decision 9) — already-have-a-'
-      'listing short-circuit (mobile mirror of AC8)', () {
+  group('Provider onboarding wizard (PRO-001 Decision 9 / PRO-002 item 30) — '
+      'already-have-a-listing short-circuit (mobile mirror of AC8)', () {
     testWidgets(
       'tapping "List Your Business" when getMyProvider() already returns '
-      'a provider shows a snackbar and never enters S-16',
+      'a provider navigates to the Storefront screen (S-25), never S-16',
       (tester) async {
         final fakeProviderRepository = FakeProviderRepository(
           existingProvider: fakeExistingBusinessProvider,
@@ -186,12 +187,14 @@ void main() {
         await tester.tap(find.text('List Your Business'));
         await tester.pumpAndSettle();
 
-        expect(fakeProviderRepository.getMyProviderCallCount, 1);
+        // Called at least once for the pre-navigation check; the
+        // Storefront screen's own load also calls it again.
         expect(
-          find.text('You already have a business listing.'),
-          findsOneWidget,
+          fakeProviderRepository.getMyProviderCallCount,
+          greaterThanOrEqualTo(1),
         );
-        expect(find.byType(ProfileSettingsScreen), findsOneWidget);
+        expect(find.byType(StorefrontScreen), findsOneWidget);
+        expect(find.byType(ProfileSettingsScreen), findsNothing);
         expect(find.byType(ChooseProviderTypeScreen), findsNothing);
       },
     );

@@ -92,9 +92,29 @@ class FreelancerProfile {
   final int? yearsExperience;
 }
 
+/// One free-text category label with a primary flag (PRO-002, Decision 1)
+/// — mirrors the backend's `CategoryLabelResponse`/`CategoryLabelInput`
+/// (`backend/app/modules/provider/schemas.py`). A provider may hold up to 5
+/// of these, with exactly one marked primary.
+class CategoryLabel {
+  const CategoryLabel({required this.label, required this.isPrimary});
+
+  factory CategoryLabel.fromJson(Map<String, dynamic> json) {
+    return CategoryLabel(
+      label: json['label'] as String,
+      isPrimary: json['is_primary'] as bool,
+    );
+  }
+
+  final String label;
+  final bool isPrimary;
+
+  Map<String, dynamic> toJson() => {'label': label, 'is_primary': isPrimary};
+}
+
 /// A thin client-side model matching the backend's `ProviderResponse`
-/// (`backend/app/modules/provider/schemas.py`, PRO-001) — returned by
-/// `GET`/`POST /providers/me`.
+/// (`backend/app/modules/provider/schemas.py`, PRO-001/PRO-002) — returned
+/// by `GET`/`POST`/`PATCH /providers/me`.
 class Provider {
   const Provider({
     required this.id,
@@ -103,7 +123,7 @@ class Provider {
     this.phoneCountryCode,
     this.phoneNumber,
     this.whatsappNumber,
-    required this.categoryLabel,
+    this.categoryLabels = const [],
     this.description,
     required this.slug,
     required this.verificationStatus,
@@ -118,6 +138,7 @@ class Provider {
         json['business_profile'] as Map<String, dynamic>?;
     final freelancerProfileJson =
         json['freelancer_profile'] as Map<String, dynamic>?;
+    final categoryLabelsJson = json['category_labels'] as List<dynamic>?;
     return Provider(
       id: json['id'] as String,
       providerType: ProviderType.fromWire(json['provider_type'] as String),
@@ -125,7 +146,13 @@ class Provider {
       phoneCountryCode: json['phone_country_code'] as String?,
       phoneNumber: json['phone_number'] as String?,
       whatsappNumber: json['whatsapp_number'] as String?,
-      categoryLabel: json['category_label'] as String,
+      categoryLabels:
+          categoryLabelsJson
+              ?.map(
+                (item) => CategoryLabel.fromJson(item as Map<String, dynamic>),
+              )
+              .toList() ??
+          const [],
       description: json['description'] as String?,
       slug: json['slug'] as String,
       verificationStatus: json['verification_status'] as String,
@@ -146,7 +173,11 @@ class Provider {
   final String? phoneCountryCode;
   final String? phoneNumber;
   final String? whatsappNumber;
-  final String categoryLabel;
+
+  /// PRO-002, Decision 1 -- replaces PRO-001's singular `categoryLabel`
+  /// string; a deliberate breaking change to this pre-launch response
+  /// shape (see `Plan_S04_PRO-002.md`).
+  final List<CategoryLabel> categoryLabels;
   final String? description;
   final String slug;
 

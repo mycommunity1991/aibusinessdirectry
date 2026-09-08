@@ -531,5 +531,78 @@
   "yearsExperienceFieldLabel": "Years of experience (optional)",
   "@yearsExperienceFieldLabel": {
     "description": "Label for the optional years-of-experience field on the Freelancer Details screen (S-18b, AC6)."
+  },
+
+  "storefrontTitle": "Manage My Storefront",
+  "@storefrontTitle": {
+    "description": "Title on the Storefront screen (S-25, PRO-002) -- the ongoing storefront-editing screen, distinct from the one-time onboarding wizard."
+  },
+  "storefrontBasicInfoSectionTitle": "Basic info",
+  "@storefrontBasicInfoSectionTitle": {
+    "description": "Section header for the Storefront's basic-info card (S-25, PRO-002, AC5)."
+  },
+  "storefrontCategoriesSectionTitle": "Categories",
+  "@storefrontCategoriesSectionTitle": {
+    "description": "Section header above the category-labels editor within the Storefront's basic-info section (S-25, PRO-002, Decision 1 -- up to 5 labels, exactly one primary)."
+  },
+  "setPrimaryCategoryTooltip": "Set as primary category",
+  "@setPrimaryCategoryTooltip": {
+    "description": "Tooltip on a category-label chip's star icon on the Storefront screen (S-25, PRO-002, AC4)."
+  },
+  "storefrontPortfolioSectionTitle": "Portfolio",
+  "@storefrontPortfolioSectionTitle": {
+    "description": "Section header for the Storefront's portfolio card (S-25, PRO-002, AC2)."
+  },
+  "storefrontAvailabilitySectionTitle": "Availability",
+  "@storefrontAvailabilitySectionTitle": {
+    "description": "Section header for the Storefront's weekly-availability card (S-25, PRO-002, AC3) -- distinct from the Business-only operating-hours field."
+  },
+  "changesSavedMessage": "Changes saved.",
+  "@changesSavedMessage": {
+    "description": "Snackbar acknowledgment shown after any Storefront section successfully saves (S-25, PRO-002, `16_UX_GUIDELINES.md` acknowledgment rule)."
+  },
+  "providerListingNotFoundMessage": "We couldn't find your provider listing.",
+  "@providerListingNotFoundMessage": {
+    "description": "Plain-language message for a 404 on a Storefront sub-resource call (PRO-002) -- an edge case, since the screen is only reachable once a listing is known to exist."
+  },
+  "portfolioInvalidUploadMessage": "That photo couldn't be uploaded. Please choose a JPG, PNG, or WEBP image under 5 MB.",
+  "@portfolioInvalidUploadMessage": {
+    "description": "Plain-language message for the backend's 422 InvalidPortfolioUploadError (PRO-002, AC2)."
+  },
+  "portfolioLimitExceededMessage": "You've reached the maximum number of portfolio photos.",
+  "@portfolioLimitExceededMessage": {
+    "description": "Plain-language message for the backend's 409 PortfolioLimitExceededError (PRO-002)."
+  },
+  "portfolioReorderFailedMessage": "Something went wrong reordering your photos. Please try again.",
+  "@portfolioReorderFailedMessage": {
+    "description": "Plain-language message for the backend's 422 InvalidPortfolioReorderError (PRO-002, Decision 4)."
+  },
+  "categoryLabelsInvalidMessage": "Choose exactly one primary category, up to 5 in total.",
+  "@categoryLabelsInvalidMessage": {
+    "description": "Plain-language message for the backend's 422 InvalidCategoryLabelsError (PRO-002, AC4)."
+  },
+  "portfolioEmptyStateMessage": "You haven't added any portfolio photos yet. Add photos of your work so nearby customers can see what you offer.",
+  "@portfolioEmptyStateMessage": {
+    "description": "Empty-state copy on the Storefront's Portfolio section when the provider has no photos yet (S-25, PRO-002, `16_UX_GUIDELINES.md`'s \"why it's empty + one primary action\" formula -- the Add Photo action beneath it is that action)."
+  },
+  "addPhotoLabel": "Add Photo",
+  "@addPhotoLabel": {
+    "description": "Primary action on the Storefront's Portfolio section that opens the image picker (S-25, PRO-002, AC2)."
+  },
+  "moveUpTooltip": "Move up",
+  "@moveUpTooltip": {
+    "description": "Tooltip on a portfolio photo's move-up reorder button (S-25, PRO-002, Decision 4)."
+  },
+  "moveDownTooltip": "Move down",
+  "@moveDownTooltip": {
+    "description": "Tooltip on a portfolio photo's move-down reorder button (S-25, PRO-002, Decision 4)."
+  },
+  "removePhotoTooltip": "Remove photo",
+  "@removePhotoTooltip": {
+    "description": "Tooltip on a portfolio photo's remove/delete button (S-25, PRO-002, AC2)."
+  },
+  "emergencyAvailableLabel": "Available for emergencies",
+  "@emergencyAvailableLabel": {
+    "description": "Label for the per-weekday emergency-availability toggle in the shared WeeklyHoursEditor (PRO-002, AC3), shown only on the Storefront's Availability section."
   }
 }

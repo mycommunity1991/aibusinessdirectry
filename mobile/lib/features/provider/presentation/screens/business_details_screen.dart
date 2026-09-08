@@ -12,22 +12,11 @@ import '../../../../shared/widgets/location_picker/location_capture_field.dart';
 import '../../../../shared/widgets/location_picker/location_pick_result.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../../../../shared/widgets/step_indicator.dart';
+import '../../../../shared/widgets/weekly_hours_editor.dart';
 import '../../domain/models/create_provider_request.dart';
 import '../../domain/models/provider.dart' show OperatingHoursEntry;
 import '../../state/provider_onboarding_controller.dart';
 import '../utils/provider_error_copy.dart';
-
-/// Lowercase weekday keys matching the backend's `operating_hours` JSONB
-/// shape (`backend/app/modules/provider/schemas.py`, AC5).
-const List<String> _weekdays = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday',
-];
 
 /// S-18a — Business subtype details (PRO-001, AC5): address/map location, a
 /// weekly operating-hours editor, an optional delivery radius, and an
@@ -55,14 +44,13 @@ class _BusinessDetailsScreenState extends ConsumerState<BusinessDetailsScreen> {
   bool _offersDelivery = false;
   double _deliveryRadiusMeters = 5000;
 
-  final Map<String, bool> _isOpenDay = {
-    for (final day in _weekdays) day: false,
-  };
-  final Map<String, TimeOfDay> _openTimes = {
-    for (final day in _weekdays) day: const TimeOfDay(hour: 9, minute: 0),
-  };
-  final Map<String, TimeOfDay> _closeTimes = {
-    for (final day in _weekdays) day: const TimeOfDay(hour: 18, minute: 0),
+  final Map<String, WeeklyHoursDayValue> _hours = {
+    for (final day in weeklyHoursOrderedDays)
+      day: const WeeklyHoursDayValue(
+        isOpen: false,
+        openTime: TimeOfDay(hour: 9, minute: 0),
+        closeTime: TimeOfDay(hour: 18, minute: 0),
+      ),
   };
 
   @override
@@ -111,41 +99,22 @@ class _BusinessDetailsScreenState extends ConsumerState<BusinessDetailsScreen> {
     });
   }
 
-  Future<void> _pickTime(String day, {required bool isOpenTime}) async {
-    final initial = isOpenTime ? _openTimes[day]! : _closeTimes[day]!;
-    final picked = await showTimePicker(context: context, initialTime: initial);
-    if (picked == null || !mounted) return;
-    setState(() {
-      if (isOpenTime) {
-        _openTimes[day] = picked;
-      } else {
-        _closeTimes[day] = picked;
-      }
-    });
-  }
-
   /// Builds the request's operating-hours map, or `null` if the user never
   /// toggled any day open — the whole field is optional (AC5), so a wizard
   /// pass that never touches it must not send an all-closed dict.
   Map<String, OperatingHoursEntry?>? _buildOperatingHours() {
-    if (_isOpenDay.values.every((isOpen) => !isOpen)) {
+    if (_hours.values.every((day) => !day.isOpen)) {
       return null;
     }
     return {
-      for (final day in _weekdays)
-        day: _isOpenDay[day]!
+      for (final day in weeklyHoursOrderedDays)
+        day: _hours[day]!.isOpen
             ? OperatingHoursEntry(
-                open: _formatTime(_openTimes[day]!),
-                close: _formatTime(_closeTimes[day]!),
+                open: formatTimeOfDay(_hours[day]!.openTime!),
+                close: formatTimeOfDay(_hours[day]!.closeTime!),
               )
             : null,
     };
-  }
-
-  String _formatTime(TimeOfDay time) {
-    final hour = time.hour.toString().padLeft(2, '0');
-    final minute = time.minute.toString().padLeft(2, '0');
-    return '$hour:$minute';
   }
 
   Future<void> _onSubmit() async {
@@ -257,17 +226,10 @@ class _BusinessDetailsScreenState extends ConsumerState<BusinessDetailsScreen> {
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: AppSpacing.sm),
-              for (final day in _weekdays)
-                _OperatingHoursRow(
-                  dayLabel: _weekdayLabel(l10n, day),
-                  isOpen: _isOpenDay[day]!,
-                  openTime: _openTimes[day]!,
-                  closeTime: _closeTimes[day]!,
-                  onOpenChanged: (value) =>
-                      setState(() => _isOpenDay[day] = value),
-                  onTapOpenTime: () => _pickTime(day, isOpenTime: true),
-                  onTapCloseTime: () => _pickTime(day, isOpenTime: false),
-                ),
+              WeeklyHoursEditor(
+                values: _hours,
+                onChanged: (day, value) => setState(() => _hours[day] = value),
+              ),
               const SizedBox(height: AppSpacing.xl),
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
@@ -307,76 +269,6 @@ class _BusinessDetailsScreenState extends ConsumerState<BusinessDetailsScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  String _weekdayLabel(AppLocalizations l10n, String day) {
-    return switch (day) {
-      'monday' => l10n.weekdayMonday,
-      'tuesday' => l10n.weekdayTuesday,
-      'wednesday' => l10n.weekdayWednesday,
-      'thursday' => l10n.weekdayThursday,
-      'friday' => l10n.weekdayFriday,
-      'saturday' => l10n.weekdaySaturday,
-      _ => l10n.weekdaySunday,
-    };
-  }
-}
-
-/// One weekday row of the operating-hours editor — an open/closed toggle
-/// plus, when open, tappable open/close time buttons (AC5).
-class _OperatingHoursRow extends StatelessWidget {
-  const _OperatingHoursRow({
-    required this.dayLabel,
-    required this.isOpen,
-    required this.openTime,
-    required this.closeTime,
-    required this.onOpenChanged,
-    required this.onTapOpenTime,
-    required this.onTapCloseTime,
-  });
-
-  final String dayLabel;
-  final bool isOpen;
-  final TimeOfDay openTime;
-  final TimeOfDay closeTime;
-  final ValueChanged<bool> onOpenChanged;
-  final VoidCallback onTapOpenTime;
-  final VoidCallback onTapCloseTime;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-      child: Row(
-        children: [
-          Expanded(flex: 2, child: Text(dayLabel)),
-          Switch(value: isOpen, onChanged: onOpenChanged),
-          if (isOpen) ...[
-            Expanded(
-              child: TextButton(
-                onPressed: onTapOpenTime,
-                child: Text(openTime.format(context)),
-              ),
-            ),
-            const Icon(Icons.arrow_forward, size: 16),
-            Expanded(
-              child: TextButton(
-                onPressed: onTapCloseTime,
-                child: Text(closeTime.format(context)),
-              ),
-            ),
-          ] else
-            Expanded(
-              flex: 2,
-              child: Text(
-                l10n.closedLabel,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-        ],
       ),
     );
   }
