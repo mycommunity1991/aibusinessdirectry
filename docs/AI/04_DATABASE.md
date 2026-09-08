@@ -1,11 +1,18 @@
 # AI Marketplace Database Design
 
 **Document ID:** AI-04
-**Version:** 3.2.0
+**Version:** 3.3.0
 **Status:** Active
 **Owner:** CTO
 **Audience:** Engineering Team, Database Engineers, AI Assistants
-**Last Updated:** 2026-09-07
+**Last Updated:** 2026-09-08
+
+**Change note (v3.2.0 → v3.3.0):** Documented `provider.provider_availability`, `provider.portfolios`, and
+`provider.service_areas` as shipped exactly per their pre-existing spec by Story PRO-002 (Sprint 4); added
+`provider.provider_category_labels` as a new, deliberately-not-`provider_categories`-named interim table
+(Decision 1, `Plan_S04_PRO-002.md` — see ADR-017 in `09_DECISIONS.md` for the related file-upload decision);
+removed `providers.category_label` (PRO-001), which PRO-002's migration backfilled into
+`provider_category_labels` and then dropped.
 
 **Change note (v3.1.0 → v3.2.0):** Documented `saved_addresses`' `uq_saved_addresses_customer_default` partial
 unique index, added by Story CUS-002 (Sprint 3) as defense-in-depth alongside the primary transactional
@@ -347,7 +354,14 @@ The Provider aggregate root — shared columns for both subtypes. `user_id` is n
 | average_rating | NUMERIC(3,2) | Yes | Denormalized from `review.reviews`; recalculated on Review write |
 | review_count | INTEGER | No | Default `0` |
 | country_code | CHAR(2) | No | ISO 3166-1 alpha-2 — deliberately not hardcoded to UAE |
-| category_label | VARCHAR(100) | No | **Temporary stand-in, added by PRO-001 (Decision 4), not part of the original spec above.** Free-text category the user typed at onboarding (e.g. "Plumbing," "AC Repair"), stored verbatim with no validation against a taxonomy — the Category domain (`category.categories`/`category.category_question_templates`, `provider_categories` join table) does not exist yet (`13_OPEN_DECISIONS.md` item 1). When the Category domain ships, a follow-up story is expected to either (a) migrate `category_label` values into real `Category` rows (fuzzy-matched or admin-reconciled) and populate `provider_categories`, or (b) retain `category_label` as a free-text fallback/search-boost field alongside the real relationship — that migration design is deliberately deferred, not decided here. |
+
+**`category_label` column — added then dropped:** PRO-001 (Decision 4) had added a temporary
+`category_label VARCHAR(100) NOT NULL` free-text column here as a stand-in for the not-yet-built Category
+domain. Story PRO-002 (Decision 1) **replaced it**: every existing `category_label` value was backfilled into
+the new `provider.provider_category_labels` table (see below, marked `is_primary = true`), and the
+`category_label` column was then dropped from `providers` in the same migration
+(`272b12ab9b2f_provider_storefront`). `providers` no longer has a `category_label` column — do not reintroduce
+it; category labels now live exclusively in `provider_category_labels`.
 
 **Constraints**
 - `uq_providers_slug`
@@ -388,6 +402,8 @@ The Provider aggregate root — shared columns for both subtypes. `user_id` is n
 
 ## provider_availability
 
+Shipped by Story PRO-002, exactly per this spec — no deviation.
+
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | provider_id | UUID | No | FK → `providers.id` |
@@ -398,18 +414,33 @@ The Provider aggregate root — shared columns for both subtypes. `user_id` is n
 
 **Constraints:** `uq_provider_availability_provider_weekday (provider_id, weekday)`
 
+`GET /providers/me/availability` always synthesizes exactly 7 entries (one per weekday), treating a missing row
+as "closed, not yet configured" — a day being closed is expressed by `open_time`/`close_time` both null, never
+by the row's absence for a weekday that has actually been saved as closed.
+
 ## portfolios
+
+Shipped by Story PRO-002, exactly per this spec — no deviation. Soft-deleted on removal
+(`deleted_at`/`is_active`, Common Columns); the underlying file on disk/storage is deliberately left in place
+when a row is soft-deleted — orphaned-file cleanup is a future administrative/retention job.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | provider_id | UUID | No | FK → `providers.id` |
-| media_url | VARCHAR(500) | No | |
+| media_url | VARCHAR(500) | No | Always a server-generated, relative `/media/...` URL path — never a raw filesystem path, never derived from the client's original filename (see ADR-017, `06_SECURITY.md`) |
 | caption | VARCHAR(255) | Yes | |
-| sort_order | SMALLINT | No | Default `0` |
+| sort_order | SMALLINT | No | Default `0`. Reordered via a dedicated bulk `PUT /providers/me/portfolio/order` endpoint accepting the full ordered set of the caller's own active photo ids. |
 
 **Indexes:** `idx_portfolios_provider_id`
 
 ## service_areas
+
+Shipped by Story PRO-002, exactly per this spec — no deviation. Internal-only: no direct API exposes this
+table for reading or editing; it is kept in sync automatically by `ProviderService` whenever a provider's
+location/radius fields (business fixed location + delivery radius, or freelancer base location + service
+radius) are created or edited, in the same flush. Exists for a future geospatial-matching story to query — the
+`cube`/`earthdistance` GiST index in Section 13 was deliberately not added by PRO-002, since no story queries
+it yet.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
@@ -419,6 +450,41 @@ The Provider aggregate root — shared columns for both subtypes. `user_id` is n
 | radius_meters | INTEGER | No | Business: derived from fixed location + optional delivery radius. Freelancer: travel radius. |
 
 **Indexes:** `idx_service_areas_provider_id`; geospatial index — see Section 13
+
+## provider_category_labels
+
+**New table, added by Story PRO-002 (Decision 1) — deliberately NOT the `provider_categories` join table
+this document's Category Domain section (below) reserves that name for.** The real Category domain
+(`category.categories`, `category.category_question_templates`, and the real `provider_categories` join table
+with a hard FK to `category.categories.id`) does not exist yet — Category taxonomy remains a critical-path,
+still-open decision (`13_OPEN_DECISIONS.md` item 1 — note: this file is referenced by name throughout
+`docs/AI/` but does not currently exist in the repository; flagged as a cross-story documentation gap in
+`PROJECT_IMPLEMENTATION_STATE.md` Section 6). `provider_category_labels` is a distinctly-named, deliberate
+interim stand-in: it stores free-text category labels with no taxonomy validation, satisfying the *structural*
+shape a provider having "one or more categories, exactly one primary" requires, without pretending to be the
+real Category entity.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| provider_id | UUID | No | FK → `providers.id` |
+| label | VARCHAR(100) | No | Free-text (e.g. "Plumbing", "AC Repair"), no taxonomy validation |
+| is_primary | BOOLEAN | No | Default `false`. Exactly one row per provider should be primary — enforced transactionally at the service layer (delete-existing-then-insert-new, one flush, mirroring `saved_addresses`' default-uniqueness precedent), with the partial unique index below as defense-in-depth. |
+
+**Constraints:** `uq_provider_category_labels_primary` — partial unique index on `provider_id` WHERE
+`is_primary = true`.
+**Indexes:** `idx_provider_category_labels_provider_id`
+
+Capped at 5 labels per provider (service-layer enforced, not a DB constraint) to prevent unbounded abuse of a
+free-text field with no taxonomy gate. Edited only as a full-set replace via `PATCH /providers/me`'s optional
+`category_labels` field — never a per-label CRUD surface. This table directly replaces
+`providers.category_label` (PRO-001, Decision 4; see the `providers` table section above) — that column was
+backfilled into this table and dropped in the same migration that created this table.
+
+**Future reconciliation path:** once the real Category domain ships, a follow-up story is expected to
+fuzzy-match/admin-reconcile `provider_category_labels.label` values into real `provider_categories` rows
+referencing `category.categories`, and either retire this interim table or keep it as a free-text
+fallback/search-boost field alongside the real relationship — that migration design is deliberately deferred,
+not decided by PRO-002.
 
 ---
 

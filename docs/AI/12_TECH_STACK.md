@@ -394,6 +394,15 @@ Maps, Location & Geocoding
 to newly reuse them, per the pre-existing documentation gap both `backend` and `architect` flagged during
 PRO-001.)
 
+Image Selection
+
+- image_picker (`^1.2.3`)
+
+(Added by Story PRO-002 for portfolio-photo selection in the Storefront's portfolio manager — no existing
+image-picker capability was available to reuse; a well-established, widely-used Flutter package. Automated
+tests never depend on real plugin/platform-channel behavior — `PortfolioManager` accepts an injectable picker
+for tests.)
+
 ---
 
 # Approved Python Packages
@@ -433,6 +442,11 @@ Password Hashing
 Multipart Upload
 
 - python-multipart
+
+(Approved and documented here since Sprint 1 for FastAPI's own multipart form-parsing support, but never
+actually exercised by any endpoint until Story PRO-002's portfolio-photo upload endpoints — the first file
+upload capability in this codebase, see ADR-017 in `09_DECISIONS.md`. Confirmed present in
+`backend/pyproject.toml`'s dependency list.)
 
 Database Driver
 

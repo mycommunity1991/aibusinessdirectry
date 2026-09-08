@@ -11,6 +11,31 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Provider domain — manage my provider storefront (Story PRO-002): completes the Provider aggregate via a
+  reversible Alembic migration adding `provider.provider_availability`, `provider.portfolios`, and
+  `provider.service_areas` (all exactly per `04_DATABASE.md`'s pre-existing spec), plus a new,
+  deliberately-not-`provider_categories`-named interim table `provider.provider_category_labels`
+  (`provider_id`, `label`, `is_primary`, partial unique index enforcing exactly one primary per provider) that
+  replaces PRO-001's temporary `providers.category_label` column — the migration backfills every existing value
+  into the new table and drops the column in the same step. New `PATCH /api/v1/providers/me` (partial update of
+  basic info, category labels, and subtype-specific details; never touches `verification_status`/
+  `is_discoverable`), `GET`/`POST /api/v1/providers/me/portfolio`, `DELETE
+  /api/v1/providers/me/portfolio/{portfolio_id}`, `PUT /api/v1/providers/me/portfolio/order`, and `GET`/`PUT
+  /api/v1/providers/me/availability` — all bare-authenticated, ownership enforced via `ensure_owner_or_not_found`
+  on the genuinely `{id}`-addressable portfolio-delete route (ADR-015). **Breaking change** to the pre-launch
+  `ProviderResponse` shape: `category_label: str` is replaced by `category_labels: list[CategoryLabelResponse]`
+  (acceptable pre-launch, no real API consumers yet). This codebase's first file-upload capability: a
+  `FileStorage` protocol with a `LocalFileStorage` implementation (local filesystem, git-ignored `UPLOAD_DIR`,
+  served via a new `/media` `StaticFiles` mount), explicitly interim pending real AWS infrastructure — recorded
+  as ADR-017 in `09_DECISIONS.md`. Uploads are validated for size, extension, and a magic-byte
+  content sniff against the declared MIME type, and always stored under a server-generated filename, never the
+  client's original filename.
+- Mobile Storefront screen (Story PRO-002): a new ongoing Storefront screen (S-25) in `features/provider/` with
+  four independently-saveable sections (basic info incl. category labels, subtype-specific details, portfolio
+  manager, availability editor), replacing the "you already have a listing" snackbar from PRO-001 with real
+  navigation. New `image_picker` Flutter dependency backs the portfolio manager's "Add Photo" action. A new
+  shared `WeeklyHoursEditor` widget was factored out of PRO-001's onboarding screen to avoid duplicating the
+  per-weekday hours UI, extended with a per-weekday emergency-availability toggle.
 - Provider domain — create my business or freelancer listing (Story PRO-001): new `provider` Postgres schema
   with `providers` (the aggregate root, plus a flagged, temporary `category_label VARCHAR(100) NOT NULL` column
   standing in for the not-yet-built Category domain), `business_profiles`, and `freelancer_profiles` tables via

@@ -3,9 +3,9 @@
 
 **Project:** AI Marketplace
 **Current Phase:** MVP Development
-**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (Complete — 2 of 2 stories done) → Sprint 4 (In Progress — 1 of 2+ stories done)
-**Completed Story:** PRO-001 Create My Business or Freelancer Listing
-**Status:** Identity & Access domain complete. Customer domain complete: profile/preferences auto-provisioning, `GET`/`PATCH /customers/me`, and saved service-location addresses (`GET`/`POST`/`PATCH`/`DELETE /customers/me/addresses`) have all shipped. Provider domain now underway: PRO-001 shipped the new `provider` module (`providers`/`business_profiles`/`freelancer_profiles`, immutable-type onboarding wizard, one-provider-per-account). PRO-002 ("Manage my provider storefront") is next and now unblocked.
+**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (Complete — 2 of 2 stories done) → Sprint 4 (Complete — 2 of 2 stories done) → Sprint 5 (Not Started)
+**Completed Story:** PRO-002 Manage My Provider Storefront
+**Status:** Identity & Access domain complete. Customer domain complete: profile/preferences auto-provisioning, `GET`/`PATCH /customers/me`, and saved service-location addresses (`GET`/`POST`/`PATCH`/`DELETE /customers/me/addresses`) have all shipped. Provider domain now fully shipped for this sprint's scope: PRO-001 shipped the new `provider` module (`providers`/`business_profiles`/`freelancer_profiles`, immutable-type onboarding wizard, one-provider-per-account); PRO-002 has since shipped the ongoing Storefront (`provider_availability`, `portfolios`, `service_areas`, the new `provider_category_labels` interim table, this codebase's first file-upload capability, and the mobile Storefront screen). Sprint 4 (Provider Storefront) is complete. Sprint 5 (Provider Verification), first story VER-001, is next.
 **Last Updated:** 08 September 2026
 **Owner:** CTO
 
@@ -21,7 +21,7 @@ The objective is to build production-quality software from Day One while avoidin
 
 Sprint 1 delivered a complete backend foundation (BF-001 through BF-018). Sprint 2 (Identity & Access) is now complete: AUTH-001 (mobile OTP registration/login) shipped the first business domain module, establishing the `identity` schema and the `backend/app/modules/<domain>/...` structural convention every later domain will follow. AUTH-002 (Google/Apple sign-in) shipped on top of it, adding server-side ID-token verification and the `(auth_provider, external_auth_subject)` account-matching pattern both OAuth providers and future auth methods share. AUTH-003 (stay signed in and manage active sessions) shipped on top of both: `sessions`/`refresh_tokens`/`devices` tables, a narrowed 15-minute JWT payload, rotating opaque refresh tokens with reuse-detection cascade-revocation, and real session listing/revocation endpoints, replacing the BF-011 `get_current_user` placeholder with a real implementation. AUTH-004 (access the app according to my role) has since shipped on top of all three: a composable `require_role()` dependency, an ownership-check helper (404, not 403), a new `audit` module with an immutable `audit_logs` table recording registration/login/logout/session-revocation events, and `GET /auth/me` — closing out Sprint 2 in full.
 
-Sprint 3 (Customer Profile & Locations) is now complete. Its first story, CUS-001 (set up my customer profile and preferences), shipped a new `customer` domain module (`customer_profiles`/`customer_preferences`, one-to-one with `users`), auto-provisioned in the same database transaction as registration via a new `identity → customer` cross-module service dependency that deliberately mirrors the `identity → audit` pattern AUTH-004 already established (recorded as ADR-014), sensible defaults (WhatsApp notification channel, `Accept-Language`-derived language falling back to English), and `GET`/`PATCH /customers/me` with no `{id}` parameter — ownership is structurally guaranteed rather than defensively checked. On mobile, a new Profile & Settings screen delivers live language switching (no app restart) and this codebase's first automated RTL test. Its second and final story, CUS-002 (manage my service locations), has since shipped on top of it: `customer.saved_addresses` (this codebase's first genuine soft-delete pattern), transactional default-address uniqueness backed by a partial unique index as defense-in-depth, and `GET`/`POST /customers/me/addresses` + `PATCH`/`DELETE /customers/me/addresses/{address_id}` — a client-`{id}`-addressable collection, deliberately shaped differently from CUS-001's `/me` singleton (the distinction is now recorded as ADR-015). On mobile, a new shared, reusable `LocationPickerScreen` (map-pin/manual/current-location entry, zero Customer-domain coupling, built for future Provider-domain reuse) backs a skippable first-address prompt at registration and a Saved Addresses management screen with Undo-on-delete. Sprint 4 (Provider Storefront) is now underway. Its first story, PRO-001 (create my business or freelancer listing), has since shipped: a new `provider` domain module (`providers`, `business_profiles`, `freelancer_profiles`), a new cross-module `RoleAssignmentService` letting `provider` grant `ROLE_PROVIDER` to an already-authenticated Account (the reverse direction of ADR-014's `identity → customer`/`identity → audit` edges, recorded as ADR-016), server-generated slugs, unconditional `verification_status=pending`/`is_discoverable=false` defaulting, and a strict one-Provider-per-Account rule enforced at the service layer. On mobile, a new `StepIndicator` shared widget and a `features/provider/` onboarding wizard (type selection → basic info → subtype-specific details) reuse CUS-002's `LocationPickerScreen` for address/base-location capture, reachable from a new "List Your Business" tile on Profile & Settings. PRO-002 ("manage my provider storefront"), which depends on PRO-001, is next and now unblocked.
+Sprint 3 (Customer Profile & Locations) is now complete. Its first story, CUS-001 (set up my customer profile and preferences), shipped a new `customer` domain module (`customer_profiles`/`customer_preferences`, one-to-one with `users`), auto-provisioned in the same database transaction as registration via a new `identity → customer` cross-module service dependency that deliberately mirrors the `identity → audit` pattern AUTH-004 already established (recorded as ADR-014), sensible defaults (WhatsApp notification channel, `Accept-Language`-derived language falling back to English), and `GET`/`PATCH /customers/me` with no `{id}` parameter — ownership is structurally guaranteed rather than defensively checked. On mobile, a new Profile & Settings screen delivers live language switching (no app restart) and this codebase's first automated RTL test. Its second and final story, CUS-002 (manage my service locations), has since shipped on top of it: `customer.saved_addresses` (this codebase's first genuine soft-delete pattern), transactional default-address uniqueness backed by a partial unique index as defense-in-depth, and `GET`/`POST /customers/me/addresses` + `PATCH`/`DELETE /customers/me/addresses/{address_id}` — a client-`{id}`-addressable collection, deliberately shaped differently from CUS-001's `/me` singleton (the distinction is now recorded as ADR-015). On mobile, a new shared, reusable `LocationPickerScreen` (map-pin/manual/current-location entry, zero Customer-domain coupling, built for future Provider-domain reuse) backs a skippable first-address prompt at registration and a Saved Addresses management screen with Undo-on-delete. Sprint 4 (Provider Storefront) is now complete. Its first story, PRO-001 (create my business or freelancer listing), shipped a new `provider` domain module (`providers`, `business_profiles`, `freelancer_profiles`), a new cross-module `RoleAssignmentService` letting `provider` grant `ROLE_PROVIDER` to an already-authenticated Account (the reverse direction of ADR-014's `identity → customer`/`identity → audit` edges, recorded as ADR-016), server-generated slugs, unconditional `verification_status=pending`/`is_discoverable=false` defaulting, and a strict one-Provider-per-Account rule enforced at the service layer. On mobile, a new `StepIndicator` shared widget and a `features/provider/` onboarding wizard (type selection → basic info → subtype-specific details) reuse CUS-002's `LocationPickerScreen` for address/base-location capture, reachable from a new "List Your Business" tile on Profile & Settings. Its second and final story, PRO-002 (manage my provider storefront), has since shipped on top of it: `provider_availability`, `portfolios`, and `service_areas` (all exactly per the pre-existing schema spec), plus a new, deliberately-not-`provider_categories`-named interim table `provider_category_labels` (replacing PRO-001's temporary `providers.category_label` column, which this story's migration backfills and drops); this codebase's first file-upload capability, a `FileStorage` protocol with a `LocalFileStorage` implementation explicitly interim pending real AWS infrastructure (recorded as ADR-017); `PATCH /providers/me` and the new portfolio/availability sub-resource endpoints, all bare-authenticated per ADR-016's token-refresh-lag reasoning. On mobile, a new Storefront screen (S-25) with four independently-saveable sections, a portfolio manager (using the new `image_picker` dependency), and a shared `WeeklyHoursEditor` widget factored out of PRO-001's onboarding screen. **Sprint 4 (Provider Storefront) is now complete.** Sprint 5 (Provider Verification), first story VER-001, is next.
 
 ---
 
@@ -158,7 +158,12 @@ Current documents include:
 - AI-10 Glossary
 - AI-11 MVP Scope
 - AI-12 Technology Stack
-- AI-13 Open Decisions
+- AI-13 Open Decisions — **flagged gap:** this file is referenced by name throughout `03_DOMAIN_MODEL.md`,
+  `04_DATABASE.md`, `14_USER_FLOWS.md`, `15_SCREEN_INVENTORY.md`, and this document, but does not exist
+  anywhere in the repository. Both PRO-001 and PRO-002 (Sprint 4) built their interim Category-label
+  workarounds (`providers.category_label`, now `provider.provider_category_labels`) explicitly to route
+  around the "Category Taxonomy" critical-path open decision this file is supposed to document as item 1.
+  Needs a separate follow-up to actually create this file — outside any single story's ownership.
 
 These documents are the authoritative source for all implementation decisions.
 
@@ -250,24 +255,43 @@ later stories.
 `docs/implementation/walkthroughs/Walkthrough_S03_CUS-002.md` for each story's completed implementation
 detail.
 
-## Sprint 4 — Provider Storefront (In Progress — 1 of 2+ stories done)
+## Sprint 4 — Provider Storefront (Complete — 2 of 2 stories done)
 
-Scope is limited to the Provider domain (`03_DOMAIN_MODEL.md`): the Business/Freelancer listing itself and,
-later in the sprint, storefront management. Does not include the Verification gate (VER-001), the Category
-domain, or Claim-Your-Listing — all deferred to their own later stories.
+Scope is limited to the Provider domain (`03_DOMAIN_MODEL.md`): the Business/Freelancer listing itself and
+storefront management. Does not include the Verification gate (VER-001), the Category domain, or
+Claim-Your-Listing — all deferred to their own later stories.
 
 | Story | Description | Status |
 |--------|-------------|--------|
 | PRO-001 | Create my business or freelancer listing | ✅ Done |
-| PRO-002 | Manage my provider storefront | ⏳ Next (unblocked) |
+| PRO-002 | Manage my provider storefront | ✅ Done |
 
-**PRO-001 is done.** See `docs/implementation/walkthroughs/Walkthrough_S04_PRO-001.md` for full implementation
-detail. It shipped the new `provider` domain module (`providers`, `business_profiles`, `freelancer_profiles`
+**Sprint 4 (Provider Storefront) is now complete.** See
+`docs/implementation/walkthroughs/Walkthrough_S04_PRO-001.md` and
+`docs/implementation/walkthroughs/Walkthrough_S04_PRO-002.md` for each story's full implementation detail.
+
+PRO-001 shipped the new `provider` domain module (`providers`, `business_profiles`, `freelancer_profiles`
 tables), the immutable-type onboarding wizard (S-15 through S-18a/b), a new `RoleAssignmentService` enabling the
-`provider → identity` cross-module role grant (ADR-016), and a strict one-Provider-per-Account rule. A newly
-created Provider always defaults to `verification_status=pending`/`is_discoverable=false` and is not yet
-discoverable to customers — that gate is lifted only once VER-001 (Verification, not yet built) ships and
-approves it.
+`provider → identity` cross-module role grant (ADR-016), and a strict one-Provider-per-Account rule. PRO-002
+completed the Provider aggregate (`provider_availability`, `portfolios`, `service_areas`, and the new interim
+`provider_category_labels` table, Decision 1), added this codebase's first file-upload capability
+(`FileStorage`/`LocalFileStorage`, ADR-017, explicitly interim pending real AWS infrastructure), and delivered
+the ongoing Storefront screen (S-25) on mobile. A newly created Provider always defaults to
+`verification_status=pending`/`is_discoverable=false` and is not yet discoverable to customers — that gate is
+lifted only once VER-001 (Verification, not yet built) ships and approves it. Neither PRO-001 nor PRO-002
+implements any part of the Verification gate itself; PRO-002 only documents (without implementing) which field
+(`business_profiles.trade_license_number`) is the most plausible future re-verification trigger candidate.
+
+## Sprint 5 — Provider Verification (Not Started)
+
+Per `docs/AI/Project_Tracker.xlsx`'s Sprint/Milestone structure (ML5, "Provider Verification"), the first story
+is **VER-001**, which the Tracker lists as depending on PRO-001 (now done). This section will be expanded with
+the sprint's full story list and a Plan once VER-001 planning begins, per the usual process. **Caveat:** this
+tech-lead closeout could not independently open `Project_Tracker.xlsx` (no xlsx-reading tool available) to
+directly confirm PRO-002 is not itself also listed as a VER-001 dependency; based on every other `docs/AI/`
+document's framing (Provider discoverability being gated on Verification, not on Storefront editing) and this
+sprint's own Plan documents, VER-001 appears unblocked, but this has not been independently re-verified against
+the Tracker's own dependency field for this closeout.
 
 ---
 
@@ -319,8 +343,21 @@ reverse direction of ADR-014's `identity → customer`/`identity → audit` edge
 one-Provider-per-Account rule enforced at the service layer (rejects both a same-type and a different-type
 second creation attempt, proving `provider_type` immutability by construction — no update endpoint exists for
 it anywhere in this story)
+✓ Provider domain — manage my provider storefront (PRO-002): completes the Provider aggregate via a reversible
+Alembic migration adding `provider_availability`, `portfolios`, and `service_areas` (all exactly per
+`04_DATABASE.md`'s pre-existing spec), plus a new, deliberately-not-`provider_categories`-named interim table
+`provider_category_labels` (Decision 1) that replaces PRO-001's temporary `providers.category_label` column
+(backfilled then dropped in the same migration); this codebase's first file-upload capability — a `FileStorage`
+protocol with a `LocalFileStorage` implementation, served via a new `/media` `StaticFiles` mount, explicitly
+interim pending real AWS infrastructure (ADR-017), with size/extension/magic-byte upload validation and
+always-server-generated filenames; `PATCH /providers/me` (partial update of basic info, category labels, and
+subtype-specific details) and new portfolio/availability sub-resource endpoints (`GET`/`POST
+/providers/me/portfolio`, `DELETE /providers/me/portfolio/{portfolio_id}`, `PUT /providers/me/portfolio/order`,
+`GET`/`PUT /providers/me/availability`), all bare-authenticated (Decision 7, mirroring ADR-016's
+token-refresh-lag reasoning) with ownership enforced via `ensure_owner_or_not_found` on every genuinely
+`{id}`-addressable route (ADR-015)
 
-The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain is now fully shipped as well — profile/preferences (CUS-001) and saved addresses (CUS-002) — completing Sprint 3. The Provider domain is now underway — PRO-001 has shipped the Provider aggregate root and the first half of onboarding; Sprint 4 continues with PRO-002.
+The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain is now fully shipped as well — profile/preferences (CUS-001) and saved addresses (CUS-002) — completing Sprint 3. The Provider domain is now fully shipped for its Sprint 4 scope — PRO-001 shipped the Provider aggregate root and onboarding wizard, and PRO-002 has since completed the aggregate (portfolio/availability/service-area/category-labels) and the ongoing Storefront screen — completing Sprint 4. Sprint 5 (Provider Verification, VER-001 first) is next.
 
 ---
 
@@ -435,11 +472,18 @@ Implemented layers include:
   verification/discoverability defaulting), and `GET`/`POST /providers/me`. Required one new capability in
   `identity` (`RoleAssignmentService`, a small idempotent role-grant service, wired into
   `provider/dependencies.py` — the reverse of CUS-001's `AuthService → CustomerService` edge) — no existing
-  `identity` file (`AuthService` included) was modified. Touched no other existing module.
+  `identity` file (`AuthService` included) was modified. Manage my provider storefront (PRO-002) built on top
+  of it in the same module: `ProviderAvailability`/`Portfolio`/`ServiceArea`/`ProviderCategoryLabel` models,
+  `PortfolioService`/`AvailabilityService` (new), `ProviderService.update_basic_info` (new), and `PATCH
+  /providers/me` plus the new portfolio/availability sub-resource endpoints. Also added a new
+  `backend/app/shared/storage/` module (`FileStorage` protocol, `LocalFileStorage`, image-upload validation) —
+  this codebase's first file-upload capability, shared infrastructure rather than domain-specific, per
+  `02_ARCHITECTURE.md`'s "Infrastructure depends on Domain" placement. Touched no other existing module. This
+  completes the Provider domain's Sprint 4 scope.
 
 Remaining business modules are deferred until their corresponding sprint stories.
 
-The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001), real Google/Apple sign-in buttons on the Phone Entry screen (AUTH-002), and secure cross-restart session persistence, a silent-refresh Dio interceptor, and a "Log out" action on the Home stub (AUTH-003), are implemented. A dedicated Manage Sessions UI was deliberately not built this story (see AUTH-003's Walkthrough). CUS-001 added a new `features/customer/` module and a Profile & Settings screen (reachable via a temporary entry point on the Home stub, not yet a bottom-nav tab) plus an `AcceptLanguageInterceptor` on `ApiClient`. CUS-002 extended `features/customer/` with a Saved Addresses management screen and a skippable first-address prompt wired into registration, plus a new shared, reusable `LocationPickerScreen` (`shared/widgets/location_picker/`) and three new Flutter dependencies (`google_maps_flutter`, `geolocator`, `geocoding`). PRO-001 added a new `features/provider/` module (a five-screen onboarding wizard reusing `LocationPickerScreen` for address/base-location capture) and this codebase's first shared `StepIndicator` widget, plus a "List Your Business" tile on Profile & Settings. The full Home screen, a bottom-navigation shell, and all other feature areas remain unbuilt.
+The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001), real Google/Apple sign-in buttons on the Phone Entry screen (AUTH-002), and secure cross-restart session persistence, a silent-refresh Dio interceptor, and a "Log out" action on the Home stub (AUTH-003), are implemented. A dedicated Manage Sessions UI was deliberately not built this story (see AUTH-003's Walkthrough). CUS-001 added a new `features/customer/` module and a Profile & Settings screen (reachable via a temporary entry point on the Home stub, not yet a bottom-nav tab) plus an `AcceptLanguageInterceptor` on `ApiClient`. CUS-002 extended `features/customer/` with a Saved Addresses management screen and a skippable first-address prompt wired into registration, plus a new shared, reusable `LocationPickerScreen` (`shared/widgets/location_picker/`) and three new Flutter dependencies (`google_maps_flutter`, `geolocator`, `geocoding`). PRO-001 added a new `features/provider/` module (a five-screen onboarding wizard reusing `LocationPickerScreen` for address/base-location capture) and this codebase's first shared `StepIndicator` widget, plus a "List Your Business" tile on Profile & Settings. PRO-002 extended `features/provider/` with the ongoing Storefront screen (S-25, four independently-saveable sections), a portfolio manager widget backed by a new `image_picker` dependency, and a new shared `WeeklyHoursEditor` widget (`shared/widgets/weekly_hours_editor.dart`) factored out of PRO-001's onboarding screen. The full Home screen, a bottom-navigation shell, and all other feature areas remain unbuilt.
 
 ---
 
@@ -449,7 +493,12 @@ Not yet implemented:
 
 - Authentication / Identity & Access — complete: mobile OTP registration/login (AUTH-001), Google/Apple OAuth (AUTH-002), session/refresh-token management (AUTH-003), and role-based authorization + audit logging (AUTH-004) are all done. RBAC/audit is no longer a gap. Note: a permission-catalog/ABAC layer beyond simple role-name checks, and an admin-facing audit-log-viewing endpoint, remain out of scope until a future story requires them.
 - Customer domain — no longer a gap, fully shipped: auto-provisioned profile/preferences (display name, avatar, language, notification channel) and `GET`/`PATCH /customers/me` (CUS-001); saved service-location addresses, map-pin/manual/current-location entry, and a skippable first-address-at-registration flow (CUS-002).
-- Provider profile (Business / Freelancer) — no longer a gap for creation: PRO-001 shipped the Provider aggregate root, immutable-type onboarding wizard, and one-Provider-per-Account enforcement. A created Provider is not yet discoverable (`is_discoverable=false` until VER-001 ships) and cannot yet be edited (Storefront/Edit Profile is PRO-002, next up in Sprint 4). Portfolio/availability management, the Verification gate, and Claim-Your-Listing remain unbuilt.
+- Provider profile (Business / Freelancer) — no longer a gap: PRO-001 shipped the Provider aggregate root,
+  immutable-type onboarding wizard, and one-Provider-per-Account enforcement; PRO-002 completed the aggregate
+  (portfolio, availability, service area, category labels) and the ongoing Storefront/Edit Profile screen. A
+  created Provider is still not yet discoverable (`is_discoverable=false` until VER-001 ships) — that gate and
+  Claim-Your-Listing remain unbuilt. The real Category domain remains unbuilt too; `provider_category_labels`
+  (PRO-002) is an explicitly flagged, free-text interim stand-in, not the real taxonomy.
 - Category taxonomy
 - Conversation / AI Intake
 - Search & Matching
@@ -480,15 +529,17 @@ Identity & Access — Complete (4 of 4 stories done: AUTH-001, AUTH-002, AUTH-00
 
 Customer Domain — Complete (2 of 2 Sprint 3 stories done: CUS-001, CUS-002)
 
-Provider Profile — In Progress (Sprint 4, 1 of 2+ stories done: PRO-001; PRO-002 unblocked and next)
+Provider Profile — Complete (Sprint 4, 2 of 2 stories done: PRO-001, PRO-002)
+
+Provider Verification — Not Started (Sprint 5, first story VER-001, next up)
 
 Conversation / AI Intake — Not Started
 
-Flutter Application — In Progress (auth flow: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out; Profile & Settings screen with live language switching, CUS-001; Saved Addresses management, a shared Location Picker, and a skippable first-address-at-registration flow, CUS-002; Provider onboarding wizard — type selection, basic info, Business/Freelancer details, PRO-001)
+Flutter Application — In Progress (auth flow: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out; Profile & Settings screen with live language switching, CUS-001; Saved Addresses management, a shared Location Picker, and a skippable first-address-at-registration flow, CUS-002; Provider onboarding wizard — type selection, basic info, Business/Freelancer details, PRO-001; Storefront screen — portfolio, availability, category labels, PRO-002)
 
 Deployment — Not Started
 
-Overall Estimated Project Completion: Approximately 45-50%
+Overall Estimated Project Completion: Approximately 48-53%
 
 ---
 
@@ -500,12 +551,27 @@ and been signed off.
 Sprint 3 (Customer Profile & Locations) is **complete** — CUS-001 (set up my customer profile and preferences)
 and CUS-002 (manage my service locations) have both shipped and been signed off.
 
-Sprint 4 (Provider Storefront) is **underway** — PRO-001 ("create my business or freelancer listing") has
-shipped and been signed off; see `docs/implementation/walkthroughs/Walkthrough_S04_PRO-001.md`.
+Sprint 4 (Provider Storefront) is **complete** — PRO-001 ("create my business or freelancer listing") and
+PRO-002 ("manage my provider storefront") have both shipped and been signed off; see
+`docs/implementation/walkthroughs/Walkthrough_S04_PRO-001.md` and
+`docs/implementation/walkthroughs/Walkthrough_S04_PRO-002.md`.
 
-**Next planned story: PRO-002 — "Manage my provider storefront"** (Sprint 4, Provider Storefront). It depends
-on PRO-001 (now done) and is now unblocked. A fresh Plan should be written against
-`docs/AI/Project_Tracker.xlsx` (the authoritative backlog source), per the usual process.
+**Next planned story: VER-001** (Sprint 5, Provider Verification, per `docs/AI/Project_Tracker.xlsx`'s ML5
+milestone). The Tracker lists VER-001 as depending on PRO-001, which is done. **Caveat, stated explicitly
+rather than assumed away:** this closeout had no tool available to open `Project_Tracker.xlsx` directly, so it
+could not independently re-confirm that PRO-002 is not *also* listed as a VER-001 dependency in the Tracker's
+own dependency field. Nothing in any `docs/AI/` narrative document suggests PRO-002 gates VER-001 — Provider
+discoverability is framed everywhere as gated on Verification approval, not on whether the storefront has been
+edited — so VER-001 appears unblocked, but this should be confirmed directly against the Tracker (or by the
+next engineer/agent who does have xlsx access) before VER-001 planning begins. A fresh Plan should be written
+against `docs/AI/Project_Tracker.xlsx` (the authoritative backlog source), per the usual process.
+
+**Separately flagged, not a blocker for VER-001 planning:** `docs/AI/Project_Tracker.xlsx`'s Stories sheet
+still needs its PRO-002 row's Status updated from "Planned" to "Done" (direct raw-XML cell-patching, per the
+method established at PRO-001's closeout — a normal openpyxl load/save round-trip drops this workbook's
+conditional-formatting extensions); and `docs/AI/13_OPEN_DECISIONS.md` still does not exist anywhere in the
+repository despite being cited by name across multiple `docs/AI/` documents (see Section 6 above) — both are
+cross-story gaps outside any single story's ownership.
 
 ---
 

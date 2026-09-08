@@ -992,6 +992,97 @@ to call too, but that refactor is out of this story's scope.
 
 ---
 
+# ADR-017
+
+## Title
+
+First File-Upload Capability — `FileStorage` Protocol / `LocalFileStorage`, Explicitly Interim Pending Real AWS Infrastructure
+
+**Date**
+
+2026-09-08
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story PRO-002 needed provider portfolio-photo uploads (AC2: validated for MIME type, extension, and size,
+stored under a generated filename) — the first feature in this codebase to need any file-upload/storage
+capability at all. Confirmed by direct search during planning: no `boto3`, no S3 client, no `StaticFiles`
+mount, no upload directory, and no image-validation utility existed anywhere. `12_TECH_STACK.md` names AWS as
+the approved cloud provider architecturally, but no AWS credentials, bucket, or SDK integration exist in this
+codebase or this development environment — building against a cloud resource that cannot actually be
+provisioned or tested here would be unverifiable, unrequested infrastructure work, not a Sprint-4 storefront
+story.
+
+### Decision
+
+A small, generic `FileStorage` protocol (`backend/app/shared/storage/interfaces.py`: `async def save(self,
+content: bytes, *, filename: str, subdirectory: str) -> str`, returning a served, relative URL path; `async def
+delete(self, url_path: str) -> None`) decouples `PortfolioService` from any concrete storage backend — it
+depends on the protocol, never a concrete implementation directly. The only concrete implementation shipped by
+this story is `LocalFileStorage` (`backend/app/shared/storage/local_file_storage.py`), writing to a new,
+git-ignored `UPLOAD_DIR` setting (default `uploads/`) on the local filesystem, with blocking filesystem calls
+offloaded via `asyncio.to_thread` so they never block the event loop, served back to clients via a
+`StaticFiles` mount at `/media` in `main.py`. This is explicitly and deliberately **interim**: once real AWS
+credentials/bucket provisioning exist in this environment, a future story can add `S3FileStorage` by writing
+one new class and changing one dependency-wiring line, with zero changes to `PortfolioService` itself.
+
+**Validation approach** (`backend/app/shared/storage/image_validation.py`, satisfying AC2 and `06_SECURITY.md`'s
+File Upload Security section): size is checked against the actual read byte length (never a client-declared
+`Content-Length` header) against a new `MAX_PORTFOLIO_PHOTO_SIZE_BYTES` setting (default 5 MB). The original
+client-supplied filename's extension is checked only against an allow-list (`.jpg`, `.jpeg`, `.png`, `.webp`)
+for rejection purposes — it is never used to construct the stored filename or path. Both the client-declared
+`UploadFile.content_type` and a magic-byte sniff of the actual content (JPEG/PNG/WEBP file signatures) must
+agree with an allowed image type; a mismatch (e.g. a `.jpg`-named file whose bytes are actually something else)
+is rejected. This deliberately uses only Python's standard library for the magic-byte check — no Pillow or
+other new imaging dependency was added, since no acceptance criterion in the story required
+thumbnailing/re-encoding, only validation, and `08_CODING_STANDARDS.md`/`12_TECH_STACK.md` both call for
+minimizing new dependencies. The stored filename is always server-generated
+(`f"{uuid4().hex}{validated_extension}"`, where the extension comes from the *validated detected type*, never
+the client's original filename) — never derived from client input.
+
+### Alternatives Considered
+
+- **Real AWS S3 integration now** (rejected — no AWS credentials, bucket, or IAM configuration exist in this
+  environment; building and "testing" against a cloud resource that cannot actually be provisioned here would
+  be unverifiable work, not something this story could honestly claim to have validated).
+- **Storing image bytes directly in Postgres (`bytea`)** (rejected — `04_DATABASE.md`'s own
+  `verification_documents.file_url` precedent already establishes "stored file reference, not the file itself"
+  as this codebase's convention for uploaded files; no reason to deviate for portfolios).
+- **Pillow-based content sniffing / image processing** (rejected for now, per the dependency-minimization
+  reasoning above — a magic-byte check is sufficient to satisfy AC2's "validated for MIME type" requirement
+  without a new package; if virus scanning or thumbnail generation is added in a future story,
+  `06_SECURITY.md` already flags malware scanning as a future enhancement, and that is the natural point to
+  reconsider adding an imaging library).
+
+### Consequences
+
+- `PortfolioService` and any future file-upload-needing service should depend on the `FileStorage` protocol,
+  never a concrete storage class, so a future `S3FileStorage` (or any other backend) can be substituted with a
+  single dependency-wiring change.
+- `LocalFileStorage` must not be treated as production-durable storage — it exists specifically as an interim,
+  environment-appropriate choice until real AWS infrastructure is provisioned; deploying to a real environment
+  without first replacing it with a durable backend would be a regression, not a continuation of this decision.
+- Orphaned-file cleanup (e.g. for soft-deleted portfolio photos) and virus/malware scanning remain explicitly
+  out of scope for this decision and are documented as future administrative/security enhancements.
+
+### Related Documents
+
+- 04_DATABASE.md
+- 06_SECURITY.md
+- 12_TECH_STACK.md
+- docs/implementation/plans/Plan_S04_PRO-002.md
+- docs/implementation/walkthroughs/Walkthrough_S04_PRO-002.md
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:
