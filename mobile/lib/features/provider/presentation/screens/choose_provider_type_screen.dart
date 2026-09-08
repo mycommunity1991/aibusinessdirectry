@@ -7,7 +7,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../../../../shared/widgets/step_indicator.dart';
-import '../../domain/models/provider_type.dart';
+import '../../../../shared/models/provider_type.dart';
 import '../../state/provider_onboarding_controller.dart';
 
 /// S-16 — Choose Provider Type (PRO-001, AC3). Two selectable cards

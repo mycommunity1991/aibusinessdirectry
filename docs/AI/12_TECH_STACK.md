@@ -403,6 +403,17 @@ image-picker capability was available to reuse; a well-established, widely-used 
 tests never depend on real plugin/platform-channel behavior — `PortfolioManager` accepts an injectable picker
 for tests.)
 
+File Selection & HTTP
+
+- file_picker (`^11.0.3`)
+- http_parser (`^4.1.2`)
+
+(Added by Story VER-001 for verification-document selection on the Upload screen — `image_picker` cannot
+browse arbitrary files, and a trade license is plausibly a PDF, not a photo; a well-established, widely-used
+Flutter package. `http_parser` sets an explicit `Content-Type` on the multipart document upload and was
+already a transitive dependency via `dio`, promoted to direct since `verification_repository.dart` imports it
+by name.)
+
 ---
 
 # Approved Python Packages

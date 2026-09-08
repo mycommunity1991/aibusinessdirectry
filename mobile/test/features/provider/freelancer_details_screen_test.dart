@@ -1,5 +1,5 @@
 import 'package:ai_marketplace_app/features/provider/data/provider_repository.dart';
-import 'package:ai_marketplace_app/features/provider/domain/models/provider_type.dart';
+import 'package:ai_marketplace_app/shared/models/provider_type.dart';
 import 'package:ai_marketplace_app/features/verification/presentation/screens/verification_upload_screen.dart';
 import 'package:ai_marketplace_app/shared/widgets/location_picker/location_service.dart';
 import 'package:flutter/material.dart';

@@ -2,9 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../provider/data/provider_repository.dart';
-import '../../provider/domain/models/provider_exception.dart';
-import '../../provider/domain/models/provider_type.dart';
+import '../../../shared/data/current_provider_type_repository.dart';
+import '../../../shared/models/provider_type.dart';
 import '../data/verification_repository.dart';
 import '../domain/models/document_type.dart';
 import '../domain/models/ocr_preview_result.dart';
@@ -67,42 +66,40 @@ class VerificationUploadState {
 /// preview/submit-without-document actions (`Plan_S05_VER-001.md` items
 /// 27/31).
 ///
-/// Reads the caller's own `provider_type` via the existing
-/// `ProviderRepository` (a one-directional, read-only dependency --
-/// exactly mirroring the backend's own `verification -> provider`
-/// dependency, Decision 9 -- not a shared-widget/shared-state coupling).
-/// This is the only place this feature module reads from `features/
-/// provider/`; the resolved [ProviderType] value never flows the other
-/// direction.
+/// Reads the caller's own `provider_type` via the shared
+/// [CurrentProviderTypeRepository] (`shared/data/`, not `features/
+/// provider/`) -- keeping this feature module free of any direct
+/// dependency on `features/provider/` (`docs/AI/02_ARCHITECTURE.md`:
+/// "Features must not depend directly on each other. Shared
+/// functionality belongs in shared modules.").
 class VerificationUploadController
     extends StateNotifier<VerificationUploadState> {
   VerificationUploadController(
     this._verificationRepository,
-    this._providerRepository,
+    this._currentProviderTypeRepository,
   ) : super(const VerificationUploadState()) {
     _loadProviderType();
   }
 
   final VerificationRepository _verificationRepository;
-  final ProviderRepository _providerRepository;
+  final CurrentProviderTypeRepository _currentProviderTypeRepository;
 
   Future<void> _loadProviderType() async {
-    try {
-      final provider = await _providerRepository.getMyProvider();
-      state = state.copyWith(
-        providerType: provider?.providerType,
-        isLoadingProviderType: false,
-        documentType: provider?.providerType == ProviderType.freelancer
-            ? DocumentType.emiratesId
-            : state.documentType,
-      );
-    } on ProviderException {
-      // Defensive only -- unreachable via the real UI (this screen is
-      // only ever reached once a provider listing already exists, either
-      // right after PRO-001's onboarding wizard or from the Storefront's
-      // verification-status link).
-      state = state.copyWith(isLoadingProviderType: false);
-    }
+    // `getMyProviderType()` never throws (it resolves to `null` on any
+    // 404/parse failure, defensive only -- unreachable via the real UI,
+    // since this screen is only ever reached once a provider listing
+    // already exists, either right after PRO-001's onboarding wizard or
+    // from the Storefront's verification-status link), so no try/catch
+    // is needed here.
+    final providerType = await _currentProviderTypeRepository
+        .getMyProviderType();
+    state = state.copyWith(
+      providerType: providerType,
+      isLoadingProviderType: false,
+      documentType: providerType == ProviderType.freelancer
+          ? DocumentType.emiratesId
+          : state.documentType,
+    );
   }
 
   /// Freelancer's document type is fixed (`emiratesId`, AC2) -- a no-op
@@ -171,6 +168,6 @@ final verificationUploadControllerProvider =
     >(
       (ref) => VerificationUploadController(
         ref.watch(verificationRepositoryProvider),
-        ref.watch(providerRepositoryProvider),
+        ref.watch(currentProviderTypeRepositoryProvider),
       ),
     );

@@ -8,7 +8,7 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../../../../shared/widgets/step_indicator.dart';
-import '../../domain/models/provider_type.dart';
+import '../../../../shared/models/provider_type.dart';
 import '../../state/provider_onboarding_controller.dart';
 
 /// S-17 — Provider Basic Info (PRO-001, AC4): display name, phone/country

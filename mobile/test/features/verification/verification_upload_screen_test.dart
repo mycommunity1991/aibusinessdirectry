@@ -1,14 +1,15 @@
 import 'dart:io';
 
-import 'package:ai_marketplace_app/features/provider/data/provider_repository.dart';
 import 'package:ai_marketplace_app/features/verification/data/verification_repository.dart';
 import 'package:ai_marketplace_app/features/verification/domain/models/document_type.dart';
 import 'package:ai_marketplace_app/features/verification/presentation/screens/verification_confirm_screen.dart';
 import 'package:ai_marketplace_app/features/verification/presentation/screens/verification_upload_screen.dart';
+import 'package:ai_marketplace_app/shared/data/current_provider_type_repository.dart';
+import 'package:ai_marketplace_app/shared/models/provider_type.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../provider/fakes/fake_provider_repository.dart';
+import '../../shared/fakes/fake_current_provider_type_repository.dart';
 import 'fakes/fake_verification_document_picker.dart';
 import 'fakes/fake_verification_repository.dart';
 import 'test_helpers.dart';
@@ -23,9 +24,9 @@ void main() {
           tester,
           child: const VerificationUploadScreen(),
           overrides: [
-            providerRepositoryProvider.overrideWithValue(
-              FakeProviderRepository(
-                existingProvider: fakeExistingFreelancerProvider,
+            currentProviderTypeRepositoryProvider.overrideWithValue(
+              FakeCurrentProviderTypeRepository(
+                providerType: ProviderType.freelancer,
               ),
             ),
             verificationRepositoryProvider.overrideWithValue(
@@ -51,9 +52,9 @@ void main() {
         tester,
         child: const VerificationUploadScreen(),
         overrides: [
-          providerRepositoryProvider.overrideWithValue(
-            FakeProviderRepository(
-              existingProvider: fakeExistingFreelancerProvider,
+          currentProviderTypeRepositoryProvider.overrideWithValue(
+            FakeCurrentProviderTypeRepository(
+              providerType: ProviderType.freelancer,
             ),
           ),
           verificationRepositoryProvider.overrideWithValue(
@@ -87,9 +88,9 @@ void main() {
         tester,
         child: const VerificationUploadScreen(),
         overrides: [
-          providerRepositoryProvider.overrideWithValue(
-            FakeProviderRepository(
-              existingProvider: fakeExistingBusinessProvider,
+          currentProviderTypeRepositoryProvider.overrideWithValue(
+            FakeCurrentProviderTypeRepository(
+              providerType: ProviderType.business,
             ),
           ),
           verificationRepositoryProvider.overrideWithValue(
@@ -115,9 +116,9 @@ void main() {
           tester,
           child: const VerificationUploadScreen(),
           overrides: [
-            providerRepositoryProvider.overrideWithValue(
-              FakeProviderRepository(
-                existingProvider: fakeExistingBusinessProvider,
+            currentProviderTypeRepositoryProvider.overrideWithValue(
+              FakeCurrentProviderTypeRepository(
+                providerType: ProviderType.business,
               ),
             ),
             verificationRepositoryProvider.overrideWithValue(
@@ -151,9 +152,9 @@ void main() {
         tester,
         child: const VerificationUploadScreen(),
         overrides: [
-          providerRepositoryProvider.overrideWithValue(
-            FakeProviderRepository(
-              existingProvider: fakeExistingBusinessProvider,
+          currentProviderTypeRepositoryProvider.overrideWithValue(
+            FakeCurrentProviderTypeRepository(
+              providerType: ProviderType.business,
             ),
           ),
           verificationRepositoryProvider.overrideWithValue(

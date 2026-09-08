@@ -1,5 +1,5 @@
 import 'provider.dart';
-import 'provider_type.dart';
+import '../../../../shared/models/provider_type.dart';
 
 /// Business-subtype details for `POST /providers/me` — mirrors the
 /// backend's `CreateBusinessDetailsRequest`

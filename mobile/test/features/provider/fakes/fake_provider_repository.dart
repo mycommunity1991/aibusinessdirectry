@@ -6,7 +6,7 @@ import 'package:ai_marketplace_app/features/provider/domain/models/portfolio_pho
 import 'package:ai_marketplace_app/features/provider/domain/models/provider.dart'
     as domain;
 import 'package:ai_marketplace_app/features/provider/domain/models/provider_exception.dart';
-import 'package:ai_marketplace_app/features/provider/domain/models/provider_type.dart';
+import 'package:ai_marketplace_app/shared/models/provider_type.dart';
 import 'package:ai_marketplace_app/features/provider/domain/models/update_provider_request.dart';
 import 'package:ai_marketplace_app/features/provider/domain/models/weekday_availability.dart';
 import 'package:dio/dio.dart';

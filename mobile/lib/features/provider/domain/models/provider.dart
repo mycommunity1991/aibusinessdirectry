@@ -1,4 +1,4 @@
-import 'provider_type.dart';
+import '../../../../shared/models/provider_type.dart';
 
 /// One weekday's open/close time — mirrors the backend's
 /// `OperatingHoursEntry` (`backend/app/modules/provider/schemas.py`, AC5).

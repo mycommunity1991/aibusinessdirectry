@@ -1,28 +1,33 @@
 import 'package:ai_marketplace_app/features/provider/data/provider_repository.dart';
 import 'package:ai_marketplace_app/features/provider/domain/models/portfolio_photo.dart';
 import 'package:ai_marketplace_app/features/provider/presentation/screens/storefront_screen.dart';
-import 'package:ai_marketplace_app/features/verification/data/verification_repository.dart';
 import 'package:ai_marketplace_app/l10n/generated/app_localizations.dart';
+import 'package:ai_marketplace_app/shared/data/verification_status_summary_repository.dart';
+import 'package:ai_marketplace_app/shared/models/verification_status_summary.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../verification/fakes/fake_verification_repository.dart';
+import '../../shared/fakes/fake_verification_status_summary_repository.dart';
 import 'fakes/fake_provider_repository.dart';
 
 Future<void> _pumpStorefront(
   WidgetTester tester,
-  FakeProviderRepository repository,
-) async {
+  FakeProviderRepository repository, {
+  VerificationStatusSummary? verificationStatusSummary,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         providerRepositoryProvider.overrideWithValue(repository),
         // The Storefront screen now renders a verification-status chip
-        // (VER-001, Plan item 30) -- keep this test hermetic rather than
-        // letting it hit the real Dio client.
-        verificationRepositoryProvider.overrideWithValue(
-          FakeVerificationRepository(),
+        // (VER-001, Plan item 30) via the shared
+        // `verificationStatusSummaryProvider` -- keep this test hermetic
+        // rather than letting it hit the real Dio client.
+        verificationStatusSummaryRepositoryProvider.overrideWithValue(
+          FakeVerificationStatusSummaryRepository(
+            summary: verificationStatusSummary,
+          ),
         ),
       ],
       child: MaterialApp(
@@ -227,6 +232,58 @@ void main() {
         find.textContaining("haven't added any portfolio photos"),
         findsNothing,
       );
+    });
+  });
+
+  group('StorefrontScreen — verification-status chip (VER-001, shared data '
+      'path)', () {
+    testWidgets('renders "Verify your account" when never submitted '
+        '(null summary)', (tester) async {
+      final repository = FakeProviderRepository(
+        existingProvider: fakeExistingBusinessProvider,
+      );
+      await _pumpStorefront(tester, repository);
+
+      expect(find.text('Verify your account'), findsOneWidget);
+    });
+
+    testWidgets('renders "Under review" for underReview', (tester) async {
+      final repository = FakeProviderRepository(
+        existingProvider: fakeExistingBusinessProvider,
+      );
+      await _pumpStorefront(
+        tester,
+        repository,
+        verificationStatusSummary: VerificationStatusSummary.underReview,
+      );
+
+      expect(find.text('Under review'), findsOneWidget);
+    });
+
+    testWidgets('renders "Approved" for approved', (tester) async {
+      final repository = FakeProviderRepository(
+        existingProvider: fakeExistingBusinessProvider,
+      );
+      await _pumpStorefront(
+        tester,
+        repository,
+        verificationStatusSummary: VerificationStatusSummary.approved,
+      );
+
+      expect(find.text('Approved'), findsOneWidget);
+    });
+
+    testWidgets('renders "Rejected" for rejected', (tester) async {
+      final repository = FakeProviderRepository(
+        existingProvider: fakeExistingBusinessProvider,
+      );
+      await _pumpStorefront(
+        tester,
+        repository,
+        verificationStatusSummary: VerificationStatusSummary.rejected,
+      );
+
+      expect(find.text('Rejected'), findsOneWidget);
     });
   });
 }

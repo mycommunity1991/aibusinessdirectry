@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/data/verification_status_summary_repository.dart';
+import '../../../../shared/models/provider_type.dart';
+import '../../../../shared/models/verification_status_summary.dart';
 import '../../../../shared/widgets/app_error_message.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
@@ -12,12 +15,9 @@ import '../../../../shared/widgets/location_picker/location_capture_field.dart';
 import '../../../../shared/widgets/location_picker/location_pick_result.dart';
 import '../../../../shared/widgets/primary_button.dart';
 import '../../../../shared/widgets/weekly_hours_editor.dart';
-import '../../../verification/domain/models/verification_record.dart';
-import '../../../verification/state/verification_status_controller.dart';
 import '../../domain/models/portfolio_photo.dart';
 import '../../domain/models/provider.dart' as domain;
 import '../../domain/models/provider_exception.dart';
-import '../../domain/models/provider_type.dart';
 import '../../domain/models/update_provider_request.dart';
 import '../../domain/models/weekday_availability.dart';
 import '../../state/storefront_controller.dart';
@@ -147,32 +147,35 @@ void _showSavedSnackBar(BuildContext context) {
 /// A small verification-status chip/banner linking to S-20 (VER-001,
 /// Decision, Mobile item 30) -- the most reasonable available entry point
 /// to Verification given the Provider Dashboard (S-23) hasn't been built
-/// by any prior story. This is the *only* place `features/provider/`
-/// reaches into `features/verification/` -- a single screen-to-screen
-/// navigation link, not a shared-widget/shared-state coupling
-/// (`docs/AI/02_ARCHITECTURE.md`: "Features must not depend directly on
-/// each other").
+/// by any prior story. Reads its data from the shared
+/// [verificationStatusSummaryProvider] (`shared/data/`), not
+/// `features/verification/`, so `features/provider/` never depends
+/// directly on another feature (`docs/AI/02_ARCHITECTURE.md`: "Features
+/// must not depend directly on each other. Shared functionality belongs
+/// in shared modules.") -- only the `AppRoutes.verificationStatus` route
+/// constant (from `core/routing/`) crosses into Verification's screen.
 class _VerificationStatusChip extends ConsumerWidget {
   const _VerificationStatusChip();
 
-  String _labelFor(AppLocalizations l10n, VerificationRecord? record) {
-    if (record == null) return l10n.verificationStatusChipNotStartedLabel;
-    return switch (record.status) {
-      VerificationRecordStatus.pending ||
-      VerificationRecordStatus.underReview =>
+  String _labelFor(AppLocalizations l10n, VerificationStatusSummary? summary) {
+    return switch (summary) {
+      null || VerificationStatusSummary.notStarted =>
+        l10n.verificationStatusChipNotStartedLabel,
+      VerificationStatusSummary.underReview =>
         l10n.verificationStatusUnderReviewBadge,
-      VerificationRecordStatus.approved => l10n.verificationStatusApprovedBadge,
-      VerificationRecordStatus.rejected => l10n.verificationStatusRejectedBadge,
+      VerificationStatusSummary.approved =>
+        l10n.verificationStatusApprovedBadge,
+      VerificationStatusSummary.rejected =>
+        l10n.verificationStatusRejectedBadge,
     };
   }
 
-  IconData _iconFor(VerificationRecord? record) {
-    if (record == null) return Icons.verified_outlined;
-    return switch (record.status) {
-      VerificationRecordStatus.pending ||
-      VerificationRecordStatus.underReview => Icons.hourglass_top_outlined,
-      VerificationRecordStatus.approved => Icons.verified_outlined,
-      VerificationRecordStatus.rejected => Icons.error_outline,
+  IconData _iconFor(VerificationStatusSummary? summary) {
+    return switch (summary) {
+      null || VerificationStatusSummary.notStarted => Icons.verified_outlined,
+      VerificationStatusSummary.underReview => Icons.hourglass_top_outlined,
+      VerificationStatusSummary.approved => Icons.verified_outlined,
+      VerificationStatusSummary.rejected => Icons.error_outline,
     };
   }
 
@@ -180,9 +183,11 @@ class _VerificationStatusChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final colorScheme = Theme.of(context).colorScheme;
-    final state = ref.watch(verificationStatusControllerProvider);
+    final asyncSummary = ref.watch(verificationStatusSummaryProvider);
 
-    if (state.isLoading) return const SizedBox.shrink();
+    if (asyncSummary.isLoading) return const SizedBox.shrink();
+
+    final summary = asyncSummary.valueOrNull;
 
     return InkWell(
       key: const ValueKey('storefront-verification-status-chip'),
@@ -199,14 +204,11 @@ class _VerificationStatusChip extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            Icon(
-              _iconFor(state.record),
-              color: colorScheme.onSecondaryContainer,
-            ),
+            Icon(_iconFor(summary), color: colorScheme.onSecondaryContainer),
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                _labelFor(l10n, state.record),
+                _labelFor(l10n, summary),
                 style: TextStyle(color: colorScheme.onSecondaryContainer),
               ),
             ),

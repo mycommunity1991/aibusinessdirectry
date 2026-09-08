@@ -4,7 +4,7 @@ import '../data/provider_repository.dart';
 import '../domain/models/create_provider_request.dart';
 import '../domain/models/provider.dart' as domain;
 import '../domain/models/provider_exception.dart';
-import '../domain/models/provider_type.dart';
+import '../../../shared/models/provider_type.dart';
 
 /// The wizard's total step count -- Type (S-16), Basic Info (S-17), and
 /// Details (S-18a/b) -- shared across every provider onboarding screen so

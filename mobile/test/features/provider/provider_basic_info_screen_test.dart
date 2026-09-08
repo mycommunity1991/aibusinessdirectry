@@ -1,5 +1,5 @@
 import 'package:ai_marketplace_app/features/provider/data/provider_repository.dart';
-import 'package:ai_marketplace_app/features/provider/domain/models/provider_type.dart';
+import 'package:ai_marketplace_app/shared/models/provider_type.dart';
 import 'package:ai_marketplace_app/features/provider/state/provider_onboarding_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

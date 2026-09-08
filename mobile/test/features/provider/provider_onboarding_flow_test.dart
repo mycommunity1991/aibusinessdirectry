@@ -2,7 +2,7 @@ import 'package:ai_marketplace_app/core/routing/app_routes.dart';
 import 'package:ai_marketplace_app/features/customer/data/customer_repository.dart';
 import 'package:ai_marketplace_app/features/customer/presentation/screens/profile_settings_screen.dart';
 import 'package:ai_marketplace_app/features/provider/data/provider_repository.dart';
-import 'package:ai_marketplace_app/features/provider/domain/models/provider_type.dart';
+import 'package:ai_marketplace_app/shared/models/provider_type.dart';
 import 'package:ai_marketplace_app/features/provider/presentation/screens/choose_provider_type_screen.dart';
 import 'package:ai_marketplace_app/features/provider/presentation/screens/storefront_screen.dart';
 import 'package:ai_marketplace_app/features/provider/state/provider_onboarding_controller.dart';
