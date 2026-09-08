@@ -160,17 +160,15 @@ Current documents include:
 - AI-10 Glossary
 - AI-11 MVP Scope
 - AI-12 Technology Stack
-- AI-13 Open Decisions — **flagged gap, now three strikes:** this file is referenced by name throughout
-  `03_DOMAIN_MODEL.md`, `04_DATABASE.md`, `14_USER_FLOWS.md`, `15_SCREEN_INVENTORY.md`, and this document, but
-  does not exist anywhere in the repository. PRO-001 and PRO-002 (Sprint 4) both built their interim
-  Category-label workarounds (`providers.category_label`, now `provider.provider_category_labels`) explicitly
-  to route around the "Category Taxonomy" critical-path open decision this file is supposed to document as
-  item 1; VER-001 (Sprint 5) has since routed around item 5 (the Business Verification Bar) via a
-  config-driven design (`BUSINESS_VERIFICATION_TYPE`/`BUSINESS_VERIFICATION_DOCUMENT_REQUIRED`) for the same
-  reason. Three independent stories across two sprints have now each had to work around this file's absence.
-  This should get real follow-up as its own piece of work — at minimum creating the file with the items
-  already cited by name across the documents above — rather than being flagged a fourth time by whatever
-  story ships next.
+- AI-13 Open Decisions — **created 08 September 2026**, reconstructed from every citation of this file across
+  the codebase after three independent stories (PRO-001, PRO-002, VER-001) each had to design a flagged
+  workaround because it never existed. Items 1 (Category Taxonomy), 3 (Google Places Data Legal Review), 4
+  (Unclaimed Listing UX), 5 (Business Verification Bar), and 8 (Final Product/Company Name) are recorded Open
+  with direct textual evidence; item 9 (Launch Market Confirmation) is recorded Resolved (UAE confirmed, per
+  `00_PROJECT_CONTEXT.md`'s own changelog); items 2, 6, and 7 are unrecoverable numbering gaps flagged for the
+  CTO to fill in or confirm unused; two new items (10 — degree of manual/Wizard-of-Oz matching at launch, 11 —
+  real OCR pipeline interface confirmation) were added, surfaced by implementation work but never previously
+  tracked under any number. The CTO should review this reconstruction for accuracy.
 
 These documents are the authoritative source for all implementation decisions.
 
