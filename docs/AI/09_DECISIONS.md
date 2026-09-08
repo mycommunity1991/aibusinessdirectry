@@ -1083,6 +1083,194 @@ the client's original filename) — never derived from client input.
 
 ---
 
+# ADR-018
+
+## Title
+
+First OCR Integration Point — `DocumentOcrService` Protocol / `StubDocumentOcrService`, Explicitly Interim Pending a Confirmed Real Pipeline
+
+**Date**
+
+2026-09-08
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story VER-001 needed a provider's uploaded identity/license document to produce OCR-extracted candidate fields
+(name, ID number, expiry date) for the mobile confirmation screen (AC4: "shows OCR-extracted fields... as
+editable"). The story description itself referenced "the existing Ejari/Emirates ID pipeline," but a repo-wide
+grep during planning (`ocr|OCR|ejari|Ejari|emirates.id|EmiratesId`) confirmed no OCR pipeline, external OCR SDK,
+or Ejari integration exists anywhere in this codebase or development environment — every hit outside narrative
+`docs/AI/` documents was either this story's own future-facing text or a *behavioral* skill file
+(`.agents/skills/identity-verification/SKILL.md`) instructing agents on trust-gate discipline, not an actual
+integration. `00_PROJECT_CONTEXT.md`'s own changelog documents this codebase as a pivot from an earlier
+"MyCommunity" product (ADR-011); the "existing pipeline" language is best read as a product-level asset
+assumption carried over from planning, not literal code present in this repository. Building a new OCR engine
+from scratch, or guessing at/mocking a specific unconfirmed vendor's interface, was both out of this story's
+scope and explicitly disclaimed by the story's own text ("The OCR integration itself is stubbed pending
+confirmation of the existing... pipeline's interface... this story does not build a new OCR engine from
+scratch").
+
+### Decision
+
+`backend/app/modules/verification/services/document_ocr_service.py` defines a `DocumentOcrResult` value object
+(`full_name: str | None`, `id_number: str | None`, `expiry_date: date | None`, `confidence: float`) and a
+`DocumentOcrService` `Protocol` (`async def extract(self, content: bytes, *, document_type: DocumentType) ->
+DocumentOcrResult`). The only implementation shipped by this story, `StubDocumentOcrService`, **always** returns
+`DocumentOcrResult(full_name=None, id_number=None, expiry_date=None, confidence=0.0)` regardless of the actual
+file content — it never attempts real extraction of any kind. `VerificationService` (the preview-call handler)
+depends on the `DocumentOcrService` Protocol, never `StubDocumentOcrService` directly, wired via a
+`get_document_ocr_service()` DI provider in `verification/dependencies.py`. This satisfies AC4's structural
+requirement (a confirmation screen with editable OCR-extracted fields) while being honest that nothing was
+actually read yet — the mobile confirmation screen's copy reflects this plainly ("we couldn't automatically read
+your document yet — please fill in these details yourself"), rather than implying a real extraction happened.
+This mirrors ADR-017's `FileStorage` swappability pattern exactly: a future story, once a real OCR pipeline's
+interface is actually confirmed to exist, can add a real implementation as one new class and change one
+dependency-wiring line, with zero changes to `VerificationService` itself.
+
+### Alternatives Considered
+
+- **Build or partially reverse-engineer a specific vendor's OCR integration now** (rejected — no real pipeline,
+  SDK, or vendor credentials exist anywhere in this codebase or environment; this would be unverifiable,
+  speculative work against an interface that isn't actually confirmed, directly contrary to the story's own
+  explicit instruction not to do this).
+- **Skip the confirm-step fields entirely until real OCR exists** (rejected — AC4 explicitly requires an editable
+  confirmation step now; the Protocol/stub shape lets that UI ship honestly today without blocking on
+  infrastructure that isn't ready).
+- **Have `VerificationService` depend on `StubDocumentOcrService` directly, without a Protocol** (rejected — this
+  would require changing `VerificationService`'s own code, not just its dependency wiring, the moment a real
+  implementation exists; the Protocol costs nothing extra to introduce now and avoids that future churn).
+
+### Consequences
+
+- Any future story swapping in a real OCR implementation changes exactly one dependency-wiring line
+  (`get_document_ocr_service()`), never `VerificationService`'s own logic.
+- The stub's honesty (`confidence=0.0`, all fields `None`) must be preserved in any interim implementation —
+  no future change should make the stub *appear* to read real data without actually doing so, per this
+  project's broader "never assert ungrounded data" principle.
+- This is this codebase's first OCR integration point; any second OCR-adjacent need (e.g. a different document
+  category) should default to extending this same Protocol rather than inventing a parallel mechanism.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md
+- 03_DOMAIN_MODEL.md
+- 06_SECURITY.md
+- .agents/skills/identity-verification/SKILL.md
+- docs/implementation/plans/Plan_S05_VER-001.md
+- docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md
+- docs/implementation/walkthroughs/Walkthrough_S04_PRO-002.md (ADR-017, the `FileStorage` swappability precedent this mirrors)
+
+---
+
+# ADR-019
+
+## Title
+
+Private vs. Public File Storage — `FileStorage` Gains a `public_url_prefix` Split, an Authenticated Streaming-Download Endpoint Pattern for Sensitive Documents
+
+**Date**
+
+2026-09-08
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story VER-001 needed to store identity/license documents (Emirates ID scans, trade licenses) — data
+`06_SECURITY.md` explicitly lists under Sensitive Data, on a platform targeting UAE PDPL/GDPR-ready compliance.
+ADR-017's `FileStorage`/`LocalFileStorage` (Story PRO-002) was built for portfolio photos, which are meant to be
+public-facing (the customer-visible storefront), and its `LocalFileStorage.save()` hardcoded every stored file's
+returned reference as `f"/media/{subdirectory}/{filename}"` — i.e. it assumed every file it stores is meant to be
+served through the existing public `/media` `StaticFiles` mount. That assumption is correct for portfolios and
+directly wrong for verification documents: reusing it unmodified would mean any predictable/guessed
+`/media/verification/...` URL is publicly fetchable with no authentication at all. `06_SECURITY.md`'s generic
+File Upload Security section (MIME/extension/size validation) does not by itself cover access-control-at-rest
+for a distinct sensitivity class of file, so this had to be reasoned through independently as a new consequence
+of the file-storage infrastructure, not something ADR-017's original text anticipated.
+
+### Decision
+
+`LocalFileStorage` gains one new constructor parameter, `public_url_prefix: str | None = "/media"` — defaulting
+to today's exact existing behavior, so the pre-existing portfolio wiring (`get_file_storage()`) is entirely
+unchanged, zero behavior difference for PRO-002. When constructed with `public_url_prefix=None` (the new
+verification wiring), `save()` returns a bare storage-relative reference instead of a public URL — meaningful
+only to the backend itself, never handed to a client as a clickable link. `delete()`'s previously-hardcoded
+`removeprefix("/media/")` is generalized to use `self._public_url_prefix`. The `FileStorage` Protocol gains one
+new method, `async def read(self, url_path: str) -> bytes` (additive; `LocalFileStorage` is the only
+implementer, and `PortfolioService` never calls it, so this has zero effect on PRO-002's existing behavior).
+
+Verification documents are written under a second, completely separate root directory
+(`VERIFICATION_UPLOAD_DIR`, e.g. `uploads_private/verification`) that is **never** mounted as `StaticFiles` and
+**never** produces a `/media/...` URL (`.gitignore` gains a matching `/uploads_private/` entry alongside the
+existing `/uploads/`). Clients never receive a raw file path or public URL for a verification document: `GET
+/providers/me/verification`'s response includes, per document, a `file_download_url` pointing at a new,
+authenticated, ownership-checked streaming endpoint
+(`GET /providers/me/verification/documents/{document_id}/file`) — the mobile client's existing Dio bearer-token
+interceptor already authenticates the request, so no new authentication mechanism was needed, only an endpoint
+that runs `ensure_owner_or_not_found` (via the document → its parent record → `provider_id` chain, per ADR-015)
+before streaming bytes. The preview step writes to a fixed, deterministic, per-provider "pending" slot rather
+than a client-supplied token, self-bounding disk usage to at most one file per provider for any
+never-submitted preview — no rate limiting or cleanup job is needed to bound this.
+
+Independently confirmed, not merely claimed: the tester verified via real HTTP requests that a verification
+document is never reachable through the public `/media` mount's URL shape (404, since it was never written
+there at all); the architect assessed this as the part of the story that held up best under review, cleanly
+satisfying both `06_SECURITY.md`'s Sensitive Data handling and `02_ARCHITECTURE.md`'s "Infrastructure depends on
+Domain" dependency rule.
+
+### Alternatives Considered
+
+- **Reuse the existing public `/media` mount, unchanged, for verification documents too** (rejected outright —
+  this is the exact security-sensitive default this decision exists to avoid).
+- **A signed/expiring URL scheme (a short-lived query-string token) instead of an authenticated streaming
+  endpoint** (rejected as unnecessary complexity — the mobile client already authenticates every request via its
+  existing Dio bearer-token interceptor, so a normal authenticated `GET` is simpler and equally secure, with no
+  new expiry/signing infrastructure to build or reason about).
+- **Storing documents as `bytea` directly in Postgres** (rejected for the same reason PRO-002/ADR-017 rejected it
+  for portfolios — `verification_documents.file_url`'s own spec says "stored file reference, not the file
+  itself").
+- **A client-supplied opaque preview token, stored server-side in Redis with a TTL, instead of the deterministic
+  pending-slot path** (rejected as premature infrastructure for a single call site — a stateless, deterministic
+  per-provider path achieves the same self-bounding effect with no new moving parts).
+
+### Consequences
+
+- `FileStorage`/`LocalFileStorage` now supports two genuinely distinct storage postures — public (portfolios,
+  `public_url_prefix="/media"`) and private (verification documents, `public_url_prefix=None`) — through the same
+  small abstraction, rather than a fork. Any future sensitive-file need (e.g. a future admin-facing document)
+  should default to the private posture (`public_url_prefix=None` + an authenticated streaming endpoint) rather
+  than reusing the public mount by default.
+- A future `S3FileStorage` (per ADR-017's own interim framing) must preserve this same public/private
+  distinction — e.g. via S3 bucket ACLs/pre-signed URLs for the public case and IAM-gated, non-public access for
+  the private case — not silently collapse both postures back into one.
+- The authenticated document-download endpoint's ownership check is written so a future VER-002 admin-review
+  surface can extend it to "owner OR an Admin" without restructuring the storage split itself.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md
+- 04_DATABASE.md
+- 06_SECURITY.md
+- docs/implementation/plans/Plan_S05_VER-001.md
+- docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md
+- docs/implementation/walkthroughs/Walkthrough_S04_PRO-002.md (ADR-017, the `FileStorage`/`LocalFileStorage` origin this extends)
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

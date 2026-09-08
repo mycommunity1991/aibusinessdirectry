@@ -690,14 +690,16 @@ Backs the "Verified Visit" tag (Section 9 of `00_PROJECT_CONTEXT.md`) — a prov
 
 A trigger or service-layer hook updates `provider.providers.verification_status` (and `is_discoverable`) whenever the latest record here changes status — the `providers` column is a read-optimized cache, this table is the source of truth.
 
+**Enum-reuse note (Story VER-001):** `status` does **not** get its own Postgres enum type scoped to the `verification` schema. It reuses the exact same native `verification_status` enum type `provider.providers.verification_status` already created (Story PRO-002), mapped via `postgresql.ENUM(..., name="verification_status", schema="provider", create_type=False)` in the migration and mirrored at the ORM level (`app/modules/verification/models.py` imports `VerificationStatus` directly from `app.modules.provider.models` — a pure value-enum import, not a service/repository coupling, the same shape ADR-014 already established for `customer` reusing `identity.models.LanguageCode`). This is a deliberate deviation from a naive "colocate every enum in its own domain schema" reading: `verification_records.status` and `providers.verification_status` share the same Postgres enum OID, confirmed against a real database, rather than two identically-valued duplicate types. See `docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md` for the full decision record (this specific mechanism was not significant enough on its own to warrant a dedicated ADR; ADR-018/ADR-019 record this story's two ADR-worthy decisions — the OCR stub Protocol and the private/public storage split).
+
 ## verification_documents
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | verification_record_id | UUID | No | FK → `verification_records.id` |
 | document_type | `document_type` | No | |
-| file_url | VARCHAR(500) | No | Stored file reference, not the file itself |
-| ocr_extracted_data | JSONB | Yes | Output of the Ejari/Emirates ID OCR pipeline being reused for Freelancer verification |
+| file_url | VARCHAR(500) | No | Stored file reference, not the file itself. As shipped by Story VER-001, this is a **private**, storage-relative reference under a separate, never-mounted `VERIFICATION_UPLOAD_DIR` root — never a public `/media/...` URL (see ADR-019). Clients are never given this raw reference; the API exposes an authenticated, ownership-checked streaming-download endpoint instead. |
+| ocr_extracted_data | JSONB | Yes | As shipped by Story VER-001, this is the caller's own **confirmed/edited** field values submitted at the final "submit" step — never the raw output of an actual OCR read. No real Ejari/Emirates ID OCR pipeline exists in this codebase yet; `StubDocumentOcrService` (ADR-018) always returns empty candidate fields, honestly, pending a future story that plugs in a real, confirmed OCR pipeline. |
 
 **Indexes:** `idx_verification_documents_record_id`
 

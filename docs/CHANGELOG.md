@@ -11,6 +11,31 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Verification domain — submit my provider verification (Story VER-001): new `verification` Postgres schema
+  with `verification.verification_records` and `verification.verification_documents` tables via a reversible
+  Alembic migration. `verification_records.status` reuses `provider.verification_status`'s existing Postgres
+  enum type (`create_type=False`) rather than duplicating it. New `POST
+  /api/v1/providers/me/verification/documents/preview` (validate + OCR-stub + stash to a private pending slot;
+  writes no DB row), `POST`/`GET /api/v1/providers/me/verification` (submit / read latest status), and `GET
+  /api/v1/providers/me/verification/documents/{document_id}/file` (authenticated, ownership-checked byte
+  stream). A new swappable `DocumentOcrService` Protocol — the only implementation shipped,
+  `StubDocumentOcrService`, always returns empty candidate fields, honestly, pending a future real OCR pipeline
+  — recorded as ADR-018. `FileStorage` (ADR-017) gains a `public_url_prefix` parameter and a `read()` method so
+  verification documents are stored under a separate, never-mounted `VERIFICATION_UPLOAD_DIR` root and are never
+  reachable through the existing public `/media` mount — recorded as ADR-019. Submitting creates a `pending`
+  `verification_records` row; **this story never reads or writes `providers.verification_status`/
+  `is_discoverable`** — discoverability and verification outcome remain entirely VER-002's responsibility, not
+  yet built.
+- Mobile Verification screens (Story VER-001): a new, sibling `features/verification/` module — S-19 (document
+  upload, via a new `file_picker` Flutter dependency since `image_picker` cannot browse an arbitrary PDF), an
+  OCR-confirm step (editable fields, copy honestly framed as "we couldn't read this automatically yet"), and
+  S-20 (status view with a Resubmit action on rejection). Wired into the end of the Provider onboarding wizard
+  and a new status chip on the Storefront screen. Two small shared additions —
+  `shared/models/provider_type.dart` (moved from `features/provider/`) and two new minimal accessor
+  repositories, `CurrentProviderTypeRepository`/`VerificationStatusSummaryRepository` — keep
+  `features/provider/` and `features/verification/` from importing each other's internals directly, per
+  `02_ARCHITECTURE.md`'s "features must not depend directly on each other" rule (fixing a real coupling
+  violation caught during architect review).
 - Provider domain — manage my provider storefront (Story PRO-002): completes the Provider aggregate via a
   reversible Alembic migration adding `provider.provider_availability`, `provider.portfolios`, and
   `provider.service_areas` (all exactly per `04_DATABASE.md`'s pre-existing spec), plus a new,
