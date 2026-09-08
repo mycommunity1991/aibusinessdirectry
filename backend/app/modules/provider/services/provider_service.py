@@ -138,6 +138,52 @@ class ProviderService:
             await self.provider_category_label_repository.list_for_provider(provider_id)
         )
 
+    async def list_by_ids(self, ids: list[uuid.UUID]) -> list[Provider]:
+        """
+        Thin pass-through to `ProviderRepository.list_by_ids` (VER-002,
+        Decision 9, `Plan_S05_VER-002.md`) -- `verification`'s new
+        `AdminVerificationService` depends on `ProviderService`, never on
+        `ProviderRepository` directly, per `02_ARCHITECTURE.md`'s
+        "modules communicate through services only" rule; the actual
+        one-query `WHERE id IN (...)` batch fetch lives in the
+        repository.
+        """
+        return await self.provider_repository.list_by_ids(ids)
+
+    async def apply_verification_outcome(
+        self,
+        provider_id: uuid.UUID,
+        *,
+        verification_status: VerificationStatus,
+        is_discoverable: bool,
+    ) -> Provider:
+        """
+        Applies a verification review outcome to the cached `providers.
+        verification_status`/`is_discoverable` columns (VER-002,
+        Decision 7, `Plan_S05_VER-002.md`) -- the first write path into
+        either column since `create_provider`'s creation-time defaults
+        (PRO-001). Called by `AdminVerificationService.approve`/
+        `.reject` on the same request-scoped session, flush only, so
+        this write lands in the same transaction as the caller's
+        `verification_records` status update (AC2/AC4).
+
+        Raises `ProviderNotFoundError` defensively -- should not happen
+        in practice, since the caller always resolves `provider_id` from
+        an already-loaded `VerificationRecord`, but this method never
+        silently no-ops on a missing row.
+        """
+        provider = await self.provider_repository.get_by_id(provider_id)
+        if provider is None:
+            raise ProviderNotFoundError()
+
+        return await self.provider_repository.update(
+            provider,
+            {
+                "verification_status": verification_status,
+                "is_discoverable": is_discoverable,
+            },
+        )
+
     async def create_provider(
         self, user_id: uuid.UUID, *, payload: CreateProviderRequest
     ) -> Provider:

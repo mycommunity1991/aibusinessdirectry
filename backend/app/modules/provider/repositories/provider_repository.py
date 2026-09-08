@@ -34,3 +34,16 @@ class ProviderRepository(BaseRepository[Provider]):
         stmt = select(Provider).where(Provider.slug == slug)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def list_by_ids(self, ids: list[uuid.UUID]) -> list[Provider]:
+        """
+        Batch-fetches Providers by id in one query (VER-002, Decision 9,
+        `Plan_S05_VER-002.md`) -- used by `AdminVerificationService.
+        list_pending_for_review` to enrich a page of verification
+        records with Provider context without an N+1 query per record.
+        """
+        if not ids:
+            return []
+        stmt = select(Provider).where(Provider.id.in_(ids))
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

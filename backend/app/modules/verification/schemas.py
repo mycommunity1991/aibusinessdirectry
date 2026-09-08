@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, Field
 
-from app.modules.provider.models import VerificationStatus
+from app.modules.provider.models import ProviderType, VerificationStatus
 from app.modules.verification.models import DocumentType, VerificationType
 
 
@@ -84,3 +84,39 @@ class VerificationRecordResponse(BaseModel):
     reviewed_at: datetime | None = None
     rejection_reason: str | None = None
     documents: list[VerificationDocumentResponse] = Field(default_factory=list)
+
+
+class AdminVerificationRecordResponse(BaseModel):
+    """
+    Response payload for the admin review surface (VER-002, AC1) --
+    `GET /admin/verification/records` and the `approve`/`reject`
+    responses. Unlike `VerificationRecordResponse` (the caller's own
+    status view), this carries enough Provider context
+    (`provider_id`/`provider_display_name`/`provider_type`) for an
+    Admin acting across *every* provider's queue, and its documents'
+    `file_download_url` points at the new admin-only download route
+    (`/admin/verification/documents/{id}/file`), never the existing
+    owner-only one.
+    """
+
+    id: uuid.UUID
+    provider_id: uuid.UUID
+    provider_display_name: str
+    provider_type: ProviderType
+    verification_type: VerificationType
+    status: VerificationStatus
+    submitted_at: datetime
+    reviewed_at: datetime | None = None
+    rejection_reason: str | None = None
+    documents: list[VerificationDocumentResponse] = Field(default_factory=list)
+
+
+class RejectVerificationRequest(BaseModel):
+    """
+    Request payload for `POST /admin/verification/records/{record_id}/
+    reject` (VER-002, AC3). `min_length=1` structurally enforces "requires
+    a rejection_reason" -- a missing/empty reason 422s before the service
+    layer ever runs; no redundant service-layer check is added for this.
+    """
+
+    rejection_reason: str = Field(..., min_length=1, max_length=2000)

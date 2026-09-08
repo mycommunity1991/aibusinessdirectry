@@ -399,6 +399,23 @@ class VerificationDocumentInvalidTypeError(BusinessException):
         super().__init__(message=message, status_code=422)
 
 
+class VerificationRecordNotActionableError(BusinessException):
+    """
+    Raised by `POST /admin/verification/records/{record_id}/approve`/
+    `reject` (VER-002, Decision 6, `Plan_S05_VER-002.md`) when the
+    record's current `status` is not `pending`/`under_review` -- i.e. it
+    was already approved or rejected by an earlier action and cannot be
+    re-acted on. No separate "start review" transition exists, so this
+    is the only conflict state this pair of endpoints can be in.
+    """
+
+    def __init__(
+        self,
+        message: str = "This verification record has already been reviewed.",
+    ):
+        super().__init__(message=message, status_code=409)
+
+
 class RateLimitExceededError(BusinessException):
     """
     Raised when a client exceeds a Redis-backed fixed-window rate limit

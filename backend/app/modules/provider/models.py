@@ -113,6 +113,14 @@ class Provider(CommonColumnsMixin, Base):
     `provider_type` is immutable after creation by construction: no
     `PATCH`/`PUT` endpoint for `providers` exists anywhere in this story
     (Decision 3, `Plan_S04_PRO-001.md`).
+
+    `chk_providers_discoverable_requires_approved` (VER-002, Decision 4,
+    `Plan_S05_VER-002.md`) is a database-level defense-in-depth layer
+    for the invariant "`is_discoverable` can never be true while
+    `verification_status` is anything other than `approved`" -- kept in
+    sync here with the migration that actually creates it
+    (`provider_discoverability_invariant`), so the ORM model and the DB
+    schema never drift apart.
     """
 
     __tablename__ = "providers"
@@ -133,6 +141,10 @@ class Provider(CommonColumnsMixin, Base):
         CheckConstraint(
             "is_claimed = false OR user_id IS NOT NULL",
             name="chk_providers_claimed_has_owner",
+        ),
+        CheckConstraint(
+            "is_discoverable = false OR verification_status = 'approved'",
+            name="chk_providers_discoverable_requires_approved",
         ),
         Index("idx_providers_provider_type", "provider_type"),
         Index("idx_providers_is_discoverable", "is_discoverable"),

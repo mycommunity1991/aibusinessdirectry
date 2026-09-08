@@ -1,10 +1,13 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.provider.models import VerificationStatus
 from app.modules.verification.models import VerificationRecord
 from app.repositories.base_repository import BaseRepository
+
+_REVIEWABLE_STATUSES = (VerificationStatus.PENDING, VerificationStatus.UNDER_REVIEW)
 
 
 class VerificationRecordRepository(BaseRepository[VerificationRecord]):
@@ -32,3 +35,30 @@ class VerificationRecordRepository(BaseRepository[VerificationRecord]):
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def list_for_review(
+        self, *, offset: int, limit: int
+    ) -> tuple[list[VerificationRecord], int]:
+        """
+        Lists `pending`/`under_review` records for the admin review
+        queue (VER-002, AC1), oldest `submitted_at` first -- a review
+        queue shouldn't let an old submission be perpetually skipped by
+        newer ones jumping the line -- plus a total count for
+        `PaginationMeta`.
+        """
+        filtered = select(VerificationRecord).where(
+            VerificationRecord.status.in_(_REVIEWABLE_STATUSES)
+        )
+
+        count_result = await self.session.execute(
+            select(func.count()).select_from(filtered.subquery())
+        )
+        total = count_result.scalar_one()
+
+        stmt = (
+            filtered.order_by(VerificationRecord.submitted_at.asc())
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all()), total

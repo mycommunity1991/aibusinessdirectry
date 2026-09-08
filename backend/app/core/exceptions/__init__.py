@@ -27,6 +27,7 @@ from app.core.exceptions.exceptions import (
     VerificationDocumentNotFoundError,
     VerificationDocumentRequiredError,
     VerificationDocumentTooLargeError,
+    VerificationRecordNotActionableError,
     VerificationRecordNotFoundError,
     VerificationSubmissionNotAllowedError,
 )
@@ -53,6 +54,7 @@ __all__ = [
     "InvalidCategoryLabelsError",
     "SubtypeDetailsMismatchError",
     "VerificationRecordNotFoundError",
+    "VerificationRecordNotActionableError",
     "VerificationDocumentNotFoundError",
     "VerificationSubmissionNotAllowedError",
     "VerificationDocumentRequiredError",

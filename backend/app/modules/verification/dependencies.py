@@ -7,6 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.database.session import get_db
+from app.modules.administration.dependencies import get_admin_action_log_service
+from app.modules.administration.services.admin_action_log_service import (
+    AdminActionLogService,
+)
+from app.modules.notification.dependencies import get_notification_service
+from app.modules.notification.services.notification_service import NotificationService
 from app.modules.provider.dependencies import get_provider_service
 from app.modules.provider.services.provider_service import ProviderService
 from app.modules.verification.repositories.verification_document_repository import (
@@ -14,6 +20,9 @@ from app.modules.verification.repositories.verification_document_repository impo
 )
 from app.modules.verification.repositories.verification_record_repository import (
     VerificationRecordRepository,
+)
+from app.modules.verification.services.admin_verification_service import (
+    AdminVerificationService,
 )
 from app.modules.verification.services.document_ocr_service import (
     DocumentOcrService,
@@ -96,4 +105,42 @@ def get_verification_service(
         verification_document_repository=verification_document_repository,
         verification_file_storage=verification_file_storage,
         document_ocr_service=document_ocr_service,
+    )
+
+
+def get_admin_verification_service(
+    verification_record_repository: Annotated[
+        VerificationRecordRepository, Depends(get_verification_record_repository)
+    ],
+    verification_document_repository: Annotated[
+        VerificationDocumentRepository, Depends(get_verification_document_repository)
+    ],
+    verification_file_storage: Annotated[
+        FileStorage, Depends(get_verification_file_storage)
+    ],
+    provider_service: Annotated[ProviderService, Depends(get_provider_service)],
+    admin_action_log_service: Annotated[
+        AdminActionLogService, Depends(get_admin_action_log_service)
+    ],
+    notification_service: Annotated[
+        NotificationService, Depends(get_notification_service)
+    ],
+) -> AdminVerificationService:
+    """
+    Provides an `AdminVerificationService` bound to the request-scoped
+    DB session (VER-002, Decision 7, `Plan_S05_VER-002.md`).
+
+    Imports `get_provider_service` (`provider/dependencies.py`),
+    `get_admin_action_log_service` (`administration/dependencies.py`),
+    and `get_notification_service` (`notification/dependencies.py`) --
+    the identical one-directional, cross-module constructor-injection
+    shape ADR-014/ADR-016/VER-001's own Decision 9 already established.
+    """
+    return AdminVerificationService(
+        verification_record_repository=verification_record_repository,
+        verification_document_repository=verification_document_repository,
+        provider_service=provider_service,
+        admin_action_log_service=admin_action_log_service,
+        notification_service=notification_service,
+        verification_file_storage=verification_file_storage,
     )

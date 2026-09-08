@@ -60,9 +60,11 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
     """
     from sqlalchemy.ext.asyncio import create_async_engine
 
+    import app.modules.administration.models  # noqa: F401 - registers admin_action_log
     import app.modules.audit.models  # noqa: F401 - registers the audit_logs table
     import app.modules.customer.models  # noqa: F401 - registers customer tables
     import app.modules.identity.models  # noqa: F401 - registers identity tables
+    import app.modules.notification.models  # noqa: F401 - registers notification tables
     import app.modules.provider.models  # noqa: F401 - registers provider tables
     import app.modules.verification.models  # noqa: F401 - registers verification tables
     from app.database.base import Base
@@ -75,6 +77,8 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS customer"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS provider"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS verification"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS administration"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS notification"))
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
@@ -86,6 +90,8 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("DROP SCHEMA IF EXISTS customer CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS provider CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS verification CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS administration CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS notification CASCADE"))
     await engine.dispose()
 
 
@@ -96,6 +102,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     after every test so tests remain isolated from one another regardless
     of whether the test (or the code under test) committed.
     """
+    from app.modules.administration.models import AdminActionLog
     from app.modules.audit.models import AuditLog
     from app.modules.customer.models import (
         CustomerPreferences,
@@ -113,6 +120,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         User,
         UserRole,
     )
+    from app.modules.notification.models import Notification
     from app.modules.provider.models import (
         BusinessProfile,
         FreelancerProfile,
@@ -135,6 +143,8 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     async with db_engine.begin() as conn:
         for model in (
             AuditLog,
+            AdminActionLog,
+            Notification,
             SavedAddress,
             CustomerPreferences,
             CustomerProfile,
