@@ -46,10 +46,6 @@ from app.modules.verification.repositories.verification_record_repository import
 )
 from app.shared.storage.interfaces import FileStorage
 
-_ACTIONABLE_STATUSES = frozenset(
-    {VerificationStatus.PENDING, VerificationStatus.UNDER_REVIEW}
-)
-
 
 class AdminVerificationService:
     """
@@ -139,15 +135,10 @@ class AdminVerificationService:
         Business Providers, Decision 5), the `admin_action_log` write
         (AC6), and the notification send (AC5).
         """
-        record = await self._get_actionable_record_or_raise(record_id)
-
-        record = await self.verification_record_repository.update(
-            record,
-            {
-                "status": VerificationStatus.APPROVED,
-                "reviewed_by": admin_user_id,
-                "reviewed_at": datetime.now(UTC),
-            },
+        record = await self._claim_record_or_raise(
+            record_id,
+            new_status=VerificationStatus.APPROVED,
+            reviewed_by=admin_user_id,
         )
 
         provider = await self.provider_service.apply_verification_outcome(
@@ -178,16 +169,11 @@ class AdminVerificationService:
         Rejects a `pending`/`under_review` record (AC3). `is_discoverable`
         is **never** set `True` here, unconditionally -- both subtypes.
         """
-        record = await self._get_actionable_record_or_raise(record_id)
-
-        record = await self.verification_record_repository.update(
-            record,
-            {
-                "status": VerificationStatus.REJECTED,
-                "reviewed_by": admin_user_id,
-                "reviewed_at": datetime.now(UTC),
-                "rejection_reason": rejection_reason,
-            },
+        record = await self._claim_record_or_raise(
+            record_id,
+            new_status=VerificationStatus.REJECTED,
+            reviewed_by=admin_user_id,
+            rejection_reason=rejection_reason,
         )
 
         provider = await self.provider_service.apply_verification_outcome(
@@ -248,12 +234,39 @@ class AdminVerificationService:
             verification_record_id=record.id,
         )
 
-    async def _get_actionable_record_or_raise(
-        self, record_id: uuid.UUID
+    async def _claim_record_or_raise(
+        self,
+        record_id: uuid.UUID,
+        *,
+        new_status: VerificationStatus,
+        reviewed_by: uuid.UUID,
+        rejection_reason: str | None = None,
     ) -> VerificationRecord:
+        """
+        Looks up the record (404 if it doesn't exist at all), then
+        atomically claims it via `try_claim_for_review` -- a single
+        conditional `UPDATE` that only succeeds if the record is still
+        `pending`/`under_review` at the moment it executes, closing the
+        read-then-write race window a plain fetch-then-update would
+        leave open between two concurrent admin actions on the same
+        record (AC6/AC8's "exactly one" guarantee). Raises 409 if the
+        claim is lost (already reviewed by this call or a concurrent
+        one), and refreshes `record` in place so its Python attributes
+        reflect the just-applied transition before returning it.
+        """
         record = await self.verification_record_repository.get_by_id(record_id)
         if record is None:
             raise VerificationRecordNotFoundError()
-        if record.status not in _ACTIONABLE_STATUSES:
+
+        claimed = await self.verification_record_repository.try_claim_for_review(
+            record_id,
+            new_status=new_status,
+            reviewed_by=reviewed_by,
+            reviewed_at=datetime.now(UTC),
+            rejection_reason=rejection_reason,
+        )
+        if not claimed:
             raise VerificationRecordNotActionableError()
+
+        await self.verification_record_repository.session.refresh(record)
         return record

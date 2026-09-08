@@ -1,6 +1,8 @@
 import uuid
+from datetime import datetime
 
 from sqlalchemy import func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.provider.models import VerificationStatus
@@ -62,3 +64,59 @@ class VerificationRecordRepository(BaseRepository[VerificationRecord]):
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all()), total
+
+    async def try_claim_for_review(
+        self,
+        record_id: uuid.UUID,
+        *,
+        new_status: VerificationStatus,
+        reviewed_by: uuid.UUID,
+        reviewed_at: datetime,
+        rejection_reason: str | None = None,
+    ) -> bool:
+        """
+        Atomically transitions a record out of `pending`/`under_review`
+        into `new_status`, but only if it is *still* in one of those
+        states at the moment this statement executes (VER-002, AC6/AC8
+        concurrency fix).
+
+        A plain read-then-write (fetch the record, check its status in
+        Python, then `UPDATE` it) leaves a window where two concurrent
+        `approve`/`reject` calls on the *same* record can both pass the
+        Python-level check before either commits, each going on to write
+        its own `admin_action_log`/`notification` row for what should be
+        one logical action. A single conditional `UPDATE ... WHERE status
+        IN (...)` closes that window: Postgres takes a row lock on the
+        first matching writer, and a concurrent second `UPDATE` targeting
+        the same row blocks until the first commits, then re-evaluates
+        this statement's own `WHERE` clause against the now-current
+        (already-transitioned) row -- so at most one caller's `UPDATE`
+        can ever match, even under true concurrency, regardless of
+        transaction isolation level.
+
+        Returns `True` if this call won the race and applied the
+        transition, `False` if the record was no longer actionable
+        (already claimed by a concurrent call, or already reviewed) --
+        the caller is expected to raise `VerificationRecordNotActionableError`
+        in that case.
+        """
+        stmt = (
+            sql_update(VerificationRecord)
+            .where(
+                VerificationRecord.id == record_id,
+                VerificationRecord.status.in_(_REVIEWABLE_STATUSES),
+            )
+            .values(
+                status=new_status,
+                reviewed_by=reviewed_by,
+                reviewed_at=reviewed_at,
+                rejection_reason=rejection_reason,
+            )
+        )
+        result = await self.session.execute(stmt)
+        await self.session.flush()
+        # `Result`'s type stubs don't expose `rowcount` (it's a
+        # `CursorResult`-only attribute, always present at runtime for a
+        # Core `UPDATE`/`DELETE` statement executed this way).
+        rowcount: int = result.rowcount  # type: ignore[attr-defined]
+        return rowcount == 1

@@ -5,6 +5,7 @@ database (`tests/conftest.py`'s `db_session` fixture) and a real
 `LocalFileStorage` writing to a temporary directory.
 """
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +13,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import (
     VerificationDocumentNotFoundError,
@@ -344,6 +346,81 @@ class TestConflictOnAlreadyReviewedRecord:
 
         with pytest.raises(VerificationRecordNotFoundError):
             await service.approve(admin_user.id, record_id=uuid.uuid4())
+
+
+class TestConcurrentApprovalRace:
+    """
+    Regression test for a genuine, empirically-reproduced race condition
+    found during VER-002's independent QA review: with a plain
+    read-then-write update, two truly concurrent `approve()` calls on
+    the *same* record could both pass the in-Python status check before
+    either committed, each going on to write its own
+    `admin_action_log`/`notification` row for what should be one
+    logical action -- violating AC6/AC8's "exactly one" guarantee.
+
+    Fixed by `VerificationRecordRepository.try_claim_for_review`: a
+    single conditional `UPDATE ... WHERE status IN (...)`, which
+    Postgres itself serializes via row-level locking, so at most one
+    caller's `UPDATE` can ever match regardless of true concurrency.
+
+    Uses two independent `AsyncSession`s bound to the same test engine
+    so the two `approve()` calls run as genuinely separate Postgres
+    transactions/connections -- two calls sharing one session would
+    never have exhibited this race at all.
+    """
+
+    async def test_two_concurrent_approve_calls_on_the_same_record_only_one_wins(
+        self, db_engine: AsyncEngine, db_session, tmp_path: Path
+    ) -> None:
+        admin_user = await _create_user(db_session, "1004500001")
+        owner = await _create_user(db_session, "1004500002")
+        provider = await _create_provider(
+            db_session, owner, provider_type=ProviderType.FREELANCER
+        )
+        record = await _create_record(db_session, provider)
+
+        session_factory = async_sessionmaker(bind=db_engine, expire_on_commit=False)
+
+        async def _attempt() -> str:
+            async with session_factory() as session:
+                service = _admin_verification_service(session, tmp_path)
+                try:
+                    await service.approve(admin_user.id, record_id=record.id)
+                    await session.commit()
+                    return "approved"
+                except VerificationRecordNotActionableError:
+                    await session.rollback()
+                    return "conflict"
+
+        results = await asyncio.gather(_attempt(), _attempt())
+
+        assert sorted(results) == ["approved", "conflict"]
+
+        action_logs = (
+            (
+                await db_session.execute(
+                    select(AdminActionLog).where(
+                        AdminActionLog.target_entity_id == record.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(action_logs) == 1
+
+        notifications = (
+            (
+                await db_session.execute(
+                    select(Notification).where(
+                        Notification.related_entity_id == record.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(notifications) == 1
 
 
 class TestSideEffectRowCounts:
