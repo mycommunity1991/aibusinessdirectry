@@ -5,10 +5,11 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.modules.provider.models import ProviderType, VerificationStatus
+from app.modules.provider.models import ProviderType, VerificationStatus, Weekday
 
 _COUNTRY_CODE_PATTERN = r"^[A-Z]{2}$"
 _HOUR_PATTERN = r"^([01]\d|2[0-3]):[0-5]\d$"
+_MAX_CATEGORY_LABELS = 5
 
 
 class OperatingHoursEntry(BaseModel):
@@ -180,6 +181,24 @@ class FreelancerProfileResponse(BaseModel):
     years_experience: int | None = None
 
 
+class CategoryLabelInput(BaseModel):
+    """One free-text category label in a `PATCH /providers/me`
+    `category_labels` replace payload (PRO-002, Decision 1,
+    `Plan_S04_PRO-002.md`)."""
+
+    label: str = Field(..., max_length=100, description='e.g. "Plumbing".')
+    is_primary: bool = Field(
+        default=False, description="Exactly one label in the set must be primary."
+    )
+
+
+class CategoryLabelResponse(BaseModel):
+    """Response shape mirroring `CategoryLabelInput`."""
+
+    label: str
+    is_primary: bool
+
+
 class ProviderResponse(BaseModel):
     """Response payload for `GET`/`POST /providers/me`."""
 
@@ -189,7 +208,14 @@ class ProviderResponse(BaseModel):
     phone_country_code: str | None = None
     phone_number: str | None = None
     whatsapp_number: str | None = None
-    category_label: str
+    category_labels: list[CategoryLabelResponse] = Field(
+        default_factory=list,
+        description=(
+            "PRO-002, Decision 1 -- a deliberate breaking change from "
+            "PRO-001's singular `category_label` string, since this API "
+            "has no external consumers yet."
+        ),
+    )
     description: str | None = None
     slug: str = Field(
         ..., description="Server-generated; used in shareable profile deep links."
@@ -205,3 +231,160 @@ class ProviderResponse(BaseModel):
     country_code: str
     business_profile: BusinessProfileResponse | None = None
     freelancer_profile: FreelancerProfileResponse | None = None
+
+
+class UpdateBusinessDetailsRequest(BaseModel):
+    """
+    Partial update of a Business Provider's subtype details for `PATCH
+    /providers/me` (PRO-002). Same fields as `CreateBusinessDetailsRequest`,
+    all optional (`exclude_unset` semantics) -- deliberately excludes
+    `country_code`, which is not editable via this story's surface.
+    """
+
+    address_line: str | None = Field(None, max_length=500)
+    city: str | None = Field(None, max_length=100)
+    region: str | None = Field(None, max_length=100)
+    latitude: float | None = Field(None, ge=-90, le=90)
+    longitude: float | None = Field(None, ge=-180, le=180)
+    operating_hours: dict[str, OperatingHoursEntry | None] | None = None
+    delivery_radius_meters: int | None = Field(None, gt=0)
+    trade_license_number: str | None = Field(None, max_length=100)
+
+
+class UpdateFreelancerDetailsRequest(BaseModel):
+    """
+    Partial update of a Freelancer Provider's subtype details for `PATCH
+    /providers/me` (PRO-002). Same fields as
+    `CreateFreelancerDetailsRequest`, all optional -- deliberately
+    excludes `country_code`.
+    """
+
+    base_latitude: float | None = Field(None, ge=-90, le=90)
+    base_longitude: float | None = Field(None, ge=-180, le=180)
+    service_radius_meters: int | None = Field(None, gt=0)
+    skills: list[str] | None = None
+    years_experience: int | None = Field(None, ge=0)
+
+
+class UpdateProviderRequest(BaseModel):
+    """
+    Request payload for `PATCH /providers/me` (PRO-002, AC5) -- partial
+    update of basic info, category labels, and subtype-specific details.
+    Only fields actually present in the request body are applied
+    (`exclude_unset`, enforced at the API layer via
+    `payload.model_dump(exclude_unset=True)`). `provider_type` is
+    deliberately not a field here at all -- it remains immutable
+    (PRO-001, Decision 3).
+    """
+
+    display_name: str | None = Field(None, max_length=200)
+    phone_country_code: str | None = Field(None, max_length=5)
+    phone_number: str | None = Field(None, max_length=20)
+    whatsapp_number: str | None = Field(None, max_length=20)
+    description: str | None = None
+    category_labels: list[CategoryLabelInput] | None = Field(
+        None,
+        max_length=_MAX_CATEGORY_LABELS,
+        description=(
+            "When present, replaces the provider's entire label set "
+            "(Decision 1, `Plan_S04_PRO-002.md`) -- capped at 5, exactly "
+            "one must be `is_primary=true`."
+        ),
+    )
+    business_details: UpdateBusinessDetailsRequest | None = Field(
+        None,
+        description=(
+            "Rejected (400) if the provider's actual `provider_type` is "
+            "not `business` (Decision 8, `Plan_S04_PRO-002.md`)."
+        ),
+    )
+    freelancer_details: UpdateFreelancerDetailsRequest | None = Field(
+        None,
+        description=(
+            "Rejected (400) if the provider's actual `provider_type` is "
+            "not `freelancer`."
+        ),
+    )
+
+
+class PortfolioPhotoResponse(BaseModel):
+    """Response payload for one of the caller's own portfolio photos
+    (PRO-002, AC2)."""
+
+    id: uuid.UUID
+    media_url: str = Field(
+        ..., description="A relative, served URL path, e.g. `/media/portfolios/...`."
+    )
+    caption: str | None = None
+    sort_order: int
+
+
+class ReorderPortfolioRequest(BaseModel):
+    """
+    Request payload for `PUT /providers/me/portfolio/order` (PRO-002,
+    Decision 4). Must be exactly the full set of the caller's own active
+    photo ids -- no more, no fewer, no duplicates -- or the request is
+    rejected (422) before any row is touched.
+    """
+
+    ordered_ids: list[uuid.UUID] = Field(
+        ..., description="The caller's own active photo ids, in the desired order."
+    )
+
+
+class WeekdayAvailabilityInput(BaseModel):
+    """
+    One weekday's availability in a `PUT /providers/me/availability`
+    request (PRO-002, AC3). `is_open=true` requires both `open_time` and
+    `close_time`; `is_open=false` requires neither.
+    """
+
+    weekday: Weekday
+    is_open: bool
+    open_time: str | None = Field(
+        None, pattern=_HOUR_PATTERN, description='24-hour "HH:MM".'
+    )
+    close_time: str | None = Field(
+        None, pattern=_HOUR_PATTERN, description='24-hour "HH:MM".'
+    )
+    is_emergency_available: bool = Field(
+        default=False, description="A separate urgent/emergency-availability flag."
+    )
+
+    @model_validator(mode="after")
+    def _validate_times_match_is_open(self) -> WeekdayAvailabilityInput:
+        if self.is_open:
+            if self.open_time is None or self.close_time is None:
+                raise ValueError("is_open=true requires both open_time and close_time.")
+        elif self.open_time is not None or self.close_time is not None:
+            raise ValueError(
+                "is_open=false requires open_time and close_time to be null."
+            )
+        return self
+
+
+class WeekdayAvailabilityResponse(BaseModel):
+    """Response shape mirroring `WeekdayAvailabilityInput` -- always
+    returned as exactly 7 entries (Decision 3, `Plan_S04_PRO-002.md`)."""
+
+    weekday: Weekday
+    is_open: bool
+    open_time: str | None = None
+    close_time: str | None = None
+    is_emergency_available: bool
+
+
+class UpdateAvailabilityRequest(BaseModel):
+    """
+    Request payload for `PUT /providers/me/availability` (PRO-002,
+    Decision 3) -- upserts up to seven weekday entries in one call.
+    """
+
+    entries: list[WeekdayAvailabilityInput] = Field(..., max_length=7)
+
+    @model_validator(mode="after")
+    def _validate_no_duplicate_weekdays(self) -> UpdateAvailabilityRequest:
+        weekdays = [entry.weekday for entry in self.entries]
+        if len(weekdays) != len(set(weekdays)):
+            raise ValueError("Each weekday may appear at most once per request.")
+        return self

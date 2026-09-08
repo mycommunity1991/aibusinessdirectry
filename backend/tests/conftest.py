@@ -113,7 +113,11 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     from app.modules.provider.models import (
         BusinessProfile,
         FreelancerProfile,
+        Portfolio,
         Provider,
+        ProviderAvailability,
+        ProviderCategoryLabel,
+        ServiceArea,
     )
 
     session_factory = async_sessionmaker(bind=db_engine, expire_on_commit=False)
@@ -127,6 +131,10 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             SavedAddress,
             CustomerPreferences,
             CustomerProfile,
+            Portfolio,
+            ProviderAvailability,
+            ServiceArea,
+            ProviderCategoryLabel,
             BusinessProfile,
             FreelancerProfile,
             Provider,

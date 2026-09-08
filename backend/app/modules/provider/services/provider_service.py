@@ -1,5 +1,6 @@
 """
-Provider creation and self-service lookup (PRO-001).
+Provider creation, self-service lookup, and storefront basic-info
+updates (PRO-001/PRO-002).
 
 `create_provider` takes `RoleAssignmentService` (from `identity`) as a
 constructor dependency and calls it to grant `ROLE_PROVIDER` on the same
@@ -9,6 +10,14 @@ only transaction boundary (Decision 1, `Plan_S04_PRO-001.md`). This is
 the only cross-module dependency `ProviderService` has: it depends on
 `identity`'s service, never on `RoleRepository`/`UserRole` directly, per
 `02_ARCHITECTURE.md`'s "modules communicate through services only" rule.
+
+`update_basic_info` (PRO-002) is `PATCH /providers/me`'s handler --
+partial update (`exclude_unset`) of basic info, an optional
+`category_labels` replace (Decision 1, `Plan_S04_PRO-002.md`), and an
+optional subtype-details partial update, rejected (400) if the payload's
+details object doesn't match the provider's actual `provider_type`
+(Decision 8). Neither this nor `create_provider` ever reads or writes
+`verification_status`/`is_discoverable` (AC6) -- VER-001 hasn't shipped.
 """
 
 import re
@@ -18,7 +27,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.core.constants import ROLE_PROVIDER
-from app.core.exceptions import ProviderAlreadyExistsError
+from app.core.exceptions import (
+    InvalidCategoryLabelsError,
+    ProviderAlreadyExistsError,
+    ProviderNotFoundError,
+    SubtypeDetailsMismatchError,
+)
 from app.modules.identity.services.role_assignment_service import (
     RoleAssignmentService,
 )
@@ -27,6 +41,7 @@ from app.modules.provider.models import (
     FreelancerProfile,
     ListingSource,
     Provider,
+    ProviderCategoryLabel,
     ProviderType,
     VerificationStatus,
 )
@@ -36,8 +51,16 @@ from app.modules.provider.repositories.business_profile_repository import (
 from app.modules.provider.repositories.freelancer_profile_repository import (
     FreelancerProfileRepository,
 )
+from app.modules.provider.repositories.provider_category_label_repository import (
+    ProviderCategoryLabelRepository,
+)
 from app.modules.provider.repositories.provider_repository import ProviderRepository
+from app.modules.provider.repositories.service_area_repository import (
+    ServiceAreaRepository,
+)
 from app.modules.provider.schemas import CreateProviderRequest
+
+_MAX_CATEGORY_LABELS = 5
 
 _SLUG_INVALID_CHARS = re.compile(r"[^a-z0-9]+")
 _SLUG_SUFFIX_BYTES = 3  # -> 6 hex characters
@@ -66,11 +89,15 @@ class ProviderService:
         provider_repository: ProviderRepository,
         business_profile_repository: BusinessProfileRepository,
         freelancer_profile_repository: FreelancerProfileRepository,
+        provider_category_label_repository: ProviderCategoryLabelRepository,
+        service_area_repository: ServiceAreaRepository,
         role_assignment_service: RoleAssignmentService,
     ) -> None:
         self.provider_repository = provider_repository
         self.business_profile_repository = business_profile_repository
         self.freelancer_profile_repository = freelancer_profile_repository
+        self.provider_category_label_repository = provider_category_label_repository
+        self.service_area_repository = service_area_repository
         self.role_assignment_service = role_assignment_service
 
     async def get_my_provider(self, user_id: uuid.UUID) -> Provider | None:
@@ -101,6 +128,15 @@ class ProviderService:
             await self.freelancer_profile_repository.get_by_provider_id(provider.id)
         )
         return None, freelancer_profile
+
+    async def get_category_labels(
+        self, provider_id: uuid.UUID
+    ) -> list[ProviderCategoryLabel]:
+        """Fetches a provider's current category labels -- used by the
+        API layer to build `ProviderResponse.category_labels`."""
+        return list(
+            await self.provider_category_label_repository.list_for_provider(provider_id)
+        )
 
     async def create_provider(
         self, user_id: uuid.UUID, *, payload: CreateProviderRequest
@@ -143,7 +179,6 @@ class ProviderService:
                 "phone_country_code": payload.phone_country_code,
                 "phone_number": payload.phone_number,
                 "whatsapp_number": payload.whatsapp_number,
-                "category_label": payload.category_label,
                 "listing_source": ListingSource.SELF_REGISTERED,
                 "is_claimed": True,
                 "claimed_at": datetime.now(UTC),
@@ -154,11 +189,24 @@ class ProviderService:
             }
         )
 
+        # PRO-002, Decision 1: the single `category_label` string
+        # submitted at onboarding becomes the provider's first (and
+        # primary) `provider_category_labels` row.
+        await self.provider_category_label_repository.replace_all(
+            provider.id, [{"label": payload.category_label, "is_primary": True}]
+        )
+
         if payload.provider_type == ProviderType.BUSINESS:
             # enforced by CreateProviderRequest's schema validator
             assert payload.business_details is not None
             await self.business_profile_repository.create(
                 self._business_profile_fields(provider.id, payload)
+            )
+            await self.service_area_repository.upsert_for_provider(
+                provider.id,
+                center_latitude=payload.business_details.latitude,
+                center_longitude=payload.business_details.longitude,
+                radius_meters=payload.business_details.delivery_radius_meters or 0,
             )
         else:
             # enforced by CreateProviderRequest's schema validator
@@ -166,10 +214,129 @@ class ProviderService:
             await self.freelancer_profile_repository.create(
                 self._freelancer_profile_fields(provider.id, payload)
             )
+            await self.service_area_repository.upsert_for_provider(
+                provider.id,
+                center_latitude=payload.freelancer_details.base_latitude,
+                center_longitude=payload.freelancer_details.base_longitude,
+                radius_meters=payload.freelancer_details.service_radius_meters,
+            )
 
         await self.role_assignment_service.ensure_role_assigned(user_id, ROLE_PROVIDER)
 
         return provider
+
+    async def update_basic_info(
+        self, user_id: uuid.UUID, *, fields: dict[str, Any]
+    ) -> Provider:
+        """
+        `PATCH /providers/me`'s handler (PRO-002, AC5). `fields` is
+        already `exclude_unset`-filtered at the API layer -- only keys
+        actually present in the request body are applied here.
+
+        Never touches `verification_status`/`is_discoverable` (AC6) --
+        those are not accepted fields on `UpdateProviderRequest` at all.
+        `provider_type` is likewise never accepted, so it remains
+        immutable (PRO-001, Decision 3).
+        """
+        provider = await self.provider_repository.get_by_user_id(user_id)
+        if provider is None:
+            raise ProviderNotFoundError()
+
+        basic_field_names = {
+            "display_name",
+            "phone_country_code",
+            "phone_number",
+            "whatsapp_number",
+            "description",
+        }
+        basic_fields = {k: v for k, v in fields.items() if k in basic_field_names}
+        if basic_fields:
+            provider = await self.provider_repository.update(provider, basic_fields)
+
+        category_labels = fields.get("category_labels")
+        if category_labels is not None:
+            await self._replace_category_labels(provider.id, category_labels)
+
+        business_details = fields.get("business_details")
+        if business_details is not None:
+            if provider.provider_type != ProviderType.BUSINESS:
+                raise SubtypeDetailsMismatchError()
+            await self._apply_business_details_update(provider, business_details)
+
+        freelancer_details = fields.get("freelancer_details")
+        if freelancer_details is not None:
+            if provider.provider_type != ProviderType.FREELANCER:
+                raise SubtypeDetailsMismatchError()
+            await self._apply_freelancer_details_update(provider, freelancer_details)
+
+        return provider
+
+    async def _replace_category_labels(
+        self, provider_id: uuid.UUID, category_labels: list[dict[str, Any]]
+    ) -> None:
+        """
+        Validates the exactly-one-primary rule and the 5-label cap
+        (AC4, Decision 1, `Plan_S04_PRO-002.md`) before replacing the
+        provider's entire label set transactionally, in one flush.
+        """
+        if not category_labels or len(category_labels) > _MAX_CATEGORY_LABELS:
+            raise InvalidCategoryLabelsError()
+
+        primary_count = sum(1 for label in category_labels if label.get("is_primary"))
+        if primary_count != 1:
+            raise InvalidCategoryLabelsError()
+
+        await self.provider_category_label_repository.replace_all(
+            provider_id, category_labels
+        )
+
+    async def _apply_business_details_update(
+        self, provider: Provider, details: dict[str, Any]
+    ) -> None:
+        business_profile = await self.business_profile_repository.get_by_provider_id(
+            provider.id
+        )
+        if business_profile is None:
+            raise ProviderNotFoundError()
+
+        # `details` is already plain-dict-shaped (the API layer builds
+        # `fields` via `payload.model_dump(exclude_unset=True)`, which
+        # recursively converts nested `OperatingHoursEntry` models into
+        # plain dicts matching `business_profiles.operating_hours`'s
+        # JSONB shape directly) -- no further conversion needed here.
+        updated = await self.business_profile_repository.update(
+            business_profile, details
+        )
+
+        # Decision, item 1 (`Plan_S04_PRO-002.md`): `service_areas` is
+        # derived data, kept in sync whenever the subtype profile's
+        # location/radius fields are edited.
+        await self.service_area_repository.upsert_for_provider(
+            provider.id,
+            center_latitude=updated.latitude,
+            center_longitude=updated.longitude,
+            radius_meters=updated.delivery_radius_meters or 0,
+        )
+
+    async def _apply_freelancer_details_update(
+        self, provider: Provider, details: dict[str, Any]
+    ) -> None:
+        freelancer_profile = (
+            await self.freelancer_profile_repository.get_by_provider_id(provider.id)
+        )
+        if freelancer_profile is None:
+            raise ProviderNotFoundError()
+
+        updated = await self.freelancer_profile_repository.update(
+            freelancer_profile, details
+        )
+
+        await self.service_area_repository.upsert_for_provider(
+            provider.id,
+            center_latitude=updated.base_latitude,
+            center_longitude=updated.base_longitude,
+            radius_meters=updated.service_radius_meters,
+        )
 
     @staticmethod
     def _business_profile_fields(

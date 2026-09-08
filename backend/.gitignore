@@ -67,3 +67,8 @@ venv.bak/
 
 # OS-specific
 .DS_Store
+
+# Local file uploads (PRO-002, Decision 2, `Plan_S04_PRO-002.md`) --
+# `LocalFileStorage`'s default `UPLOAD_DIR`, explicitly interim until a
+# future story adds real cloud (S3) storage.
+/uploads/

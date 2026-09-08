@@ -86,6 +86,14 @@ class Settings(BaseSettings):
     GOOGLE_OAUTH_CLIENT_ID: str
     APPLE_OAUTH_CLIENT_IDS: list[str] | str
 
+    # File upload settings (PRO-002, Decision 2 -- `LocalFileStorage`,
+    # explicitly interim until a future story adds `S3FileStorage`).
+    # `UPLOAD_DIR` is git-ignored; served back to clients via a
+    # `StaticFiles` mount at `/media` (`app/main.py`).
+    UPLOAD_DIR: str = "uploads"
+    MAX_PORTFOLIO_PHOTO_SIZE_BYTES: int = 5_242_880
+    MAX_PORTFOLIO_PHOTOS_PER_PROVIDER: int = 20
+
     # Config dict to support loading from parent .env or current .env
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

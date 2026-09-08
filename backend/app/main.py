@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from app.api.router import api_router
 from app.core.config import settings
@@ -27,3 +30,11 @@ register_exception_handlers(app)
 
 # Include root API router
 app.include_router(api_router, prefix=settings.API_PREFIX)
+
+# Serve uploaded files (PRO-002, Decision 2, `Plan_S04_PRO-002.md`) --
+# `LocalFileStorage` writes under `settings.UPLOAD_DIR`; this mount
+# serves them back at the relative `/media/...` URL paths
+# `LocalFileStorage.save` returns. Created on startup if missing so a
+# fresh checkout/deploy doesn't 500 before the first upload.
+Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=settings.UPLOAD_DIR), name="media")

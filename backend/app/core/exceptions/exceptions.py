@@ -194,6 +194,111 @@ class ProviderNotFoundError(BusinessException):
         super().__init__(message=message, status_code=404)
 
 
+class InvalidPortfolioUploadError(BusinessException):
+    """
+    Raised by `POST /providers/me/portfolio` (PRO-002, AC2) when an
+    uploaded photo fails size, extension, or MIME/magic-byte validation
+    (`image_validation.validate_image_upload`).
+
+    Deliberately generic (Decision 2, `Plan_S04_PRO-002.md`) -- mirrors
+    `InvalidOtpError`'s non-revealing pattern: never states exactly which
+    check failed (size vs. type), to avoid giving a bad actor a probing
+    oracle.
+    """
+
+    def __init__(
+        self,
+        message: str = "That photo couldn't be uploaded. Please try a different file.",
+    ):
+        super().__init__(message=message, status_code=422)
+
+
+class PortfolioPhotoNotFoundError(BusinessException):
+    """
+    Raised by `DELETE /providers/me/portfolio/{portfolio_id}` (PRO-002,
+    AC7/AC8) when a portfolio photo either doesn't exist at all, or
+    exists but is not owned by the requesting provider.
+
+    Deliberately collapses both cases into the same 404 rather than a
+    403 for the ownership case -- mirrors `SavedAddressNotFoundError`'s
+    non-revealing design exactly (ADR-015).
+    """
+
+    def __init__(self, message: str = "Portfolio photo not found."):
+        super().__init__(message=message, status_code=404)
+
+
+class PortfolioLimitExceededError(BusinessException):
+    """
+    Raised by `POST /providers/me/portfolio` (PRO-002, Decision 3,
+    `Plan_S04_PRO-002.md`) when a provider already has
+    `MAX_PORTFOLIO_PHOTOS_PER_PROVIDER` active photos.
+    """
+
+    def __init__(
+        self,
+        message: str = "You've reached the maximum number of portfolio photos.",
+    ):
+        super().__init__(message=message, status_code=409)
+
+
+class InvalidPortfolioReorderError(BusinessException):
+    """
+    Raised by `PUT /providers/me/portfolio/order` (PRO-002, Decision 4,
+    `Plan_S04_PRO-002.md`) when the submitted `ordered_ids` set does not
+    exactly match the caller's own active photo ids (a foreign id, a
+    missing id, or a duplicate) -- rejected before any row is touched,
+    never a partial reorder. Not explicitly named in the Plan's item 16
+    exception list, but required by Decision 4's literal "rejected
+    (422)" text; added here as the minimal, consistently-styled
+    exception that satisfies it.
+    """
+
+    def __init__(
+        self,
+        message: str = (
+            "The submitted photo order does not match your current photos."
+        ),
+    ):
+        super().__init__(message=message, status_code=422)
+
+
+class InvalidCategoryLabelsError(BusinessException):
+    """
+    Raised by `PATCH /providers/me` (PRO-002, AC4) when a submitted
+    `category_labels` list has zero or more than one `is_primary: true`
+    entry, or exceeds the 5-label cap (Decision 1, `Plan_S04_PRO-002.md`).
+    """
+
+    def __init__(
+        self,
+        message: str = (
+            "Category labels must include exactly one primary label, "
+            "up to a maximum of 5."
+        ),
+    ):
+        super().__init__(message=message, status_code=422)
+
+
+class SubtypeDetailsMismatchError(BusinessException):
+    """
+    Raised by `PATCH /providers/me` (PRO-002, Decision 8,
+    `Plan_S04_PRO-002.md`) when the payload's `business_details`/
+    `freelancer_details` object does not match the provider's actual,
+    already-established `provider_type` -- `provider_type` itself remains
+    immutable (PRO-001, Decision 3), so this is always a payload error,
+    not a state change.
+    """
+
+    def __init__(
+        self,
+        message: str = (
+            "This provider's type does not match the submitted details object."
+        ),
+    ):
+        super().__init__(message=message, status_code=400)
+
+
 class RateLimitExceededError(BusinessException):
     """
     Raised when a client exceeds a Redis-backed fixed-window rate limit

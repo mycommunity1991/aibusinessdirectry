@@ -7,16 +7,22 @@ from app.core.exceptions.exceptions import (
     BusinessException,
     ExpiredTokenError,
     InsufficientRoleError,
+    InvalidCategoryLabelsError,
     InvalidIdentityTokenError,
     InvalidOtpError,
+    InvalidPortfolioReorderError,
+    InvalidPortfolioUploadError,
     InvalidRefreshTokenError,
     InvalidTokenError,
     OtpLockedError,
+    PortfolioLimitExceededError,
+    PortfolioPhotoNotFoundError,
     ProviderAlreadyExistsError,
     ProviderNotFoundError,
     RateLimitExceededError,
     SavedAddressNotFoundError,
     SessionNotFoundError,
+    SubtypeDetailsMismatchError,
 )
 
 __all__ = [
@@ -34,4 +40,10 @@ __all__ = [
     "SavedAddressNotFoundError",
     "ProviderAlreadyExistsError",
     "ProviderNotFoundError",
+    "InvalidPortfolioUploadError",
+    "InvalidPortfolioReorderError",
+    "PortfolioPhotoNotFoundError",
+    "PortfolioLimitExceededError",
+    "InvalidCategoryLabelsError",
+    "SubtypeDetailsMismatchError",
 ]

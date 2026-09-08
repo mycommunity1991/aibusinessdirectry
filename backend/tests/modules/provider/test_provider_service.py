@@ -62,6 +62,22 @@ def mock_freelancer_profile_repository() -> MagicMock:
 
 
 @pytest.fixture
+def mock_provider_category_label_repository() -> MagicMock:
+    repo = MagicMock()
+    repo.list_for_provider = AsyncMock(return_value=[])
+    repo.replace_all = AsyncMock(return_value=[])
+    return repo
+
+
+@pytest.fixture
+def mock_service_area_repository() -> MagicMock:
+    repo = MagicMock()
+    repo.get_for_provider = AsyncMock(return_value=None)
+    repo.upsert_for_provider = AsyncMock()
+    return repo
+
+
+@pytest.fixture
 def mock_role_assignment_service() -> MagicMock:
     service = MagicMock()
     service.ensure_role_assigned = AsyncMock()
@@ -73,12 +89,16 @@ def provider_service(
     mock_provider_repository: MagicMock,
     mock_business_profile_repository: MagicMock,
     mock_freelancer_profile_repository: MagicMock,
+    mock_provider_category_label_repository: MagicMock,
+    mock_service_area_repository: MagicMock,
     mock_role_assignment_service: MagicMock,
 ) -> ProviderService:
     return ProviderService(
         provider_repository=mock_provider_repository,
         business_profile_repository=mock_business_profile_repository,
         freelancer_profile_repository=mock_freelancer_profile_repository,
+        provider_category_label_repository=mock_provider_category_label_repository,
+        service_area_repository=mock_service_area_repository,
         role_assignment_service=mock_role_assignment_service,
     )
 
@@ -164,7 +184,6 @@ def _provider(**overrides: object) -> Provider:
         "average_rating": None,
         "review_count": 0,
         "country_code": "AE",
-        "category_label": "Plumbing",
     }
     payload.update(overrides)
     return Provider(**payload)

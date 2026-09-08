@@ -1,24 +1,22 @@
 """
-Provider domain models (`provider` Postgres schema, PRO-001).
+Provider domain models (`provider` Postgres schema, PRO-001/PRO-002).
 
 See `docs/AI/04_DATABASE.md` (Provider Domain) for the column-level
-source of truth and `docs/implementation/plans/Plan_S04_PRO-001.md` for
-the architecture decisions behind this module.
+source of truth and `docs/implementation/plans/Plan_S04_PRO-001.md`/
+`Plan_S04_PRO-002.md` for the architecture decisions behind this module.
 
-Only `providers`, `business_profiles`, and `freelancer_profiles` are
-created by this story -- `provider_availability`, `portfolios`, and
-`service_areas` are PRO-002 scope and deliberately not modeled here.
-
-`providers.category_label` is a genuine, flagged addition beyond
-`04_DATABASE.md`'s literal `providers` spec (Decision 4,
-`Plan_S04_PRO-001.md`): the Category domain (`category.categories`,
-`provider_categories`) does not exist yet, so this free-text column is a
-temporary stand-in for AC4's "category" field. Flagged for a
-`04_DATABASE.md` follow-up update once the real Category domain ships.
+PRO-002 adds `provider_availability`, `portfolios`, `service_areas`
+(all exactly per `04_DATABASE.md`'s Provider Domain spec), and a new,
+deliberately-not-`provider_categories`-named `provider_category_labels`
+table (Decision 1, `Plan_S04_PRO-002.md`) -- a distinctly-named interim
+stand-in so no future reader mistakes it for the real Category-domain
+join table `04_DATABASE.md` already reserves that name for.
+`Provider.category_label` (PRO-001, Decision 4) is removed in favor of
+`ProviderCategoryLabel` rows.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
@@ -36,6 +34,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    Time,
     UniqueConstraint,
     text,
 )
@@ -65,6 +64,24 @@ class VerificationStatus(StrEnum):
     UNDER_REVIEW = "under_review"
     APPROVED = "approved"
     REJECTED = "rejected"
+
+
+class Weekday(StrEnum):
+    """
+    `04_DATABASE.md`'s `weekday` enum -- this table's (`provider_
+    availability`) first consumer anywhere in the codebase (PRO-002),
+    mirroring PRO-001's own enum-colocation precedent. Any future domain
+    needing the same enum should reuse it via `create_type=False,
+    schema="provider"` rather than duplicating it.
+    """
+
+    MONDAY = "monday"
+    TUESDAY = "tuesday"
+    WEDNESDAY = "wednesday"
+    THURSDAY = "thursday"
+    FRIDAY = "friday"
+    SATURDAY = "saturday"
+    SUNDAY = "sunday"
 
 
 def _pg_enum(enum_cls: type[StrEnum], name: str) -> SqlEnum:
@@ -161,10 +178,6 @@ class Provider(CommonColumnsMixin, Base):
         Integer, nullable=False, server_default=text("0")
     )
     country_code: Mapped[str] = mapped_column(CHAR(2), nullable=False)
-    # Decision 4, `Plan_S04_PRO-001.md`: a flagged, temporary free-text
-    # column standing in for the not-yet-built Category domain. Not in
-    # `04_DATABASE.md`'s literal `providers` spec.
-    category_label: Mapped[str] = mapped_column(String(100), nullable=False)
 
 
 class BusinessProfile(CommonColumnsMixin, Base):
@@ -210,3 +223,126 @@ class FreelancerProfile(CommonColumnsMixin, Base):
     service_radius_meters: Mapped[int] = mapped_column(Integer, nullable=False)
     skills: Mapped[list[str] | None] = mapped_column(ARRAY(Text), nullable=True)
     years_experience: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+
+
+class ProviderAvailability(CommonColumnsMixin, Base):
+    """
+    A Provider's weekly operating hours, one row per weekday it has been
+    configured for (PRO-002, AC3). `GET /providers/me/availability`
+    synthesizes any missing weekday as a "closed, not yet configured"
+    entry (Decision 3, `Plan_S04_PRO-002.md`) -- a day being closed is
+    always expressed by `open_time`/`close_time` both `NULL`, never by a
+    missing row for a weekday that *has* been explicitly saved as closed.
+    """
+
+    __tablename__ = "provider_availability"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider_id",
+            "weekday",
+            name="uq_provider_availability_provider_weekday",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{SCHEMA}.providers.id"),
+        nullable=False,
+    )
+    weekday: Mapped[Weekday] = mapped_column(
+        _pg_enum(Weekday, "weekday"), nullable=False
+    )
+    open_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    close_time: Mapped[time | None] = mapped_column(Time, nullable=True)
+    is_emergency_available: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+
+
+class Portfolio(CommonColumnsMixin, Base):
+    """
+    A Provider's portfolio photo (PRO-002, AC2). `media_url` is always a
+    server-generated, relative `/media/...` URL path -- never a raw
+    filesystem path and never derived from the client's original
+    filename (`06_SECURITY.md` File Upload Security). Soft-deleted on
+    removal (Decision 5, `Plan_S04_PRO-002.md`) -- the on-disk file is
+    left in place; only the row's `is_active`/`deleted_at` change.
+    """
+
+    __tablename__ = "portfolios"
+    __table_args__ = (
+        Index("idx_portfolios_provider_id", "provider_id"),
+        {"schema": SCHEMA},
+    )
+
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{SCHEMA}.providers.id"),
+        nullable=False,
+    )
+    media_url: Mapped[str] = mapped_column(String(500), nullable=False)
+    caption: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sort_order: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, server_default=text("0")
+    )
+
+
+class ServiceArea(CommonColumnsMixin, Base):
+    """
+    A Provider's derived service area (PRO-002) -- internal-only, kept in
+    sync by `ProviderService` whenever the subtype profile's location/
+    radius fields change (Decision, item 1, `Plan_S04_PRO-002.md`). No
+    direct API exposes this table for editing or reading in this story;
+    it exists for a future geospatial-matching story to query.
+    """
+
+    __tablename__ = "service_areas"
+    __table_args__ = (
+        Index("idx_service_areas_provider_id", "provider_id"),
+        {"schema": SCHEMA},
+    )
+
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{SCHEMA}.providers.id"),
+        nullable=False,
+    )
+    center_latitude: Mapped[float] = mapped_column(Double, nullable=False)
+    center_longitude: Mapped[float] = mapped_column(Double, nullable=False)
+    radius_meters: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class ProviderCategoryLabel(CommonColumnsMixin, Base):
+    """
+    A free-text category label owned by a Provider (PRO-002, AC4;
+    Decision 1, `Plan_S04_PRO-002.md`). Deliberately named distinctly
+    from `provider_categories` -- the real join table `04_DATABASE.md`
+    reserves that name for once the Category domain (`category.
+    categories`) ships. "Exactly one primary" is enforced at the service
+    layer (`ProviderCategoryLabelRepository.replace_all`, delete-then-
+    insert, one flush) with `uq_provider_category_labels_primary` as a
+    partial-unique-index backstop.
+    """
+
+    __tablename__ = "provider_category_labels"
+    __table_args__ = (
+        Index(
+            "uq_provider_category_labels_primary",
+            "provider_id",
+            unique=True,
+            postgresql_where=text("is_primary = true"),
+        ),
+        Index("idx_provider_category_labels_provider_id", "provider_id"),
+        {"schema": SCHEMA},
+    )
+
+    provider_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{SCHEMA}.providers.id"),
+        nullable=False,
+    )
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+    is_primary: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
