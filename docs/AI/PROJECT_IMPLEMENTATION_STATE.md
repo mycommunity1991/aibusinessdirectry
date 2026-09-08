@@ -3,9 +3,9 @@
 
 **Project:** AI Marketplace
 **Current Phase:** MVP Development
-**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (Complete — 2 of 2 stories done) → Sprint 4 (Complete — 2 of 2 stories done) → Sprint 5 (In Progress — 1 of 2+ known stories done)
-**Completed Story:** VER-001 Submit My Provider Verification
-**Status:** Identity & Access domain complete. Customer domain complete: profile/preferences auto-provisioning, `GET`/`PATCH /customers/me`, and saved service-location addresses (`GET`/`POST`/`PATCH`/`DELETE /customers/me/addresses`) have all shipped. Provider domain fully shipped for Sprint 4's scope: PRO-001 shipped the new `provider` module (`providers`/`business_profiles`/`freelancer_profiles`, immutable-type onboarding wizard, one-provider-per-account); PRO-002 shipped the ongoing Storefront (`provider_availability`, `portfolios`, `service_areas`, the new `provider_category_labels` interim table, this codebase's first file-upload capability, and the mobile Storefront screen). Sprint 5 (Provider Verification) is now underway: VER-001 has shipped a new `verification` module (`verification_records`/`verification_documents`, an OCR-stub-assisted preview→confirm→submit flow, a private/public file-storage split for sensitive documents) and the mobile S-19/S-20 screens. **Important scope note:** VER-001 only gets a provider's submission into the `pending` queue and lets them view their own status — it does not make any provider discoverable and does not resolve any verification outcome; that entire admin review/approval/cache-update mechanism belongs to VER-002, which is next and now unblocked.
+**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (Complete — 2 of 2 stories done) → Sprint 4 (Complete — 2 of 2 stories done) → Sprint 5 (Complete — 2 of 2 stories done)
+**Completed Story:** VER-002 Review Provider Verification As An Administrator
+**Status:** Identity & Access domain complete. Customer domain complete: profile/preferences auto-provisioning, `GET`/`PATCH /customers/me`, and saved service-location addresses (`GET`/`POST`/`PATCH`/`DELETE /customers/me/addresses`) have all shipped. Provider domain fully shipped for Sprint 4's scope: PRO-001 shipped the new `provider` module (`providers`/`business_profiles`/`freelancer_profiles`, immutable-type onboarding wizard, one-provider-per-account); PRO-002 shipped the ongoing Storefront (`provider_availability`, `portfolios`, `service_areas`, the new `provider_category_labels` interim table, this codebase's first file-upload capability, and the mobile Storefront screen). **Sprint 5 (Provider Verification) is now complete.** VER-001 shipped a new `verification` module (`verification_records`/`verification_documents`, an OCR-stub-assisted preview→confirm→submit flow, a private/public file-storage split for sensitive documents) and the mobile S-19/S-20 screens. VER-002 has since shipped the admin review side on top of it: an admin-only review queue and approve/reject endpoints, an atomic status+discoverability cache update (with a DB-level `CHECK` constraint as defense-in-depth), two new first-slice domain modules (`administration`, `notification`), and a new ops-only `grant_admin_role.py` script — backend-only, by deliberate design, since the admin dashboard is out of the mobile MVP's screen inventory. A genuine concurrency bug (two truly concurrent approve calls on the same record both succeeding) was found during review and fixed with an atomic conditional `UPDATE`; see `docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md` for the full account. Sprint 5's two stories together complete the Verification domain's trust gate: a Provider can now submit for verification, be reviewed by an Admin, and become discoverable once approved.
 **Last Updated:** 08 September 2026
 **Owner:** CTO
 
@@ -23,7 +23,9 @@ Sprint 1 delivered a complete backend foundation (BF-001 through BF-018). Sprint
 
 Sprint 3 (Customer Profile & Locations) is now complete. Its first story, CUS-001 (set up my customer profile and preferences), shipped a new `customer` domain module (`customer_profiles`/`customer_preferences`, one-to-one with `users`), auto-provisioned in the same database transaction as registration via a new `identity → customer` cross-module service dependency that deliberately mirrors the `identity → audit` pattern AUTH-004 already established (recorded as ADR-014), sensible defaults (WhatsApp notification channel, `Accept-Language`-derived language falling back to English), and `GET`/`PATCH /customers/me` with no `{id}` parameter — ownership is structurally guaranteed rather than defensively checked. On mobile, a new Profile & Settings screen delivers live language switching (no app restart) and this codebase's first automated RTL test. Its second and final story, CUS-002 (manage my service locations), has since shipped on top of it: `customer.saved_addresses` (this codebase's first genuine soft-delete pattern), transactional default-address uniqueness backed by a partial unique index as defense-in-depth, and `GET`/`POST /customers/me/addresses` + `PATCH`/`DELETE /customers/me/addresses/{address_id}` — a client-`{id}`-addressable collection, deliberately shaped differently from CUS-001's `/me` singleton (the distinction is now recorded as ADR-015). On mobile, a new shared, reusable `LocationPickerScreen` (map-pin/manual/current-location entry, zero Customer-domain coupling, built for future Provider-domain reuse) backs a skippable first-address prompt at registration and a Saved Addresses management screen with Undo-on-delete. Sprint 4 (Provider Storefront) is now complete. Its first story, PRO-001 (create my business or freelancer listing), shipped a new `provider` domain module (`providers`, `business_profiles`, `freelancer_profiles`), a new cross-module `RoleAssignmentService` letting `provider` grant `ROLE_PROVIDER` to an already-authenticated Account (the reverse direction of ADR-014's `identity → customer`/`identity → audit` edges, recorded as ADR-016), server-generated slugs, unconditional `verification_status=pending`/`is_discoverable=false` defaulting, and a strict one-Provider-per-Account rule enforced at the service layer. On mobile, a new `StepIndicator` shared widget and a `features/provider/` onboarding wizard (type selection → basic info → subtype-specific details) reuse CUS-002's `LocationPickerScreen` for address/base-location capture, reachable from a new "List Your Business" tile on Profile & Settings. Its second and final story, PRO-002 (manage my provider storefront), has since shipped on top of it: `provider_availability`, `portfolios`, and `service_areas` (all exactly per the pre-existing schema spec), plus a new, deliberately-not-`provider_categories`-named interim table `provider_category_labels` (replacing PRO-001's temporary `providers.category_label` column, which this story's migration backfills and drops); this codebase's first file-upload capability, a `FileStorage` protocol with a `LocalFileStorage` implementation explicitly interim pending real AWS infrastructure (recorded as ADR-017); `PATCH /providers/me` and the new portfolio/availability sub-resource endpoints, all bare-authenticated per ADR-016's token-refresh-lag reasoning. On mobile, a new Storefront screen (S-25) with four independently-saveable sections, a portfolio manager (using the new `image_picker` dependency), and a shared `WeeklyHoursEditor` widget factored out of PRO-001's onboarding screen. **Sprint 4 (Provider Storefront) is now complete.**
 
-Sprint 5 (Provider Verification) is now underway. Its first story, VER-001 (submit my provider verification), shipped a new `verification` domain module (`verification_records`/`verification_documents`), reusing `provider`'s existing `verification_status` Postgres enum type rather than duplicating it (`create_type=False`); a deliberate three-step preview→confirm→submit flow so OCR-extracted fields are shown and made editable before any database row exists; `StubDocumentOcrService`, this codebase's first OCR integration point, honestly returning empty candidate fields pending a future story's real pipeline (recorded as ADR-018); and a private-vs-public file-storage split (`FileStorage` gains a `public_url_prefix` parameter, a separate never-mounted `VERIFICATION_UPLOAD_DIR` root, and an authenticated streaming-download endpoint) so sensitive identity/license documents are never reachable through the existing public `/media` mount PRO-002 built for portfolio photos (recorded as ADR-019 — the single most consequential decision in this story, per both the Plan and the architect's own assessment). On mobile, a new `features/verification/` module delivers the S-19 upload and S-20 status screens plus the OCR-confirm step, wired into the end of the Provider onboarding wizard and a new status chip on the Storefront screen. This story's review was more eventful than prior ones: a real pending-slot file bug was found and fixed during backend review (a stale file from an earlier preview with a different extension could otherwise be picked up at submit time), a dead exception class was found and removed by the tester, and the architect's first-pass review returned CHANGES REQUIRED over a genuine bidirectional mobile feature-coupling violation between `features/provider/` and `features/verification/` — fixed by moving `ProviderType` to `shared/` and introducing two minimal shared accessor repositories, then confirmed by a focused architect re-review that returned APPROVED WITH RECOMMENDATIONS. **Important scope note, stated explicitly so it is never overstated:** VER-001 only gets a submission into the `pending` queue and lets a provider view their own current status — it does not make any provider discoverable and does not implement any part of the admin review/approval mechanism; that is entirely VER-002's job, next up and now unblocked. See `docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md` for full detail.
+Sprint 5 (Provider Verification) is now complete. Its first story, VER-001 (submit my provider verification), shipped a new `verification` domain module (`verification_records`/`verification_documents`), reusing `provider`'s existing `verification_status` Postgres enum type rather than duplicating it (`create_type=False`); a deliberate three-step preview→confirm→submit flow so OCR-extracted fields are shown and made editable before any database row exists; `StubDocumentOcrService`, this codebase's first OCR integration point, honestly returning empty candidate fields pending a future story's real pipeline (recorded as ADR-018); and a private-vs-public file-storage split (`FileStorage` gains a `public_url_prefix` parameter, a separate never-mounted `VERIFICATION_UPLOAD_DIR` root, and an authenticated streaming-download endpoint) so sensitive identity/license documents are never reachable through the existing public `/media` mount PRO-002 built for portfolio photos (recorded as ADR-019 — the single most consequential decision in this story, per both the Plan and the architect's own assessment). On mobile, a new `features/verification/` module delivers the S-19 upload and S-20 status screens plus the OCR-confirm step, wired into the end of the Provider onboarding wizard and a new status chip on the Storefront screen. This story's review was more eventful than prior ones: a real pending-slot file bug was found and fixed during backend review (a stale file from an earlier preview with a different extension could otherwise be picked up at submit time), a dead exception class was found and removed by the tester, and the architect's first-pass review returned CHANGES REQUIRED over a genuine bidirectional mobile feature-coupling violation between `features/provider/` and `features/verification/` — fixed by moving `ProviderType` to `shared/` and introducing two minimal shared accessor repositories, then confirmed by a focused architect re-review that returned APPROVED WITH RECOMMENDATIONS. **Important scope note, stated explicitly so it is never overstated:** VER-001 only got a submission into the `pending` queue and let a provider view their own current status — it did not make any provider discoverable and did not implement any part of the admin review/approval mechanism. See `docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md` for full detail.
+
+Sprint 5's second and final story, VER-002 (review provider verification as an administrator), has since shipped the admin side of the trust gate VER-001 left open: a new, ownerless `require_role(ROLE_ADMIN)`-only authorization shape (a genuinely third endpoint category alongside ADR-015's existing two, recorded as ADR-023) backs a new admin-only review queue (this codebase's first real use of the previously-unused `CollectionResponse`/`PaginationMeta` pagination infrastructure) and approve/reject endpoints; approving atomically updates `providers.verification_status`/`is_discoverable` in the same transaction as the `verification_records` status change, for **both** Freelancer and Business Providers (Decision 5, explicitly confirmed by the user), backed by a new DB-level `chk_providers_discoverable_requires_approved` `CHECK` constraint as defense-in-depth. Two new, first-slice domain modules were built — `administration` (`admin_action_log`, recorded as ADR-021) and `notification` (`notifications`, recorded as ADR-022) — both honestly minimal, in-app-record-only capabilities, not full build-outs of their much larger future scope. A new ops-only `backend/scripts/grant_admin_role.py` CLI script (recorded as ADR-020, explicitly confirmed by the user before implementation) grants `ROLE_ADMIN` to an already-registered Account; no new admin login mechanism was built. This story's review found a genuine, empirically-reproduced concurrency bug — two truly concurrent approve calls on the same record could both succeed, each writing a duplicate `admin_action_log`/`notification` row — fixed with an atomic conditional `UPDATE` (`VerificationRecordRepository.try_claim_for_review`, recorded as ADR-024, this codebase's first use of this optimistic-concurrency-control pattern), independently re-verified by the architect (who reverted and re-applied the fix to confirm it) before returning APPROVED WITH RECOMMENDATIONS. **This story is backend-only, by deliberate design** — the admin operations dashboard is explicitly excluded from the mobile MVP's screen inventory. **Sprint 5 (Provider Verification) is now complete**: a Provider can submit for verification, be reviewed by an Admin, and become discoverable once approved — the full trust gate this domain exists to enforce. See `docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md` for full detail.
 
 ---
 
@@ -287,31 +289,39 @@ lifted only once VER-001 (Verification, not yet built) ships and approves it. Ne
 implements any part of the Verification gate itself; PRO-002 only documents (without implementing) which field
 (`business_profiles.trade_license_number`) is the most plausible future re-verification trigger candidate.
 
-## Sprint 5 — Provider Verification (In Progress — 1 of 2+ known stories done)
+## Sprint 5 — Provider Verification (Complete — 2 of 2 stories done)
 
 Per `docs/AI/Project_Tracker.xlsx`'s Sprint/Milestone structure (ML5, "Provider Verification"), the first story
-is **VER-001**, which the Tracker lists as depending on PRO-001 (done). Scope is limited to the Verification
-domain's document-submission half; the admin review/approval side is VER-002's job.
+is **VER-001**, which the Tracker lists as depending on PRO-001 (done). Scope covers the full Verification
+domain's trust gate: document submission (VER-001) and admin review/approval (VER-002).
 
 | Story | Description | Status |
 |--------|-------------|--------|
 | VER-001 | Submit my provider verification | ✅ Done |
-| VER-002 | Review provider verification as an administrator | Next up |
+| VER-002 | Review provider verification as an administrator | ✅ Done |
 
-**VER-001 is complete** — see `docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md` for full
-implementation detail. It shipped a new `verification` domain module (`verification_records`/
-`verification_documents`, reusing `provider`'s existing `verification_status` Postgres enum type), a
-preview→confirm→submit flow with an honest OCR stub (`StubDocumentOcrService`, ADR-018), and a private/public
-file-storage split for sensitive documents (ADR-019). **Scope boundary, stated explicitly:** VER-001 only gets a
-provider's submission into the `pending` queue and lets them view their own current status — no code this story
-added reads or writes `providers.verification_status`/`is_discoverable`, so no provider becomes discoverable and
-no verification outcome is resolved by anything shipped here. VER-002 is next, and is now unblocked (it depends
-on VER-001, which is done).
+**Sprint 5 (Provider Verification) is now complete.** See
+`docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md` and
+`docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md` for each story's full implementation detail.
 
-**Caveat carried forward, not yet independently re-verified:** this and the prior closeout could not
-independently open `Project_Tracker.xlsx` (no xlsx-reading tool available) to directly confirm the Tracker's own
-exact dependency-field wiring for VER-002 or any later Sprint 5 story beyond what `docs/AI/` narrative documents
-already imply.
+VER-001 shipped a new `verification` domain module (`verification_records`/`verification_documents`, reusing
+`provider`'s existing `verification_status` Postgres enum type), a preview→confirm→submit flow with an honest
+OCR stub (`StubDocumentOcrService`, ADR-018), and a private/public file-storage split for sensitive documents
+(ADR-019). **Scope boundary, stated explicitly:** VER-001 only got a provider's submission into the `pending`
+queue and let them view their own current status — no code that story added read or wrote
+`providers.verification_status`/`is_discoverable`. VER-002 completed the gate on top of it: a new, ownerless
+`require_role(ROLE_ADMIN)`-only authorization shape (ADR-023) backing an admin review queue and approve/reject
+endpoints, an atomic status+discoverability cache update with a DB-level `CHECK` constraint as defense-in-depth,
+two new first-slice domain modules (`administration`/ADR-021, `notification`/ADR-022), an ops-only
+`grant_admin_role.py` script (ADR-020), and — following a genuine, empirically-reproduced concurrency bug found
+during review — an atomic conditional-`UPDATE` optimistic-concurrency pattern (ADR-024, this codebase's first
+use of it). VER-002 is backend-only by deliberate design (the admin dashboard is out of the mobile MVP's screen
+inventory).
+
+**Caveat carried forward, not yet independently re-verified:** this and prior closeouts could not independently
+open `Project_Tracker.xlsx` (no xlsx-reading tool available) to directly confirm the Tracker's own exact
+dependency-field wiring for Sprint 6 stories beyond what `docs/AI/` narrative documents already imply — see
+Section 17 below for the specific, still-open question this raises for DIR-001.
 
 ---
 
@@ -388,10 +398,26 @@ authenticated streaming download, never a public URL); a private-vs-public split
 (`public_url_prefix`, a new `read()` method, a separate never-mounted `VERIFICATION_UPLOAD_DIR` root — ADR-019)
 so sensitive identity/license documents are never reachable through the public `/media` mount PRO-002 built for
 portfolio photos. **This story never reads or writes `providers.verification_status`/`is_discoverable`** — a
-provider's submission lands in `pending`, but discoverability and verification outcome remain entirely VER-002's
-responsibility, not yet built.
+provider's submission lands in `pending`; discoverability and verification outcome resolution were VER-002's job.
 
-The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain is now fully shipped as well — profile/preferences (CUS-001) and saved addresses (CUS-002) — completing Sprint 3. The Provider domain is now fully shipped for its Sprint 4 scope — PRO-001 shipped the Provider aggregate root and onboarding wizard, and PRO-002 has since completed the aggregate (portfolio/availability/service-area/category-labels) and the ongoing Storefront screen — completing Sprint 4. Sprint 5 (Provider Verification) is now underway: VER-001 has shipped the document-submission half of the Verification domain; VER-002 (admin review/approval) is next.
+✓ Verification domain — review provider verification as an administrator (VER-002): a new, ownerless
+`require_role(ROLE_ADMIN)`-only authorization shape (ADR-023) backs `AdminVerificationService`
+(`admin_verification_service.py`) and four new routes at `/admin/verification` — `GET .../records` (paginated,
+this codebase's first real use of `CollectionResponse`/`PaginationMeta`), `POST .../records/{id}/approve`,
+`POST .../records/{id}/reject`, and `GET .../documents/{id}/file` (a sibling to the existing owner-only
+download route, with deliberately no ownership check). Approving atomically transitions the record and updates
+`providers.verification_status=approved`/`is_discoverable=true` — for **both** Freelancer and Business
+Providers (Decision 5, user-confirmed) — on the same session/transaction, backed by a new
+`chk_providers_discoverable_requires_approved` DB `CHECK` constraint as defense-in-depth. Two new first-slice
+domain modules: `administration` (`admin_action_log`, written once per approve/reject, ADR-021) and
+`notification` (`notifications`, hardcoded plain-language copy, never a raw status-enum value, ADR-022). A new
+ops-only `backend/scripts/grant_admin_role.py` (ADR-020) grants `ROLE_ADMIN` to an already-registered Account —
+no new admin login mechanism exists. A genuine concurrency bug (two truly concurrent `approve()` calls on the
+same record both succeeding) was found during review and fixed with an atomic conditional `UPDATE`
+(`VerificationRecordRepository.try_claim_for_review`, ADR-024). Backend-only — no mobile changes, by deliberate
+design (the admin dashboard is out of the mobile MVP's screen inventory).
+
+The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain is now fully shipped as well — profile/preferences (CUS-001) and saved addresses (CUS-002) — completing Sprint 3. The Provider domain is now fully shipped for its Sprint 4 scope — PRO-001 shipped the Provider aggregate root and onboarding wizard, and PRO-002 has since completed the aggregate (portfolio/availability/service-area/category-labels) and the ongoing Storefront screen — completing Sprint 4. **Sprint 5 (Provider Verification) is now complete**: VER-001 shipped the document-submission half of the Verification domain, and VER-002 has since shipped the admin review/approval half on top of it, including this codebase's first two `administration`/`notification` domain modules.
 
 ---
 
@@ -523,8 +549,19 @@ Implemented layers include:
   `file_signatures.py`/`document_validation.py`) — zero behavior change to PRO-002's existing portfolio wiring.
   A new, one-directional `verification → provider` cross-module service edge (`ProviderService.get_my_provider`,
   read-only, ADR-014/ADR-016's established shape) was added; no existing `provider` file was modified to support
-  it. Touched no other existing module. This ships Sprint 5's first story; VER-002 (admin review/approval)
-  remains unbuilt.
+  it. Touched no other existing module. This shipped Sprint 5's first story.
+
+- Verification module, extended — review provider verification as an administrator (VER-002): a new
+  `AdminVerificationService`/`admin_api.py` inside the existing `verification` module (deliberately a separate
+  service class from the provider-facing `VerificationService` — different authorization model, callers, and
+  side effects), plus `VerificationRecordRepository.try_claim_for_review` (the atomic conditional-`UPDATE`
+  concurrency fix, ADR-024). Two genuinely new domain modules were created for the first time:
+  `backend/app/modules/administration/` (`AdminActionLog`/`AdminActionLogRepository`/`AdminActionLogService`,
+  ADR-021) and `backend/app/modules/notification/` (`Notification`/`NotificationRepository`/
+  `NotificationService`, ADR-022) — both first slices of domains that previously had zero code. `provider`
+  gained one new write method (`ProviderService.apply_verification_outcome`) and one new `CHECK` constraint on
+  `providers` (no column changes). A new ops-only `backend/scripts/grant_admin_role.py` (ADR-020) was added,
+  never exposed via HTTP. Touched no mobile code. This completes Sprint 5's scope.
 
 Remaining business modules are deferred until their corresponding sprint stories.
 
@@ -541,24 +578,34 @@ Not yet implemented:
 - Provider profile (Business / Freelancer) — no longer a gap: PRO-001 shipped the Provider aggregate root,
   immutable-type onboarding wizard, and one-Provider-per-Account enforcement; PRO-002 completed the aggregate
   (portfolio, availability, service area, category labels) and the ongoing Storefront/Edit Profile screen. A
-  created Provider is still not yet discoverable (`is_discoverable=false`) — VER-001 lets a provider *submit
-  for* verification, but does not itself flip this gate; that remains VER-002's job (admin review/approval,
-  the `providers.verification_status`/`is_discoverable` cache-update hook), still unbuilt. Claim-Your-Listing
-  also remains unbuilt. The real Category domain remains unbuilt too; `provider_category_labels` (PRO-002) is
-  an explicitly flagged, free-text interim stand-in, not the real taxonomy.
+  newly created Provider still starts with `is_discoverable=false`, but VER-002 has since shipped the admin
+  approval path that flips it to `true` for an approved Provider of either subtype — the full submit-to-discoverable
+  path now exists end to end. Claim-Your-Listing remains unbuilt (Sprint 6). The real Category domain remains
+  unbuilt too; `provider_category_labels` (PRO-002) is an explicitly flagged, free-text interim stand-in, not
+  the real taxonomy.
 - Category taxonomy
 - Conversation / AI Intake
 - Search & Matching
 - Contact View
-- Verification — partially shipped: VER-001 (submit my provider verification) is done — a provider can upload a
-  document, review OCR-stub-assisted (currently empty) fields, and submit into the `pending` queue, and view
-  their own current status. **Not yet built:** any admin-facing review/approve/reject endpoint, the
-  `admin_action_log` write, the notification send on status change, and the `providers.verification_status`/
-  `is_discoverable` cache-update hook — all VER-002. A real OCR pipeline also remains unbuilt;
-  `StubDocumentOcrService` (ADR-018) is explicitly interim.
+- Verification — no longer a gap, fully shipped for its Sprint 5 scope: VER-001 (submit my provider
+  verification) lets a provider upload a document, review OCR-stub-assisted (currently empty) fields, and
+  submit into the `pending` queue; VER-002 (review provider verification as an administrator) adds the
+  admin-only review queue, approve/reject endpoints (atomically updating `providers.verification_status`/
+  `is_discoverable`), the `admin_action_log` write, and the notification send on status change. A real OCR
+  pipeline remains unbuilt; `StubDocumentOcrService` (ADR-018) is explicitly interim. No admin dashboard UI
+  (mobile or web) exists — the four new admin endpoints have no consumer beyond a direct API client
+  (Postman/curl/a future internal tool) today; the broader admin operations dashboard (ADM-002) remains a
+  separate, later story.
 - Review / Outcome Tag
-- Notifications
-- Administration
+- Notifications — partially shipped as of VER-002: `notification.notifications` exists and is written to on a
+  verification status change, with honest, hardcoded plain-language copy. **Not yet built:** any real delivery
+  channel (WhatsApp/SMS/Email), `notification_delivery`, `notification_preferences`, and any "read my
+  notifications" inbox endpoint or UI — Sprint 12 ("Engagement & Trust") remains this domain's own dedicated
+  future milestone.
+- Administration — partially shipped as of VER-002: `administration.admin_action_log` exists and records every
+  admin approve/reject action. **Not yet built:** any admin dashboard UI, Admin User as a first-class managed
+  entity, Manual Match Assignment, Unmatched Query Reports, feature flags, or system settings — all of ADM-002's
+  wider "operations dashboard" scope, explicitly out of VER-002's bounds.
 - Flutter application (beyond the auth flow and the Profile & Settings screen — Home screen, a bottom-navigation shell, and all other feature areas)
 
 These will be implemented according to the approved sprint backlog, gated by the open decisions in `13_OPEN_DECISIONS.md` — category taxonomy in particular blocks the AI intake work.
@@ -583,16 +630,16 @@ Customer Domain — Complete (2 of 2 Sprint 3 stories done: CUS-001, CUS-002)
 
 Provider Profile — Complete (Sprint 4, 2 of 2 stories done: PRO-001, PRO-002)
 
-Provider Verification — In Progress (Sprint 5, 1 of 2+ known stories done: VER-001; VER-002 next up — VER-001
-only submits into `pending`, does not itself make any provider discoverable)
+Provider Verification — Complete (Sprint 5, 2 of 2 stories done: VER-001, VER-002 — a Provider can now submit
+for verification, be reviewed by an Admin, and become discoverable once approved)
 
 Conversation / AI Intake — Not Started
 
-Flutter Application — In Progress (auth flow: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out; Profile & Settings screen with live language switching, CUS-001; Saved Addresses management, a shared Location Picker, and a skippable first-address-at-registration flow, CUS-002; Provider onboarding wizard — type selection, basic info, Business/Freelancer details, PRO-001; Storefront screen — portfolio, availability, category labels, PRO-002; Verification upload/confirm/status screens — S-19/S-20, VER-001)
+Flutter Application — In Progress (auth flow: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out; Profile & Settings screen with live language switching, CUS-001; Saved Addresses management, a shared Location Picker, and a skippable first-address-at-registration flow, CUS-002; Provider onboarding wizard — type selection, basic info, Business/Freelancer details, PRO-001; Storefront screen — portfolio, availability, category labels, PRO-002; Verification upload/confirm/status screens — S-19/S-20, VER-001; VER-002 is backend-only, no mobile changes)
 
 Deployment — Not Started
 
-Overall Estimated Project Completion: Approximately 50-55%
+Overall Estimated Project Completion: Approximately 52-57%
 
 ---
 
@@ -609,23 +656,28 @@ PRO-002 ("manage my provider storefront") have both shipped and been signed off;
 `docs/implementation/walkthroughs/Walkthrough_S04_PRO-001.md` and
 `docs/implementation/walkthroughs/Walkthrough_S04_PRO-002.md`.
 
-Sprint 5 (Provider Verification) is **in progress** — **VER-001** ("submit my provider verification") has
-shipped and been signed off; see `docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md`.
+**Sprint 5 (Provider Verification) is complete** — **VER-001** ("submit my provider verification") and
+**VER-002** ("review provider verification as an administrator") have both shipped and been signed off; see
+`docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md` and
+`docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md`.
 
-**Next planned story: VER-002** ("review provider verification as an administrator"), which depends on VER-001
-and is now unblocked. VER-002 is expected to add the admin review/approve/reject transition, the
-`admin_action_log` write, the notification send on status change, and the
-`providers.verification_status`/`is_discoverable` cache-update hook — none of which VER-001 implements. A fresh
-Plan should be written against `docs/AI/Project_Tracker.xlsx` (the authoritative backlog source), per the usual
-process.
+**Next planned story: DIR-001**, the first story of Sprint 6 ("Directory & Listing Claims"), per this codebase's
+working knowledge of the Tracker's sprint structure. **This cannot be asserted as fully unblocked with
+confidence, stated honestly rather than assumed away:** `docs/AI/13_OPEN_DECISIONS.md` Item 3 (Google Places
+Data Legal Review) and Item 4 (Unclaimed Listing UX) both explicitly name "the Directory & Listing Claims sprint
+(Sprint 6: DIR-001, CLM-001)" as blocked by their still-open status — and that document itself remains a
+reconstruction explicitly marked "pending CTO review," not an authoritative source (see Section 6 above). A
+fresh Plan for DIR-001 should explicitly re-derive and confirm (or seek clarification on) whether DIR-001's own
+scope actually depends on either open item before proceeding, rather than assuming it is unblocked because the
+Sprint sequence otherwise follows.
 
-**Separately flagged, not a blocker for VER-002 planning:** `docs/AI/Project_Tracker.xlsx`'s Stories sheet
-still needs its VER-001 row's Status updated from "Planned" to "Done" (direct raw-XML cell-patching, per the
-method established at prior closeouts — a normal openpyxl load/save round-trip drops this workbook's
-conditional-formatting extensions); and `docs/AI/13_OPEN_DECISIONS.md` still does not exist anywhere in the
-repository despite now being cited by name across multiple `docs/AI/` documents and worked around by three
-independent stories across two sprints (see Section 6 above) — this is a cross-story gap that should get real
-follow-up, not merely be flagged again by whatever story ships next.
+**Separately flagged, not a blocker for DIR-001 planning:** `docs/AI/Project_Tracker.xlsx`'s Stories sheet
+still needs both its VER-001 and VER-002 rows' Status updated from "Planned" to "Done" (direct raw-XML
+cell-patching, per the method established at prior closeouts — a normal openpyxl load/save round-trip drops
+this workbook's conditional-formatting extensions); and `docs/AI/13_OPEN_DECISIONS.md`, while no longer
+nonexistent, remains a reconstruction pending real CTO review, not a finished record — the next story that cites
+it (very plausibly DIR-001, given Items 3/4 above) should treat it as such rather than as either fully
+authoritative or as still missing entirely.
 
 ---
 

@@ -11,6 +11,31 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Verification domain — review provider verification as an administrator (Story VER-002): a new, ownerless
+  `require_role(ROLE_ADMIN)`-only authorization shape (recorded as ADR-023, extending ADR-015's framework with a
+  genuinely third category) backs four new admin-only routes at `/api/v1/admin/verification`: `GET .../records`
+  (paginated — this codebase's first real use of the previously-unused `CollectionResponse`/`PaginationMeta`
+  infrastructure), `POST .../records/{record_id}/approve`, `POST .../records/{record_id}/reject` (requires a
+  non-empty `rejection_reason`), and `GET .../documents/{document_id}/file` (a new sibling to the existing
+  owner-only document-download route, deliberately with no ownership check). Approving atomically transitions
+  the `verification_records` row and sets `providers.verification_status=approved`/`is_discoverable=true` on the
+  same transaction, for **both** Freelancer and Business Providers (a user-confirmed interpretive decision);
+  rejecting never sets `is_discoverable=true`. A new DB-level `chk_providers_discoverable_requires_approved`
+  `CHECK` constraint on `provider.providers` is a second, independent, DB-enforced layer alongside the
+  transactional mechanism. Two new, first-slice domain modules: `administration`
+  (`administration.admin_action_log`, written once per approve/reject action, ADR-021) and `notification`
+  (`notification.notifications`, hardcoded plain-language copy on a status change, never a raw
+  `VerificationStatus` enum value, ADR-022) — both honestly minimal, in-app-record-only capabilities; no real
+  WhatsApp/SMS/Email delivery and no admin dashboard UI exist yet. A new ops-only
+  `backend/scripts/grant_admin_role.py` CLI script (ADR-020) grants `ROLE_ADMIN` to an already-registered
+  Account via the existing OTP/Google/Apple sign-in path; no new admin login mechanism was built. **Fixed during
+  review:** a genuine, empirically-reproduced concurrency bug — two truly concurrent `approve()` calls against
+  the same record could both succeed, each writing a duplicate `admin_action_log`/`notification` row — resolved
+  with an atomic conditional `UPDATE ... WHERE status IN (...)` (`VerificationRecordRepository.
+  try_claim_for_review`, ADR-024, this codebase's first use of this optimistic-concurrency-control pattern),
+  with a regression test verified to fail without the fix and pass with it. Backend-only — no mobile changes, by
+  deliberate design (the admin operations dashboard is explicitly excluded from the mobile MVP's screen
+  inventory).
 - Verification domain — submit my provider verification (Story VER-001): new `verification` Postgres schema
   with `verification.verification_records` and `verification.verification_documents` tables via a reversible
   Alembic migration. `verification_records.status` reuses `provider.verification_status`'s existing Postgres

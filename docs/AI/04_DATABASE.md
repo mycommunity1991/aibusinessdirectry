@@ -1,11 +1,17 @@
 # AI Marketplace Database Design
 
 **Document ID:** AI-04
-**Version:** 3.3.0
+**Version:** 3.4.0
 **Status:** Active
 **Owner:** CTO
 **Audience:** Engineering Team, Database Engineers, AI Assistants
 **Last Updated:** 2026-09-08
+
+**Change note (v3.3.0 → v3.4.0):** Documented `administration.admin_action_log` and `notification.notifications`
+as shipped exactly per their pre-existing spec by Story VER-002 (Sprint 5), both built with the full
+`CommonColumnsMixin` per the spec-literal reasoning recorded in ADR-021/ADR-022 (`09_DECISIONS.md`); added
+`providers.chk_providers_discoverable_requires_approved` to the Constraints list — a new DB-level defense-in-depth
+`CHECK` constraint added by VER-002 (Plan Decision 4), applying unconditionally to both Provider subtypes.
 
 **Change note (v3.2.0 → v3.3.0):** Documented `provider.provider_availability`, `provider.portfolios`, and
 `provider.service_areas` as shipped exactly per their pre-existing spec by Story PRO-002 (Sprint 4); added
@@ -368,6 +374,15 @@ it; category labels now live exclusively in `provider_category_labels`.
 - `uq_providers_user_id` (partial, `WHERE user_id IS NOT NULL`)
 - `uq_providers_google_place_id` (partial, `WHERE google_place_id IS NOT NULL`)
 - `chk_providers_claimed_has_owner`: `is_claimed = false OR user_id IS NOT NULL`
+- `chk_providers_discoverable_requires_approved`: `is_discoverable = false OR verification_status = 'approved'`
+  — added by Story VER-002 (Sprint 5) as a DB-level defense-in-depth layer for the invariant "a Provider's
+  `is_discoverable` can never be true while its cached `verification_status` isn't `approved`" (AC4). Applies
+  unconditionally to **both** Provider subtypes, not only Freelancer — approval also sets
+  `is_discoverable=true` for Business Providers (see `03_DOMAIN_MODEL.md`/`09_DECISIONS.md` ADR-023 context and
+  `Plan_S05_VER-002.md` Decision 5). The primary correctness mechanism is transactional (the same service call
+  writes both `verification_status` and `is_discoverable` together, on the same session); this constraint is a
+  second, independent, DB-enforced layer, mirroring `uq_saved_addresses_customer_default`'s (CUS-002/ADR-015)
+  existing defense-in-depth precedent.
 
 **Indexes:** `idx_providers_provider_type`, `idx_providers_is_discoverable`, `idx_providers_verification_status`, `idx_providers_country_code`
 
@@ -743,6 +758,14 @@ Denormalized aggregate per Provider, recalculated whenever a Review is written �
 
 ## notifications
 
+Shipped by Story VER-002 (Sprint 5), exactly per this spec, as the Notification domain's first slice — built
+with the full `CommonColumnsMixin` (versioned, soft-deletable), not exempted like `audit.audit_logs` (see
+`09_DECISIONS.md` ADR-022). Only this table exists so far; `notification_preferences` and
+`notification_delivery` (below) remain unbuilt — there is no real WhatsApp/SMS/Email delivery channel to have a
+status for, and nothing to opt in/out of yet. Written by `NotificationService.notify_verification_status_change`
+on a verification status change (VER-002, AC5), with hardcoded, plain-language `title`/`body` copy — never the
+raw `VerificationStatus` enum value.
+
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | user_id | UUID | No | FK → `identity.users.id` |
@@ -785,6 +808,15 @@ Denormalized aggregate per Provider, recalculated whenever a Review is written �
 # Administration Domain (`administration` schema)
 
 ## admin_action_log
+
+Shipped by Story VER-002 (Sprint 5), exactly per this spec, as the Administration domain's first slice — built
+with the full `CommonColumnsMixin` (versioned, soft-deletable), a deliberate, spec-literal choice **not** to
+exempt it the way the immutable `audit.audit_logs` is exempted (see `09_DECISIONS.md` ADR-021 for the full
+reasoning). Written by `AdminActionLogService.record_verification_review` on every admin approve/reject action
+(AC6) — `metadata` carries `provider_id` and, for a rejection, `rejection_reason`, since `target_entity_id` is a
+single polymorphic reference and cannot itself hold a second id. Only this table exists so far;
+`manual_match_assignments`, `unmatched_query_reports`, `feature_flags`, and `system_settings` (below) remain
+unbuilt.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|

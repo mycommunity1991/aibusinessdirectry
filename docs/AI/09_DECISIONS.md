@@ -1271,6 +1271,401 @@ Domain" dependency rule.
 
 ---
 
+# ADR-020
+
+## Title
+
+Admin-Role Provisioning — Reuse of the Existing OTP/OAuth Login Path Plus a New, Ops-Only CLI Script (`grant_admin_role.py`); Email+Password Admin Login Explicitly Deferred
+
+**Date**
+
+2026-09-08
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story VER-002 introduced this codebase's first `require_role(ROLE_ADMIN)`-gated endpoints (the admin
+verification-review queue and approve/reject actions). `ROLE_ADMIN` already existed as a seeded role and
+`require_role()` already accepted it as a valid argument (AUTH-004) — but no mechanism anywhere in the codebase
+granted `ROLE_ADMIN` to a real Account, and none should exist as a self-service flow. Separately, the schema
+already reserves a genuinely unused `email_password` `auth_provider` value and a `password_hash` column,
+documented in `04_DATABASE.md` as "(admin-only)"/"Populated only for `email_password` auth (internal Admin
+accounts)" — but no endpoint anywhere in this codebase authenticates via email+password, confirmed by reading
+every route in `identity/api.py`.
+
+### Decision
+
+An Admin authenticates through the exact same existing mobile-OTP or Google/Apple sign-in flow any
+Customer/Provider already uses — no new login mechanism was built by this story. A new, ops-only CLI script,
+`backend/scripts/grant_admin_role.py`, mirrors the existing `backend/scripts/seed_roles.py` precedent: it looks
+up an already-registered user by phone via the existing `UserRepository.get_by_phone`, then calls the
+already-generic `RoleAssignmentService.ensure_role_assigned(user.id, ROLE_ADMIN)` (ADR-016) and commits. It
+requires the target person to already have a real, registered Account through the ordinary sign-in flow — it
+never creates a phantom account, only grants a role to an existing one. It is never exposed via HTTP and
+requires direct server/deployment access to run, the same trust boundary `seed_roles.py` already relies on. The
+script's logging identifies the target user only by their resulting `user.id`, never by the phone number
+supplied on the command line, consistent with `06_SECURITY.md`'s treatment of phone numbers as sensitive/PII
+(an issue caught and fixed during this story's architect review).
+
+The schema's `email_password`/`password_hash` reservation is read as forward-looking scaffolding for a
+**future, separate Admin Portal login story** — plausibly bundled with ADM-002's own "admin operations
+dashboard" work — not something VER-002 builds a slice of. This decision was explicitly confirmed by the user
+before implementation began, per the Plan's own flagged confirmation requirement (Decision 1,
+`Plan_S05_VER-002.md`).
+
+### Alternatives Considered
+
+- **Build the full `email_password` admin login endpoint now** (rejected — new authentication surface, its own
+  security review and test suite, materially larger than "the verification-review action and its direct
+  consequences"; flagged as a candidate for a future dedicated story instead).
+- **No script at all — a manual `INSERT INTO identity.user_roles ...` runbook note** (a legitimate, more minimal
+  fallback the Plan also offered; not chosen — the CLI script is safer by construction: idempotent, reuses
+  already-tested application code, cannot construct a malformed row — and costs very little to add).
+
+### Consequences
+
+- Any future story needing to provision a second privileged role (beyond Admin) should default to this same
+  shape — an ops-only CLI script calling `RoleAssignmentService.ensure_role_assigned` against an already-registered
+  Account — rather than building a new self-service grant path.
+- A future Admin Portal login story, if it ever builds the `email_password` path, will need its own security
+  review; this ADR does not pre-approve that work, only records that the schema was deliberately left ready to
+  absorb it without a breaking migration.
+- CLI scripts that look up or act on identifying user data (phone numbers, emails) must log only the resulting
+  internal `user.id`, never the raw identifying input, per this story's fixed logging issue.
+
+### Related Documents
+
+- 04_DATABASE.md
+- 06_SECURITY.md
+- 09_DECISIONS.md (ADR-016 — `RoleAssignmentService.ensure_role_assigned`, reused unmodified here)
+- docs/implementation/plans/Plan_S05_VER-002.md (Decision 1)
+- docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md
+
+---
+
+# ADR-021
+
+## Title
+
+`admin_action_log` Lives in a New, First-of-Its-Kind `administration` Domain Module — Not an Extension of `audit`
+
+**Date**
+
+2026-09-08
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story VER-002 needed every admin approve/reject action recorded (AC6: "Every approval/rejection action is
+written to `admin_action_log`"). `audit.audit_logs` (AUTH-004) already has a generic
+`action`/`entity_type`/`entity_id`/`before_state`/`after_state` shape structurally close to what `admin_
+action_log` needs, which could suggest reusing it rather than building a new table. `04_DATABASE.md` already
+fully specified `administration.admin_action_log` as its own table, under its own schema, with its own,
+genuinely different column names (`admin_user_id`/`action_type`/`target_entity_type`/`target_entity_id`/
+`metadata`, not `audit_logs`' `actor_user_id`/`action`/`entity_type`/`entity_id`/`before_state`/`after_state`),
+and `03_DOMAIN_MODEL.md` already places `Admin Action Log` inside the Administration domain's entity list, a
+peer of `Admin User`/`Manual Match Assignment`/`Unmatched Query Report` — not inside Verification or a generic
+cross-cutting audit concept.
+
+### Decision
+
+A new `backend/app/modules/administration/` module was created — this domain's first slice, exactly the same
+shape `verification` itself was for VER-001. It mirrors `audit`'s own minimal footprint (model → repository →
+service → dependencies; no `api.py`/`schemas.py`, since nothing here is directly HTTP-exposed — it is called
+internally by `verification`'s new admin service, the same way `identity` calls `audit`'s service internally).
+`AdminActionLog(CommonColumnsMixin, Base)` is built **not** exempt like the immutable `AuditLog` — `04_DATABASE.md`'s
+Soft Delete section names only `audit_logs`/`search_event_log` as exempt from Common Columns, and
+`admin_action_log` is not on that list, so it is built exactly like every other ordinary business table in this
+codebase (versioned, soft-deletable), even though this means an admin-action row is not literally immutable the
+way `audit_logs`' rows are — a deliberate, spec-literal choice, not an oversight. `AdminActionLogService`
+exposes one explicit method, `record_verification_review`, mirroring `AuditService`'s "explicit methods, not one
+generic `record()`" convention.
+
+### Alternatives Considered
+
+- **Extend `audit.audit_logs` with the admin-action events instead** (rejected — would have required either
+  overloading `audit_logs`' generic columns with admin-specific semantics, or leaving the table AC6 and
+  `04_DATABASE.md` both name explicitly permanently unbuilt; also blurs `audit_logs`' deliberately immutable
+  nature with a mutable, soft-deletable concept).
+- **Put `AdminActionLog` inside the `verification` module instead of a new `administration` module** (rejected —
+  `admin_action_log` is explicitly reusable by any future admin action, e.g. Manual Match Assignment review,
+  ADM-002's wider dashboard, not something scoped to Verification alone; colocating it inside `verification`
+  would misrepresent its actual domain ownership).
+
+### Consequences
+
+- Any future admin action (Manual Match Assignment review, Unmatched Query Report actioning, ADM-002's wider
+  operations dashboard) should write to this same `administration.admin_action_log` table via
+  `AdminActionLogService`, rather than inventing a parallel logging mechanism.
+- `admin_action_log` rows are not immutable the way `audit_logs`' rows are (they carry the full soft-delete/
+  versioning Common Columns) — any future code relying on admin-action history being tamper-evident must not
+  assume the same immutability guarantee `audit_logs` provides.
+- This is the Administration domain's first real, if partial, implementation — the domain's much larger future
+  scope (Admin User accounts as a first-class entity, Manual Match Assignment, Unmatched Query Reports, feature
+  flags/system settings) remains entirely unbuilt.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md
+- 03_DOMAIN_MODEL.md (Administration domain)
+- 04_DATABASE.md (Administration Domain, Soft Delete section)
+- docs/implementation/plans/Plan_S05_VER-002.md (Decision 2)
+- docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md
+- docs/implementation/walkthroughs/Walkthrough_S02_AUTH-004.md (the `audit` module precedent this is deliberately not merged into)
+
+---
+
+# ADR-022
+
+## Title
+
+Notification Domain, First Slice — `notification.notifications` Only, Honest In-App-Record-Only, No Real Delivery Channel Yet
+
+**Date**
+
+2026-09-08
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story VER-002's AC5 required a provider to receive "a notification on status change, worded in plain language,
+never exposing internal status enum values" — a literal, testable requirement, not an aspiration. No
+Notification domain code existed anywhere in this codebase before this story; `03_DOMAIN_MODEL.md` and
+`PROJECT_IMPLEMENTATION_STATE.md` both listed Notifications as "not yet implemented," and Sprint 12 ("Engagement
+& Trust") is this domain's own dedicated future milestone with a full three-table design already specified in
+`04_DATABASE.md` (`notifications`, `notification_preferences`, `notification_delivery`) for real WhatsApp/SMS/
+Email sending. Building that full pipeline now would be significantly out of this story's scope; silently
+no-op'ing AC5 would not honestly satisfy it either.
+
+### Decision
+
+A new `backend/app/modules/notification/` module — this domain's first slice — builds **only**
+`notification.notifications` (`user_id`, `type`, `title`, `body`, `related_entity_type`, `related_entity_id`),
+exactly per `04_DATABASE.md`'s pre-existing spec, using the full `CommonColumnsMixin` (the same spec-literal
+reasoning as ADR-021's `AdminActionLog`). It deliberately does not build `notification_delivery` (there is no
+real channel to have a delivery status for) or `notification_preferences` (there is nothing to opt in/out of
+yet). A `notifications` row honestly records "a notification of this type, with this plain-language content, was
+generated for this user" — nothing more, directly mirroring ADR-018's (`StubDocumentOcrService`) and ADR-017's
+(`LocalFileStorage`) precedent of shipping an honestly-interim capability rather than a silent no-op or a
+premature full build-out. `NotificationService` exposes one explicit method,
+`notify_verification_status_change`, with hardcoded, plain-language copy templates for the approved/rejected
+cases — never simply interpolating the raw `VerificationStatus` enum member into `title`/`body`, satisfying
+AC5's "never exposing internal status enum values" literally.
+
+### Alternatives Considered
+
+- **Build the full three-table Notification domain now** (rejected as materially out of scope — no real
+  delivery channel or preference exists to build against yet; Sprint 12 is this domain's own dedicated
+  milestone).
+- **Skip AC5 with a no-op or log-line only** (rejected outright — AC5 is a literal, automated-test-covered
+  acceptance criterion, not an aspiration; a genuine `notifications` row is the honest minimum that satisfies
+  it).
+- **Reuse/extend `customer.customer_preferences.notification_channel`** (rejected — it is Customer-domain schema
+  with zero delivery mechanism behind it today, and does not even apply to a Provider recipient without a
+  Customer profile on the same Account).
+
+### Consequences
+
+- Any future story adding real WhatsApp/SMS/Email delivery, or a "read my notifications" inbox endpoint, should
+  build on top of this `notifications` table and `NotificationService`, adding `notification_delivery`/
+  `notification_preferences` at that point rather than before a real channel exists.
+- This is the Notification domain's first real, if partial, implementation — no delivery actually happens yet;
+  a `notifications` row today is purely an internal record, never seen by the recipient through any UI or
+  channel this codebase currently builds.
+
+### Related Documents
+
+- 03_DOMAIN_MODEL.md (Notification domain)
+- 04_DATABASE.md (Notification Domain)
+- 09_DECISIONS.md (ADR-017, ADR-018 — the "honestly interim, not a silent no-op" precedent this follows)
+- docs/implementation/plans/Plan_S05_VER-002.md (Decision 3)
+- docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md
+
+---
+
+# ADR-023
+
+## Title
+
+A Third Endpoint-Authorization Shape — Ownerless, `require_role(ROLE_ADMIN)`-Only Routes, Extending ADR-015's Framework
+
+**Date**
+
+2026-09-08
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+ADR-015 established exactly two shapes for "a resource scoped to the authenticated caller": a `/me` singleton
+(structural ownership, no `{id}` parameter at all) and a client-`{id}`-addressable collection (defensive
+`ensure_owner_or_not_found` ownership checks). Story VER-002's four new admin endpoints (the review queue,
+approve, reject, and the admin document-download route) fit neither shape: an Admin has no "own" verification
+record to scope to at all — every record in the queue belongs to some *other* user's Provider. Applying either
+of ADR-015's existing shapes here would be a category error: there is no `{id}` an Admin could ever "own," so an
+`ensure_owner_or_not_found` check would either be a meaningless no-op or, worse, would incorrectly reject a
+legitimate admin action against a stranger's record.
+
+### Decision
+
+`require_role(ROLE_ADMIN)` alone is the entire authorization boundary for this class of route — no ownership
+check of any kind applies, structurally, because none would even make sense. This is recorded as a genuinely
+new, third category extending ADR-015's framework, not a violation of it: ADR-015's rule was about *how* to
+scope a resource to its *owner*; this new category covers resources with no meaningful "owner" relative to the
+caller at all, where role membership alone is the correct and complete authorization model. The new admin
+document-download route (`GET /admin/verification/documents/{document_id}/file`) is deliberately built as a
+**sibling** to the existing owner-only `GET /providers/me/verification/documents/{document_id}/file`
+(VER-001/ADR-019) rather than a modification of it in place — extending the owner-only route to accept "owner OR
+Admin" would have blurred the meaning of a route mounted under `/providers/me/...`, where a `/me` path returning
+someone *else's* provider's document reads as a contradiction in terms.
+
+### Alternatives Considered
+
+- **Extend the existing owner-only document-download route in place to accept "owner OR Admin"** (rejected — a
+  route under `/providers/me/...` returning a *different* provider's document contradicts the path's own `/me`
+  semantics, even if technically guarded correctly; ADR-019's own Consequences section had already anticipated
+  this exact question and recommended a sibling route instead).
+- **Nest the admin routes under `/providers/{provider_id}/verification/...`** (rejected — the admin is not
+  acting "as" or "on behalf of" a specific known provider in the listing call, which spans *all* providers; the
+  approve/reject/download actions are keyed by `verification_record_id`/`document_id` directly, simpler and
+  avoiding a redundant, potentially-inconsistent `provider_id` path segment).
+
+### Consequences
+
+- Any future admin-facing, platform-wide route (e.g. a future ADM-002 operations-dashboard endpoint) should
+  default to this same shape — `require_role(ROLE_ADMIN)` alone, no ownership dependency of any kind — rather
+  than awkwardly forcing an ownership check onto a resource with no meaningful owner relative to the caller.
+- ADR-015 remains the correct rule for genuinely caller-owned resources; this ADR does not change or narrow
+  ADR-015's original two shapes, it adds a third, disjoint one for resources scoped by role membership instead
+  of ownership.
+- A route under a `/me` prefix must never be extended to return another user's data "for admins too" — a
+  genuinely admin-facing need on the same underlying data should get its own sibling route under a distinct,
+  role-gated prefix instead, per this story's document-download precedent.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md
+- 06_SECURITY.md
+- 09_DECISIONS.md (ADR-015 — the framework this extends; ADR-019 — the private-document-storage precedent this
+  builds a sibling route alongside)
+- docs/implementation/plans/Plan_S05_VER-002.md (Decision 6)
+- docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md
+
+---
+
+# ADR-024
+
+## Title
+
+Atomic Conditional `UPDATE` for Optimistic Concurrency Control — First Use in This Codebase, `VerificationRecordRepository.try_claim_for_review`
+
+**Date**
+
+2026-09-08
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story VER-002's independent tester review found and empirically reproduced a genuine concurrency bug in the
+original admin approve/reject implementation: a plain read-then-write pattern (fetch the `verification_records`
+row, check its `status` in Python, then issue an `UPDATE`) left a race window in which two truly concurrent
+`approve()`/`reject()` calls against the *same* record could both pass the in-Python status check before either
+call committed, each going on to write its own `admin_action_log` row and its own `notifications` row for what
+should have been a single logical action — violating AC6/AC8's "exactly one" guarantee. This is this codebase's
+first genuinely concurrent-write scenario against a single, contended row (every prior cross-module transaction
+in this codebase — ADR-014, ADR-016, VER-001's own writes — involves a caller acting only on their own,
+never-shared row).
+
+### Decision
+
+`VerificationRecordRepository.try_claim_for_review` replaces the read-then-write pattern with a single, atomic
+conditional `UPDATE ... WHERE id = :record_id AND status IN ('pending', 'under_review')`, executed directly
+against the database as one statement. Postgres takes a row lock on whichever concurrent writer's `UPDATE`
+statement reaches the row first; a second, genuinely concurrent `UPDATE` targeting the same row blocks until the
+first commits, then re-evaluates its own `WHERE` clause against the now-already-transitioned row — so at most
+one caller's `UPDATE` can ever match, regardless of true concurrency. The method returns whether the calling
+transaction won the race (based on the statement's `rowcount`); the caller
+(`AdminVerificationService._claim_record_or_raise`) raises the existing `VerificationRecordNotActionableError`
+(409) if it lost. This is correct under this codebase's actual, configured READ COMMITTED isolation level (no
+other level is set anywhere in `app/database/database.py`); under SERIALIZABLE/REPEATABLE READ the losing
+transaction would instead raise a serialization failure rather than affect zero rows — either outcome still
+prevents the duplicate write this fix targets, so the pattern is robust across isolation levels, not merely
+correct under one specific configuration. A dedicated regression test runs two genuinely concurrent `approve()`
+calls (via `asyncio.gather`, each on its own independent `AsyncSession`/transaction) and asserts exactly one
+`admin_action_log` row and exactly one `notifications` row exist afterward — confirmed to fail against the
+original read-then-write code and pass against this fix.
+
+### Alternatives Considered
+
+- **A `SELECT ... FOR UPDATE` row lock before the read-then-write** (a viable alternative that would also close
+  the race — not chosen because it requires two round trips (`SELECT FOR UPDATE` then `UPDATE`) where a single
+  conditional `UPDATE` achieves the same guarantee in one statement, with less code and no separate lock-then-act
+  window to reason about).
+- **Optimistic locking via the existing `version` column (`CommonColumnsMixin`)** (a legitimate alternative
+  general-purpose mechanism already present on every business table in this codebase — not chosen for this
+  specific case because the conditional `UPDATE`'s `WHERE status IN (...)` clause already expresses the exact
+  precondition that matters here — "is this record still actionable" — more directly than a generic version-number
+  compare-and-swap would, and requires no separate read to first learn the current version).
+- **An application-level lock (e.g. Redis-based)** (rejected as unnecessary infrastructure — Postgres's own
+  row-level locking already provides a correct, dependency-free solution local to the single query that needs
+  it).
+
+### Consequences
+
+- Any future story that needs to guard against two concurrent actors racing to transition the *same* row from
+  one of several "still pending" states into a terminal state should default to this same pattern — a single
+  conditional `UPDATE ... WHERE <current-state-precondition>`, checking `rowcount` to detect whether the caller's
+  transaction won — rather than a Python-level read-then-write, which this story's own history now demonstrates
+  is genuinely unsafe under real concurrency, not merely a theoretical concern.
+- This is this codebase's first documented use of this pattern; `VerificationRecordRepository.try_claim_for_review`
+  is the reference implementation future stories should model a similar guard on, rather than re-deriving the
+  reasoning from scratch or reaching for heavier infrastructure (distributed locks, `SELECT FOR UPDATE`) where a
+  single conditional `UPDATE` suffices.
+
+### Related Documents
+
+- 04_DATABASE.md (Transactions section)
+- 09_DECISIONS.md (ADR-015 — `uq_saved_addresses_customer_default`'s defense-in-depth precedent this parallels
+  in spirit, for a different concurrency concern)
+- docs/implementation/plans/Plan_S05_VER-002.md (Decision 4)
+- docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:
