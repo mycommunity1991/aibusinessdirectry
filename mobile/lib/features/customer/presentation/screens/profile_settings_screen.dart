@@ -8,6 +8,9 @@ import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/app_error_message.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
+import '../../../provider/data/provider_repository.dart';
+import '../../../provider/domain/models/provider_exception.dart';
+import '../../../provider/presentation/utils/provider_error_copy.dart';
 import '../../domain/models/customer_profile.dart';
 import '../../state/customer_profile_controller.dart';
 import '../utils/customer_error_copy.dart';
@@ -15,13 +18,14 @@ import '../utils/customer_error_copy.dart';
 /// S-14 — Profile & Settings, scoped to CUS-001's fields (display name,
 /// avatar — a plain URL text field, no file-upload picker,
 /// `Plan_S03_CUS-001.md` Decision 6 — a visible EN/AR language toggle with
-/// immediate effect (AC6), and a notification-channel picker) plus
-/// CUS-002's Saved Addresses entry point (the S-14 link slot CUS-001's own
-/// Plan named but explicitly deferred, `Plan_S03_CUS-002.md` item 22).
+/// immediate effect (AC6), and a notification-channel picker), CUS-002's
+/// Saved Addresses entry point, plus PRO-001's "List Your Business" entry
+/// point (the S-14 link slot CUS-001's own Plan named but explicitly
+/// deferred, `Plan_S03_CUS-002.md` item 22 / `Plan_S04_PRO-001.md` item 32).
 ///
-/// Deliberately does **not** add "List Your Business", delete-account, or
-/// legal-link entries — those belong to their own not-yet-built stories
-/// (`Plan_S03_CUS-001.md` Decision 7, out-of-scope list).
+/// Deliberately does **not** add delete-account or legal-link entries —
+/// those belong to their own not-yet-built stories (`Plan_S03_CUS-001.md`
+/// Decision 7, out-of-scope list).
 class ProfileSettingsScreen extends ConsumerStatefulWidget {
   const ProfileSettingsScreen({super.key});
 
@@ -178,11 +182,48 @@ class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
                         onTap: () => context.push(AppRoutes.savedAddresses),
                       ),
                     ),
+                    const SizedBox(height: AppSpacing.md),
+                    Card(
+                      margin: EdgeInsets.zero,
+                      child: ListTile(
+                        leading: const Icon(Icons.storefront_outlined),
+                        title: Text(l10n.listYourBusinessLabel),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => _onListYourBusiness(context),
+                      ),
+                    ),
                   ],
                 ),
               ),
       ),
     );
+  }
+
+  /// Handles the "List Your Business" tile (PRO-001, item 32,
+  /// `Plan_S04_PRO-001.md`): checks `getMyProvider()` first -- if the
+  /// caller already has a listing, shows a plain snackbar and never
+  /// navigates into the wizard (Decision 9, mobile mirror of AC8);
+  /// otherwise navigates to the onboarding intro (S-15).
+  Future<void> _onListYourBusiness(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    try {
+      final existing = await ref
+          .read(providerRepositoryProvider)
+          .getMyProvider();
+      if (!context.mounted) return;
+      if (existing != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.providerAlreadyExistsMessage)),
+        );
+        return;
+      }
+      context.push(AppRoutes.providerIntro);
+    } on ProviderException catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(providerErrorMessage(context, error))),
+      );
+    }
   }
 }
 

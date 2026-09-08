@@ -1,7 +1,20 @@
 # Checkpoint — Sprint 04, PRO-001 (Create My Business or Freelancer Listing)
 
-**Written by:** `backend` agent
-**Status:** Backend implementation complete and tested. Mobile (frontend) implementation not started. Not yet reviewed by `tester`/`architect`.
+**Written by:** `frontend` agent (this update); backend section below written by `backend` agent
+**Status:** Backend and mobile implementation both complete and self-tested. Not yet reviewed by `tester`/`architect`.
+
+## What's done (mobile, items 21-37 of `Plan_S04_PRO-001.md`)
+
+- `mobile/lib/shared/widgets/step_indicator.dart` — new generic `StepIndicator` widget (`currentStep`/`totalSteps`/optional `stepLabels`), zero domain coupling.
+- `mobile/lib/shared/widgets/location_picker/location_capture_field.dart` — new shared "Pick on map" + "Use current location" widget, factored out of `AddressFormScreen`'s established pattern (not modifying `AddressFormScreen` itself) so the two new provider detail screens don't duplicate that wiring a second/third time.
+- New feature module `mobile/lib/features/provider/`: `domain/models/{provider_type,provider,create_provider_request,provider_exception}.dart`, `data/provider_repository.dart`, `state/provider_onboarding_controller.dart` (`autoDispose` `StateNotifierProvider` holding the in-memory wizard draft), `presentation/screens/{provider_intro,choose_provider_type,provider_basic_info,business_details,freelancer_details}_screen.dart`, `presentation/utils/provider_error_copy.dart`.
+- Routes added to `mobile/lib/core/routing/app_routes.dart` and wired in `app_router.dart`: `providerIntro`, `chooseProviderType`, `providerBasicInfo`, `businessDetails`, `freelancerDetails`.
+- `mobile/lib/features/customer/presentation/screens/profile_settings_screen.dart`: added the "List Your Business" tile (calls `getMyProvider()` first; snackbar if already exists, else navigates to `providerIntro`).
+- l10n: ~40 new keys added to both `mobile/lib/l10n/app_en.arb` and `app_ar.arb` (English + Arabic).
+- Tests: `mobile/test/shared/widgets/step_indicator_test.dart`, `mobile/test/features/provider/{choose_provider_type_screen,provider_basic_info_screen,business_details_screen,freelancer_details_screen,provider_onboarding_flow}_test.dart`, `mobile/test/features/provider/fakes/fake_provider_repository.dart`, `mobile/test/features/provider/test_helpers.dart`. Full mobile suite: 96 passed, 0 failed. `flutter analyze`: no issues. `dart format --set-exit-if-changed`: clean.
+- One notable non-obvious fix: `providerOnboardingControllerProvider` is `autoDispose` — `ChooseProviderTypeScreen` and `ProviderBasicInfoScreen` each add a `ref.watch(providerOnboardingControllerProvider)` in `build()` purely to keep the provider alive while on the navigation stack (they otherwise only ever `ref.read` it in event handlers); without this the draft was being disposed and reset to null between wizard steps since nothing held a listener.
+- Deviation from the Plan's literal screen bullets (flagged for `architect`): S-18a/S-18b both include a "Use current location" button alongside "Pick on map" (via the new shared `LocationCaptureField`), matching `AddressFormScreen`'s existing pattern one-for-one. The Plan's item 29/30 text only names "Pick on map" — this was added for UX consistency with the existing Customer flow and, practically, to make the screens testable without a real `GoogleMap` platform view (mirrors CUS-002's own reasoning for why `AddressFormScreen`'s tests never exercise "Pick on map" directly).
+- Environment note for whoever runs mobile tests/analyze next: no Flutter SDK was pre-installed in this sandbox. Flutter 3.44.9 (matching `pubspec.yaml`'s `sdk: ^3.12.2`) was downloaded and extracted to a scratch directory outside the repo and used via `PATH`/`PUB_CACHE` env vars for this session; not committed, not part of the repo.
 
 ## What's done (backend, items 1-20 of `Plan_S04_PRO-001.md`)
 
@@ -15,10 +28,9 @@
 
 ## What's next
 
-- `frontend` agent: mobile half of PRO-001 (items 21-37 of the Plan) — `step_indicator.dart`, `features/provider/` module, onboarding wizard screens (S-15/S-16/S-17/S-18a/S-18b), Profile & Settings CTA integration, routes, tests.
-- `tester` agent: verify all 10 ACs per the Plan's Verification Plan table once mobile lands (or backend-only verification first, if the chain runs backend review before frontend).
-- `architect` agent: review Decision 1 (`provider -> identity` role-grant direction) against ADR-014, Decision 4 (`category_label` flagged column), Decision 2 (single-POST endpoint shape) against ADR-015.
-- Deferred to story close (per Plan, not yet done): record ADR-016 for Decision 1 in `09_DECISIONS.md`; update `04_DATABASE.md` for `category_label`; update `12_TECH_STACK.md` for `google_maps_flutter`/`geolocator`/`geocoding`. None of this is `backend`'s doc to touch — flagged for `tech-lead`.
+- `tester` agent: verify all 10 ACs per the Plan's Verification Plan table (both backend and mobile halves are now in place).
+- `architect` agent: review Decision 1 (`provider -> identity` role-grant direction) against ADR-014, Decision 4 (`category_label` flagged column), Decision 2 (single-`POST` endpoint shape) against ADR-015, the new `StepIndicator` shared widget for reusability, and the `LocationCaptureField` extraction / "Use current location" addition on S-18a/S-18b noted above as a deviation from the Plan's literal screen bullets.
+- Deferred to story close (per Plan, not yet done): record ADR-016 for Decision 1 in `09_DECISIONS.md`; update `04_DATABASE.md` for `category_label`; update `12_TECH_STACK.md` for `google_maps_flutter`/`geolocator`/`geocoding`. None of this is `backend`'s or `frontend`'s doc to touch — flagged for `tech-lead`.
 
 ## Environment notes for whoever runs tests next
 

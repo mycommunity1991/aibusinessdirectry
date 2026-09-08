@@ -33,4 +33,27 @@ class AppRoutes {
   /// `AddressFormArgs` via `extra`. [addFirstAddress] is a separate,
   /// dedicated route and never uses this one.
   static const String addressForm = '/address-form';
+
+  /// S-15 — List Your Business intro (PRO-001). Reached from
+  /// [profileSettings]'s "List Your Business" entry point, only once
+  /// `getMyProvider()` has confirmed the caller has no listing yet
+  /// (Decision 9, `Plan_S04_PRO-001.md`).
+  static const String providerIntro = '/provider-intro';
+
+  /// S-16 — Choose Provider Type (PRO-001, AC3). The only screen that ever
+  /// writes `provider_type` into `ProviderOnboardingController`.
+  static const String chooseProviderType = '/choose-provider-type';
+
+  /// S-17 — Provider Basic Info (PRO-001, AC4). Routes to [businessDetails]
+  /// or [freelancerDetails] based on the onboarding controller's stored
+  /// type.
+  static const String providerBasicInfo = '/provider-basic-info';
+
+  /// S-18a — Business Details, the Business path's final wizard step
+  /// (PRO-001, AC5).
+  static const String businessDetails = '/business-details';
+
+  /// S-18b — Freelancer Details, the Freelancer path's final wizard step
+  /// (PRO-001, AC6).
+  static const String freelancerDetails = '/freelancer-details';
 }

@@ -100,5 +100,51 @@
   "addAddressLabel": "إضافة عنوان",
 
   "findServiceButtonLabel": "ابحث عن خدمة",
-  "searchComingSoonMessage": "البحث قادم قريباً."
+  "searchComingSoonMessage": "البحث قادم قريباً.",
+
+  "stepIndicatorSemanticLabel": "الخطوة {current} من {total}",
+
+  "listYourBusinessLabel": "أدرج نشاطك التجاري",
+  "providerAlreadyExistsMessage": "لديك بالفعل قائمة نشاط تجاري.",
+
+  "providerIntroTitle": "أدرج نشاطك التجاري",
+  "providerIntroHeadline": "نمِّ نشاطك التجاري مع سوق الذكاء الاصطناعي",
+  "providerIntroBody": "أنشئ قائمة مجانية ليتمكن العملاء القريبون منك من إيجادك والتواصل معك مباشرة.",
+  "getStartedLabel": "ابدأ الآن",
+
+  "chooseProviderTypeTitle": "اختر نوع قائمتك",
+  "chooseProviderTypePrompt": "هل أنت نشاط تجاري أم مستقل؟",
+  "providerTypeBusinessTitle": "نشاط تجاري",
+  "providerTypeBusinessSubtitle": "متجر أو مكتب أو شركة ذات موقع ثابت.",
+  "providerTypeFreelancerTitle": "مستقل",
+  "providerTypeFreelancerSubtitle": "محترف مستقل يتنقل إلى العملاء.",
+
+  "providerBasicInfoTitle": "المعلومات الأساسية",
+  "providerDisplayNameFieldLabel": "الاسم المعروض",
+  "providerWhatsappFieldLabel": "رقم واتساب (اختياري)",
+  "providerSameAsPhoneLabel": "نفس رقم الهاتف",
+  "providerCategoryFieldLabel": "الفئة",
+  "providerCategoryFieldHint": "مثال: سباكة، صيانة تكييف",
+  "providerDescriptionFieldLabel": "الوصف (اختياري)",
+
+  "businessDetailsTitle": "تفاصيل النشاط التجاري",
+  "freelancerDetailsTitle": "تفاصيل العمل المستقل",
+  "operatingHoursLabel": "ساعات العمل",
+  "weekdayMonday": "الإثنين",
+  "weekdayTuesday": "الثلاثاء",
+  "weekdayWednesday": "الأربعاء",
+  "weekdayThursday": "الخميس",
+  "weekdayFriday": "الجمعة",
+  "weekdaySaturday": "السبت",
+  "weekdaySunday": "الأحد",
+  "closedLabel": "مغلق",
+  "offersDeliveryLabel": "تقديم التوصيل",
+  "deliveryRadiusValueLabel": "نطاق التوصيل: {radius} كم",
+  "tradeLicenseNumberFieldLabel": "رقم الرخصة التجارية (اختياري)",
+  "submitLabel": "إرسال",
+
+  "serviceRadiusValueLabel": "نطاق الخدمة: {radius} كم",
+  "skillsFieldLabel": "المهارات",
+  "addASkillFieldLabel": "أضف مهارة",
+  "yearsExperienceFieldLabel": "سنوات الخبرة (اختياري)"
 }

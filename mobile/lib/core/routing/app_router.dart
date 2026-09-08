@@ -12,6 +12,11 @@ import '../../features/customer/presentation/screens/address_form_screen.dart';
 import '../../features/customer/presentation/screens/profile_settings_screen.dart';
 import '../../features/customer/presentation/screens/saved_addresses_screen.dart';
 import '../../features/home/presentation/screens/home_placeholder_screen.dart';
+import '../../features/provider/presentation/screens/business_details_screen.dart';
+import '../../features/provider/presentation/screens/choose_provider_type_screen.dart';
+import '../../features/provider/presentation/screens/freelancer_details_screen.dart';
+import '../../features/provider/presentation/screens/provider_basic_info_screen.dart';
+import '../../features/provider/presentation/screens/provider_intro_screen.dart';
 import 'app_routes.dart';
 
 /// Builds the app's [GoRouter]. Exposed as a factory (rather than a single
@@ -79,6 +84,26 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
             subtitle: args.subtitle,
           );
         },
+      ),
+      GoRoute(
+        path: AppRoutes.providerIntro,
+        builder: (context, state) => const ProviderIntroScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.chooseProviderType,
+        builder: (context, state) => const ChooseProviderTypeScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.providerBasicInfo,
+        builder: (context, state) => const ProviderBasicInfoScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.businessDetails,
+        builder: (context, state) => const BusinessDetailsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.freelancerDetails,
+        builder: (context, state) => const FreelancerDetailsScreen(),
       ),
     ],
   );

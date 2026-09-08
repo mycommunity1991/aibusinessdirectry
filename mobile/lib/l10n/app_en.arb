@@ -372,5 +372,164 @@
   "searchComingSoonMessage": "Search coming soon.",
   "@searchComingSoonMessage": {
     "description": "Snackbar shown when tapping \"Find a Service\" while the customer already has at least one saved address -- no real Search feature exists yet (Decision 6)."
+  },
+
+  "stepIndicatorSemanticLabel": "Step {current} of {total}",
+  "@stepIndicatorSemanticLabel": {
+    "description": "Screen-reader label for the generic multi-step-form StepIndicator widget (PRO-001, AC9).",
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+
+  "listYourBusinessLabel": "List Your Business",
+  "@listYourBusinessLabel": {
+    "description": "Label for the Profile & Settings entry point into the Provider onboarding wizard (PRO-001, S-14's deferred slot from CUS-001)."
+  },
+  "providerAlreadyExistsMessage": "You already have a business listing.",
+  "@providerAlreadyExistsMessage": {
+    "description": "Plain-language message shown when the caller already has a provider listing -- both when Profile & Settings checks before entering the wizard (Decision 9) and for the backend 409 ProviderAlreadyExistsError if a submission somehow still races past that check (AC8/AC10)."
+  },
+
+  "providerIntroTitle": "List Your Business",
+  "@providerIntroTitle": {
+    "description": "Title on the List Your Business intro screen (S-15, PRO-001)."
+  },
+  "providerIntroHeadline": "Grow your business with AI Marketplace",
+  "@providerIntroHeadline": {
+    "description": "Headline value-prop copy on the List Your Business intro screen (S-15)."
+  },
+  "providerIntroBody": "Create a free listing so nearby customers can find and contact you directly.",
+  "@providerIntroBody": {
+    "description": "Body value-prop copy on the List Your Business intro screen (S-15)."
+  },
+  "getStartedLabel": "Get Started",
+  "@getStartedLabel": {
+    "description": "Primary action on the List Your Business intro screen (S-15), starting the onboarding wizard at S-16."
+  },
+
+  "chooseProviderTypeTitle": "Choose your listing type",
+  "@chooseProviderTypeTitle": {
+    "description": "Title on the Choose Provider Type screen (S-16, PRO-001, AC3)."
+  },
+  "chooseProviderTypePrompt": "Are you a business or an independent freelancer?",
+  "@chooseProviderTypePrompt": {
+    "description": "Prompt copy on the Choose Provider Type screen (S-16)."
+  },
+  "providerTypeBusinessTitle": "Business",
+  "@providerTypeBusinessTitle": {
+    "description": "Label for the Business provider-type option on S-16."
+  },
+  "providerTypeBusinessSubtitle": "A shop, office, or company with a fixed location.",
+  "@providerTypeBusinessSubtitle": {
+    "description": "Subtitle for the Business provider-type option on S-16."
+  },
+  "providerTypeFreelancerTitle": "Freelancer",
+  "@providerTypeFreelancerTitle": {
+    "description": "Label for the Freelancer provider-type option on S-16."
+  },
+  "providerTypeFreelancerSubtitle": "An independent professional who travels to customers.",
+  "@providerTypeFreelancerSubtitle": {
+    "description": "Subtitle for the Freelancer provider-type option on S-16."
+  },
+
+  "providerBasicInfoTitle": "Basic info",
+  "@providerBasicInfoTitle": {
+    "description": "Title on the Provider Basic Info screen (S-17, PRO-001, AC4)."
+  },
+  "providerDisplayNameFieldLabel": "Display name",
+  "@providerDisplayNameFieldLabel": {
+    "description": "Label for the required display-name field on the Provider Basic Info screen (S-17)."
+  },
+  "providerWhatsappFieldLabel": "WhatsApp number (optional)",
+  "@providerWhatsappFieldLabel": {
+    "description": "Label for the optional WhatsApp number field on the Provider Basic Info screen (S-17)."
+  },
+  "providerSameAsPhoneLabel": "Same as phone number",
+  "@providerSameAsPhoneLabel": {
+    "description": "Label for the convenience toggle that copies the phone number into the WhatsApp field on the Provider Basic Info screen (S-17)."
+  },
+  "providerCategoryFieldLabel": "Category",
+  "@providerCategoryFieldLabel": {
+    "description": "Label for the required free-text category field on the Provider Basic Info screen (S-17, Decision 4 -- a temporary stand-in for the not-yet-built Category domain)."
+  },
+  "providerCategoryFieldHint": "e.g. Plumbing, AC Repair",
+  "@providerCategoryFieldHint": {
+    "description": "Example hint text for the category field on the Provider Basic Info screen (S-17)."
+  },
+  "providerDescriptionFieldLabel": "Description (optional)",
+  "@providerDescriptionFieldLabel": {
+    "description": "Label for the optional description field on the Provider Basic Info screen (S-17)."
+  },
+
+  "businessDetailsTitle": "Business details",
+  "@businessDetailsTitle": {
+    "description": "Title on the Business Details screen (S-18a, PRO-001, AC5)."
+  },
+  "freelancerDetailsTitle": "Freelancer details",
+  "@freelancerDetailsTitle": {
+    "description": "Title on the Freelancer Details screen (S-18b, PRO-001, AC6)."
+  },
+  "operatingHoursLabel": "Operating hours",
+  "@operatingHoursLabel": {
+    "description": "Section header above the weekly operating-hours editor on the Business Details screen (S-18a, AC5)."
+  },
+  "weekdayMonday": "Monday",
+  "@weekdayMonday": {"description": "Full weekday name, used on the operating-hours editor (S-18a)."},
+  "weekdayTuesday": "Tuesday",
+  "@weekdayTuesday": {"description": "Full weekday name, used on the operating-hours editor (S-18a)."},
+  "weekdayWednesday": "Wednesday",
+  "@weekdayWednesday": {"description": "Full weekday name, used on the operating-hours editor (S-18a)."},
+  "weekdayThursday": "Thursday",
+  "@weekdayThursday": {"description": "Full weekday name, used on the operating-hours editor (S-18a)."},
+  "weekdayFriday": "Friday",
+  "@weekdayFriday": {"description": "Full weekday name, used on the operating-hours editor (S-18a)."},
+  "weekdaySaturday": "Saturday",
+  "@weekdaySaturday": {"description": "Full weekday name, used on the operating-hours editor (S-18a)."},
+  "weekdaySunday": "Sunday",
+  "@weekdaySunday": {"description": "Full weekday name, used on the operating-hours editor (S-18a)."},
+  "closedLabel": "Closed",
+  "@closedLabel": {
+    "description": "Shown next to a weekday on the operating-hours editor when that day's open toggle is off (S-18a)."
+  },
+  "offersDeliveryLabel": "Offer delivery",
+  "@offersDeliveryLabel": {
+    "description": "Label for the toggle that reveals the optional delivery-radius slider on the Business Details screen (S-18a, AC5)."
+  },
+  "deliveryRadiusValueLabel": "Delivery radius: {radius} km",
+  "@deliveryRadiusValueLabel": {
+    "description": "Current value label above the delivery-radius slider on the Business Details screen (S-18a).",
+    "placeholders": {
+      "radius": {"type": "String", "example": "5.0"}
+    }
+  },
+  "tradeLicenseNumberFieldLabel": "Trade license number (optional)",
+  "@tradeLicenseNumberFieldLabel": {
+    "description": "Label for the optional trade license number field on the Business Details screen (S-18a, AC5)."
+  },
+  "submitLabel": "Submit",
+  "@submitLabel": {
+    "description": "Primary action on the final wizard step (S-18a/S-18b) that submits the provider listing (Decision 2, PRO-001)."
+  },
+
+  "serviceRadiusValueLabel": "Service radius: {radius} km",
+  "@serviceRadiusValueLabel": {
+    "description": "Current value label above the service-radius slider on the Freelancer Details screen (S-18b, AC6).",
+    "placeholders": {
+      "radius": {"type": "String", "example": "5.0"}
+    }
+  },
+  "skillsFieldLabel": "Skills",
+  "@skillsFieldLabel": {
+    "description": "Section header above the skill-tags chip input on the Freelancer Details screen (S-18b, AC6)."
+  },
+  "addASkillFieldLabel": "Add a skill",
+  "@addASkillFieldLabel": {
+    "description": "Label for the text field used to add a new skill tag on the Freelancer Details screen (S-18b)."
+  },
+  "yearsExperienceFieldLabel": "Years of experience (optional)",
+  "@yearsExperienceFieldLabel": {
+    "description": "Label for the optional years-of-experience field on the Freelancer Details screen (S-18b, AC6)."
   }
 }
