@@ -399,22 +399,6 @@ class VerificationDocumentInvalidTypeError(BusinessException):
         super().__init__(message=message, status_code=422)
 
 
-class InvalidVerificationFieldsError(BusinessException):
-    """
-    Raised by `POST /providers/me/verification` (VER-001) when the
-    submitted `confirmed_fields` are malformed -- e.g. an unparseable
-    `expiry_date` or an oversized text field. Distinct from FastAPI's own
-    schema-level 422s only in that this is a service-layer business-rule
-    check, not a pure type-shape check.
-    """
-
-    def __init__(
-        self,
-        message: str = "Some of the submitted details could not be understood.",
-    ):
-        super().__init__(message=message, status_code=422)
-
-
 class RateLimitExceededError(BusinessException):
     """
     Raised when a client exceeds a Redis-backed fixed-window rate limit

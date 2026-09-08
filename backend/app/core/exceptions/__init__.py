@@ -14,7 +14,6 @@ from app.core.exceptions.exceptions import (
     InvalidPortfolioUploadError,
     InvalidRefreshTokenError,
     InvalidTokenError,
-    InvalidVerificationFieldsError,
     OtpLockedError,
     PortfolioLimitExceededError,
     PortfolioPhotoNotFoundError,
@@ -59,5 +58,4 @@ __all__ = [
     "VerificationDocumentRequiredError",
     "VerificationDocumentTooLargeError",
     "VerificationDocumentInvalidTypeError",
-    "InvalidVerificationFieldsError",
 ]
