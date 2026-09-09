@@ -1,12 +1,12 @@
 # AI Marketplace — Open Decisions
 
 **Document ID:** AI-13
-**Version:** 0.2.0
-**Status:** Draft — Reconstructed; items 4 resolved and 3 given an interim sequencing decision by the CTO on
-08 September 2026, items 1/5/8/10/11 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
+**Version:** 0.3.0
+**Status:** Draft — Reconstructed; item 4 resolved and item 3 given an interim sequencing decision by the CTO on
+08 September 2026, items 1/5/8/10/11/12 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
 **Owner:** CTO
 **Audience:** Engineering Team, Product Team, AI Assistants
-**Last Updated:** 08 September 2026
+**Last Updated:** 09 September 2026
 
 ---
 
@@ -285,6 +285,42 @@ ADR-018, `.agents/skills/identity-verification/SKILL.md`.
 
 ---
 
+## Item 12 — Mobile `features/search` and `features/home` Directly Import `features/customer`
+
+**Status:** Open
+
+**Description:** `02_ARCHITECTURE.md`'s Mobile Architecture section states, unqualified, "Features must not
+depend directly on each other. Shared functionality belongs in shared modules." `DIR-001`'s `architect` review
+found `mobile/lib/features/search/state/search_filters_controller.dart` imports
+`features/customer/data/saved_address_repository.dart` and related `customer` domain models directly, to
+pre-fill the search origin from the customer's default saved address. This is not a new pattern:
+`mobile/lib/features/home/presentation/screens/home_placeholder_screen.dart` (pre-existing, shipped with
+CUS-002, unchanged in its import shape by `DIR-001`) already imports the same `SavedAddressRepository` directly,
+for its own address-required gate. Both are read-only, one-directional edges with no cycle — functionally
+similar in kind (though not severity) to the bidirectional `provider`↔`verification` coupling VER-001's review
+caught and fixed by extracting the shared type (`ProviderType`) into `mobile/lib/shared/models/`.
+
+**Why not fixed immediately:** the architect's read is that this is a real violation of an unqualified
+architecture rule, but fixing only the newer `search` edge while leaving the older `home` edge in place would
+not actually resolve the drift — it would just produce two different remediations of the same gap at two
+different times. Designing the right shared abstraction (most likely a trimmed, read-only "default address"
+accessor moved into `mobile/lib/shared/`, mirroring the `ProviderType` extraction precedent) is a small but
+real design decision that should be made once, deliberately, for both call sites together — not squeezed into
+either story's review cycle. This is accepted, logged debt, not a decision to leave the rule unenforced
+indefinitely.
+
+**Current workaround:** none — both features import `customer` directly today. No new call site should be added
+without first checking whether this item has been resolved.
+
+**Blocks:** Nothing functionally; `02_ARCHITECTURE.md`'s "features must not depend on each other" rule is not
+enforced for these two call sites until a small remediation story extracts the shared read into `shared/`.
+
+**Related:** `02_ARCHITECTURE.md` (Mobile Architecture, "Features must not depend directly on each other"),
+`Plan_S06_DIR-001.md`, `Checkpoint_S06_DIR-001.md`, `09_DECISIONS.md` (the `ProviderType` extraction precedent
+from VER-001's review).
+
+---
+
 # Changelog
 
 - **08 September 2026** — Document created (reconstructed from citations across the codebase; see
@@ -297,6 +333,10 @@ ADR-018, `.agents/skills/identity-verification/SKILL.md`.
   given an interim sequencing decision, not a resolution of the underlying legal question: `CLM-001` is
   deferred until a real legal/PDPL review happens; `DIR-001` proceeds in Sprint 6 unaffected, confirmed
   independent of this item via the Tracker's own `Depends On` field.
+- **09 September 2026** — Item 12 added: `DIR-001`'s architect review found `features/search` and (pre-existing)
+  `features/home` both import `features/customer`'s `SavedAddressRepository` directly, violating
+  `02_ARCHITECTURE.md`'s "features must not depend directly on each other" rule. Logged as accepted debt with a
+  recommended remediation shape, not fixed inside `DIR-001` — see item 12 for the architect's full reasoning.
 
 ---
 

@@ -71,25 +71,26 @@ class SearchService:
         photo_urls_by_id = await self.provider_service.get_primary_photo_urls(
             provider_ids
         )
+        category_labels_by_id = (
+            await self.provider_service.get_category_labels_by_provider_id(
+                provider_ids
+            )
+        )
 
-        results = []
-        for provider in providers:
-            category_label_rows = await self.provider_service.get_category_labels(
-                provider.id
+        results = [
+            SearchResultProviderResponse(
+                id=provider.id,
+                display_name=provider.display_name,
+                slug=provider.slug,
+                provider_type=provider.provider_type,
+                category_labels=category_labels_by_id.get(provider.id, []),
+                primary_photo_url=photo_urls_by_id.get(provider.id),
+                average_rating=provider.average_rating,
+                review_count=provider.review_count,
+                distance_meters=distances_by_id[provider.id],
             )
-            results.append(
-                SearchResultProviderResponse(
-                    id=provider.id,
-                    display_name=provider.display_name,
-                    slug=provider.slug,
-                    provider_type=provider.provider_type,
-                    category_labels=[row.label for row in category_label_rows],
-                    primary_photo_url=photo_urls_by_id.get(provider.id),
-                    average_rating=provider.average_rating,
-                    review_count=provider.review_count,
-                    distance_meters=distances_by_id[provider.id],
-                )
-            )
+            for provider in providers
+        ]
         return results, total_items
 
     async def list_categories(self) -> list[CategoryOptionResponse]:

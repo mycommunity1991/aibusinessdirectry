@@ -146,6 +146,27 @@ class ProviderService:
             await self.provider_category_label_repository.list_for_provider(provider_id)
         )
 
+    async def get_category_labels_by_provider_id(
+        self, provider_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, list[str]]:
+        """
+        Batch-resolves each provider's category label strings in one
+        query (DIR-001, `Plan_S06_DIR-001.md`) -- `search`'s own
+        `SearchService` depends on this method, never on
+        `ProviderCategoryLabelRepository` directly (Decision 4), mirroring
+        `get_primary_photo_urls`'s identical batching pattern to avoid an
+        N+1 query per search result.
+        """
+        labels = await self.provider_category_label_repository.list_for_provider_ids(
+            provider_ids
+        )
+        labels_by_provider_id: dict[uuid.UUID, list[str]] = {
+            provider_id: [] for provider_id in provider_ids
+        }
+        for label in labels:
+            labels_by_provider_id[label.provider_id].append(label.label)
+        return labels_by_provider_id
+
     async def list_by_ids(self, ids: list[uuid.UUID]) -> list[Provider]:
         """
         Thin pass-through to `ProviderRepository.list_by_ids` (VER-002,

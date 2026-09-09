@@ -24,6 +24,25 @@ class ProviderCategoryLabelRepository(BaseRepository[ProviderCategoryLabel]):
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def list_for_provider_ids(
+        self, provider_ids: list[uuid.UUID]
+    ) -> Sequence[ProviderCategoryLabel]:
+        """
+        Batch-fetches every category label for a set of providers in one
+        query (DIR-001, `Plan_S06_DIR-001.md`) -- used by
+        `ProviderService.get_category_labels_by_provider_id` to enrich a
+        page of search results without an N+1 query per result, mirroring
+        `PortfolioRepository.list_active_for_provider_ids`'s identical
+        batching pattern for photo enrichment.
+        """
+        if not provider_ids:
+            return []
+        stmt = select(ProviderCategoryLabel).where(
+            ProviderCategoryLabel.provider_id.in_(provider_ids)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def replace_all(
         self, provider_id: uuid.UUID, labels: list[dict[str, object]]
     ) -> Sequence[ProviderCategoryLabel]:

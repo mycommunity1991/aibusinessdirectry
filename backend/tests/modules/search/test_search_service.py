@@ -17,7 +17,6 @@ from app.core.exceptions import InvalidSearchRadiusError
 from app.modules.provider.models import (
     ListingSource,
     Provider,
-    ProviderCategoryLabel,
     ProviderType,
     VerificationStatus,
 )
@@ -50,16 +49,12 @@ def _provider(**overrides: object) -> Provider:
     return Provider(**payload)
 
 
-def _category_label(label: str) -> ProviderCategoryLabel:
-    return ProviderCategoryLabel(label=label, is_primary=True)
-
-
 @pytest.fixture
 def mock_provider_service() -> MagicMock:
     service = MagicMock()
     service.search_nearby = AsyncMock(return_value=([], {}, 0))
     service.get_primary_photo_urls = AsyncMock(return_value={})
-    service.get_category_labels = AsyncMock(return_value=[])
+    service.get_category_labels_by_provider_id = AsyncMock(return_value={})
     service.list_distinct_category_labels = AsyncMock(return_value=[])
     return service
 
@@ -100,9 +95,9 @@ class TestSearchProvidersRatingShape:
             {provider.id: 1234.5},
             1,
         )
-        mock_provider_service.get_category_labels.return_value = [
-            _category_label("Plumbing")
-        ]
+        mock_provider_service.get_category_labels_by_provider_id.return_value = {
+            provider.id: ["Plumbing"]
+        }
 
         results, total_items = await search_service.search_providers(
             category=None,
@@ -160,10 +155,9 @@ class TestSearchProvidersResponseShaping:
         mock_provider_service.get_primary_photo_urls.return_value = {
             provider.id: "/media/portfolios/abc/photo.jpg"
         }
-        mock_provider_service.get_category_labels.return_value = [
-            _category_label("Plumbing"),
-            _category_label("AC Repair"),
-        ]
+        mock_provider_service.get_category_labels_by_provider_id.return_value = {
+            provider.id: ["Plumbing", "AC Repair"]
+        }
 
         results, _total_items = await search_service.search_providers(
             category=None,
