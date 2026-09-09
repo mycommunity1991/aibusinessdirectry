@@ -238,6 +238,9 @@ def _inspect_after_upgrade(sync_conn: Connection) -> dict[str, Any]:
         "questions_indexes": inspector.get_indexes(
             "category_question_templates", schema="category"
         ),
+        "questions_unique_constraints": inspector.get_unique_constraints(
+            "category_question_templates", schema="category"
+        ),
         "questions_foreign_keys": inspector.get_foreign_keys(
             "category_question_templates", schema="category"
         ),
@@ -331,7 +334,7 @@ class TestSchemaMatchesDatabaseDoc:
 
         # No unique constraint on this table (Decision 2's idempotency
         # gating relies on this being absent).
-        assert "questions_unique_constraints" not in info
+        assert info["questions_unique_constraints"] == []
 
     async def test_provider_categories_join_table_matches_spec(
         self, migration_engine: AsyncEngine
