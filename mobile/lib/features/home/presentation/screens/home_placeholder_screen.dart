@@ -23,12 +23,12 @@ import '../../../customer/domain/models/saved_address_exception.dart';
 /// Home/Activity/Profile shell needs real Home/Activity screens that don't
 /// exist yet (`Plan_S03_CUS-001.md` Decision 7).
 ///
-/// The "Find a Service" button (CUS-002, Plan Decision 6) is an explicitly
-/// **temporary** stand-in for the real AI Conversation / Search Request
-/// entry point (S-06/S-07, a future story) — its only current behavior is
-/// enforcing the address-required gate for AC5. Whichever future story
-/// builds the real Search feature replaces this button's target, not the
-/// gate itself.
+/// The "Find a Service" button still enforces CUS-002's address-required
+/// gate (AC5, unchanged) — but as of DIR-001 (`Plan_S06_DIR-001.md`
+/// Decision 6), once a saved address exists it opens the real, structured
+/// Search Filters screen instead of showing a "coming soon" snackbar. The
+/// full AI Conversation entry point (S-06/S-07) remains a future story;
+/// this button is still not that, only a step closer to it.
 class HomePlaceholderScreen extends ConsumerWidget {
   const HomePlaceholderScreen({super.key});
 
@@ -47,8 +47,8 @@ class HomePlaceholderScreen extends ConsumerWidget {
       final addresses = await ref.read(savedAddressRepositoryProvider).list();
       if (!context.mounted) return;
       if (addresses.isEmpty) {
-        // AC5: no real Search feature exists yet -- re-prompt for an
-        // address (non-skippable this time) instead of proceeding.
+        // AC5: re-prompt for an address (non-skippable this time) instead
+        // of proceeding -- unchanged from CUS-002.
         await context.push<bool>(
           AppRoutes.addressForm,
           extra: (
@@ -58,9 +58,9 @@ class HomePlaceholderScreen extends ConsumerWidget {
           ),
         );
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.searchComingSoonMessage)));
+        // DIR-001, Decision 6: the real Search Filters screen replaces the
+        // prior "coming soon" snackbar now that it exists.
+        context.push(AppRoutes.searchFilters);
       }
     } on SavedAddressException {
       if (!context.mounted) return;

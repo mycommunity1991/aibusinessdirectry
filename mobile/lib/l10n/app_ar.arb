@@ -199,5 +199,21 @@
   "verificationDocumentInvalidTypeMessage": "نوع ملف غير مدعوم. يرجى رفع ملف JPG أو PNG أو WEBP أو PDF.",
   "verificationDocumentRequiredMessage": "يرجى رفع مستندك وتأكيده قبل الإرسال.",
   "verificationSubmissionNotAllowedMessage": "لديك بالفعل طلب تحقق قيد التنفيذ.",
-  "verificationStatusChipNotStartedLabel": "تحقق من حسابك"
+  "verificationStatusChipNotStartedLabel": "تحقق من حسابك",
+
+  "searchFiltersTitle": "ابحث عن مزودين قريبين",
+  "searchCategorySectionTitle": "الفئة",
+  "searchAnyCategoryChipLabel": "كل الفئات",
+  "searchLocationSectionTitle": "الموقع",
+  "searchRadiusValueLabel": "نطاق البحث: {radius} كم",
+  "searchButtonLabel": "بحث",
+  "searchResultsTitle": "نتائج البحث",
+  "searchPreSearchEmptyStateMessage": "اختر فئة أو ابحث بالقرب منك لعرض مزودي الخدمات.",
+  "searchZeroResultsMessage": "لا توجد نتائج لهذا البحث — جرّب توسيع نطاق البحث.",
+  "searchInvalidRadiusMessage": "جرّب نطاق بحث أصغر.",
+  "noReviewsYetLabel": "لا توجد تقييمات بعد",
+  "ratingWithReviewCountLabel": "{rating} ({count, plural, one {تقييم واحد} other {{count} تقييمات}})",
+  "distanceInMetersLabel": "على بعد {meters} م",
+  "distanceInKmLabel": "على بعد {km} كم",
+  "providerProfileComingSoonMessage": "ملفات مزودي الخدمة قادمة قريباً."
 }

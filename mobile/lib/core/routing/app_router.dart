@@ -18,6 +18,9 @@ import '../../features/provider/presentation/screens/freelancer_details_screen.d
 import '../../features/provider/presentation/screens/provider_basic_info_screen.dart';
 import '../../features/provider/presentation/screens/provider_intro_screen.dart';
 import '../../features/provider/presentation/screens/storefront_screen.dart';
+import '../../features/search/domain/models/search_filters_args.dart';
+import '../../features/search/presentation/screens/search_filters_screen.dart';
+import '../../features/search/presentation/screens/search_results_screen.dart';
 import '../../features/verification/domain/models/verification_confirm_args.dart';
 import '../../features/verification/presentation/screens/verification_confirm_screen.dart';
 import '../../features/verification/presentation/screens/verification_status_screen.dart';
@@ -135,6 +138,22 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
       GoRoute(
         path: AppRoutes.verificationStatus,
         builder: (context, state) => const VerificationStatusScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.searchFilters,
+        builder: (context, state) => const SearchFiltersScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.searchResults,
+        // Unlike `otpEntry`/`addressForm`, a missing/mistyped `extra` here
+        // is a real, supported state (Decision 7's pre-search empty state)
+        // rather than a redirect -- see `AppRoutes.searchResults`'s doc.
+        builder: (context, state) {
+          final extra = state.extra;
+          return SearchResultsScreen(
+            filters: extra is SearchFiltersArgs ? extra : null,
+          );
+        },
       ),
     ],
   );

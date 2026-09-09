@@ -367,13 +367,8 @@
 
   "findServiceButtonLabel": "Find a Service",
   "@findServiceButtonLabel": {
-    "description": "Temporary stand-in for the real AI Conversation / Search Request entry point (S-06/S-07, a future story) on the Home placeholder screen -- its only current behavior is enforcing the address-required gate for AC5 (Plan_S03_CUS-002.md Decision 6)."
+    "description": "Entry point on the Home placeholder screen into the structured Search Filters screen (DIR-001, Plan_S06_DIR-001.md Decision 6) -- still enforces CUS-002's address-required gate for AC5 first. The full AI Conversation entry point (S-06/S-07) remains a future story."
   },
-  "searchComingSoonMessage": "Search coming soon.",
-  "@searchComingSoonMessage": {
-    "description": "Snackbar shown when tapping \"Find a Service\" while the customer already has at least one saved address -- no real Search feature exists yet (Decision 6)."
-  },
-
   "stepIndicatorSemanticLabel": "Step {current} of {total}",
   "@stepIndicatorSemanticLabel": {
     "description": "Screen-reader label for the generic multi-step-form StepIndicator widget (PRO-001, AC9).",
@@ -737,5 +732,79 @@
   "verificationStatusChipNotStartedLabel": "Verify your account",
   "@verificationStatusChipNotStartedLabel": {
     "description": "Label on the Storefront's verification-status chip when the provider hasn't submitted verification yet (PRO-002/VER-001, Decision, Mobile item 30)."
+  },
+
+  "searchFiltersTitle": "Find nearby providers",
+  "@searchFiltersTitle": {
+    "description": "Title on the Search Filters screen (DIR-001, Plan_S06_DIR-001.md Decision 6)."
+  },
+  "searchCategorySectionTitle": "Category",
+  "@searchCategorySectionTitle": {
+    "description": "Section header above the category-chip picker on the Search Filters screen (DIR-001)."
+  },
+  "searchAnyCategoryChipLabel": "All categories",
+  "@searchAnyCategoryChipLabel": {
+    "description": "The chip that clears the category filter (Decision 1 -- category is optional, browses across all categories)."
+  },
+  "searchLocationSectionTitle": "Location",
+  "@searchLocationSectionTitle": {
+    "description": "Section header above the origin-location field on the Search Filters screen (DIR-001)."
+  },
+  "searchRadiusValueLabel": "Search radius: {radius} km",
+  "@searchRadiusValueLabel": {
+    "description": "Current value label above the search-radius slider on the Search Filters screen (DIR-001).",
+    "placeholders": {
+      "radius": {"type": "String", "example": "10"}
+    }
+  },
+  "searchButtonLabel": "Search",
+  "@searchButtonLabel": {
+    "description": "The single primary action on the Search Filters screen, navigating to the Search Results screen with the chosen filters (DIR-001, Decision 6)."
+  },
+  "searchResultsTitle": "Search Results",
+  "@searchResultsTitle": {
+    "description": "Title on the Search Results screen (S-08, DIR-001)."
+  },
+  "searchPreSearchEmptyStateMessage": "Choose a category or search nearby to see providers.",
+  "@searchPreSearchEmptyStateMessage": {
+    "description": "Empty-state copy on the Search Results screen shown only if reached with no search performed yet (DIR-001, AC4, Decision 7) -- deliberately distinct from searchZeroResultsMessage."
+  },
+  "searchZeroResultsMessage": "No results for this search — try widening your search area.",
+  "@searchZeroResultsMessage": {
+    "description": "Empty-state copy on the Search Results screen shown after a search returns zero results (DIR-001, AC4, Decision 7, 16_UX_GUIDELINES.md verbatim) -- deliberately distinct from searchPreSearchEmptyStateMessage."
+  },
+  "searchInvalidRadiusMessage": "Try a smaller search radius.",
+  "@searchInvalidRadiusMessage": {
+    "description": "Plain-language message for the backend's 422 InvalidSearchRadiusError (DIR-001)."
+  },
+  "noReviewsYetLabel": "No reviews yet",
+  "@noReviewsYetLabel": {
+    "description": "Rendered on a provider search result card when average_rating is null -- honest, never a synthesized 0.0 rating (DIR-001, Decision 2)."
+  },
+  "ratingWithReviewCountLabel": "{rating} ({count, plural, one {1 review} other {{count} reviews}})",
+  "@ratingWithReviewCountLabel": {
+    "description": "Rendered on a provider search result card when average_rating is not null, e.g. \"4.8 (3 reviews)\" (DIR-001, Decision 2) -- rating and count are always shown together, never rating alone.",
+    "placeholders": {
+      "rating": {"type": "String", "example": "4.8"},
+      "count": {"type": "int", "example": "3"}
+    }
+  },
+  "distanceInMetersLabel": "{meters} m away",
+  "@distanceInMetersLabel": {
+    "description": "Distance shown on a provider search result card when the distance is under 1 km (DIR-001, AC3).",
+    "placeholders": {
+      "meters": {"type": "int", "example": "350"}
+    }
+  },
+  "distanceInKmLabel": "{km} km away",
+  "@distanceInKmLabel": {
+    "description": "Distance shown on a provider search result card when the distance is 1 km or more (DIR-001, AC3).",
+    "placeholders": {
+      "km": {"type": "String", "example": "2.4"}
+    }
+  },
+  "providerProfileComingSoonMessage": "Provider profiles are coming soon.",
+  "@providerProfileComingSoonMessage": {
+    "description": "Snackbar shown when tapping a provider search result card -- the real Provider Profile screen (S-09) doesn't exist yet (DIR-001, Mobile item 20)."
   }
 }

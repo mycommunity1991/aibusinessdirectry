@@ -5,11 +5,14 @@ import 'package:ai_marketplace_app/features/customer/domain/models/saved_address
 import 'package:ai_marketplace_app/features/customer/presentation/screens/add_first_address_screen.dart';
 import 'package:ai_marketplace_app/features/customer/presentation/screens/address_form_screen.dart';
 import 'package:ai_marketplace_app/features/home/presentation/screens/home_placeholder_screen.dart';
+import 'package:ai_marketplace_app/features/search/data/search_repository.dart';
+import 'package:ai_marketplace_app/features/search/presentation/screens/search_filters_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fakes/fake_auth_repository.dart';
 import 'test_helpers.dart';
 import '../customer/fakes/fake_saved_address_repository.dart';
+import '../search/fakes/fake_search_repository.dart';
 
 /// CUS-002 — AC4 ("skippable, never blocks registration completion"), AC5
 /// ("does not re-prompt until a search is actually attempted"), and AC9's
@@ -73,7 +76,8 @@ void main() {
   );
 
   testWidgets(
-    '"Find a Service" with at least one saved address shows "Search coming soon" instead of re-prompting',
+    '"Find a Service" with at least one saved address opens the Search '
+    'Filters screen (DIR-001, Decision 6) instead of re-prompting',
     (tester) async {
       final fakeAuthRepository = FakeAuthRepository();
       final fakeSavedAddressRepository = FakeSavedAddressRepository(
@@ -100,6 +104,10 @@ void main() {
           savedAddressRepositoryProvider.overrideWithValue(
             fakeSavedAddressRepository,
           ),
+          // Hermetic per this suite's own convention -- the Search Filters
+          // screen this navigates to would otherwise attempt a real
+          // `GET /search/categories` call.
+          searchRepositoryProvider.overrideWithValue(FakeSearchRepository()),
         ],
       );
       await tester.pumpAndSettle();
@@ -112,7 +120,7 @@ void main() {
       await tester.tap(find.text('Find a Service'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Search coming soon.'), findsOneWidget);
+      expect(find.byType(SearchFiltersScreen), findsOneWidget);
       expect(find.byType(AddressFormScreen), findsNothing);
     },
   );

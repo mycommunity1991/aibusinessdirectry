@@ -1,8 +1,8 @@
 # Checkpoint — Sprint 06, DIR-001 (Browse Nearby Providers by Category and Location)
 
-**Owner of this checkpoint:** `backend` (most recent update)
-**Status:** Backend implementation (Plan items 1-16) complete. Awaiting `frontend` (mobile, items 17-27),
-then `tester`, then `architect`.
+**Owner of this checkpoint:** `frontend` (most recent update)
+**Status:** Backend implementation (Plan items 1-16) complete. Mobile implementation (Plan items 17-27)
+complete. Awaiting `tester`, then `architect`.
 
 ---
 
@@ -97,18 +97,91 @@ is not in this project's `[dependency-groups].dev`, only `~/.local/bin/mypy` glo
 project's dependencies for its `pydantic.mypy` plugin — ran via `uv run --with mypy mypy app` instead, an
 ephemeral overlay, no `pyproject.toml`/`uv.lock` change.)
 
+## What's done (mobile, complete)
+
+17-18. **New `search` feature module** (`mobile/lib/features/search/`): `domain/models/search_result_provider.dart`,
+   `category_option.dart`, `search_exception.dart`, `search_filters_args.dart`; `data/search_repository.dart`
+   (`searchProviders(...)`, `listCategories()`), mapping every failure to a plain-language `SearchException`,
+   mirroring `provider_repository.dart`/`saved_address_repository.dart`'s convention.
+19. **`SearchFiltersScreen`** (`presentation/screens/search_filters_screen.dart`) — category chips (from
+    `listCategories()`, plus an "All categories" chip clearing the filter), an origin-location field
+    pre-filled from the customer's default saved address (via `SavedAddressRepository`, falling back to the
+    first saved address if none is marked default, and left unset with zero saved addresses -- "Search"
+    stays disabled until a location exists), editable via the existing, reusable `LocationCaptureField`
+    (which itself wraps `LocationPickerScreen`/"use current location" from CUS-002 -- no new picker built), a
+    radius slider (1-100 km, matching `SEARCH_MAX_RADIUS_KM`), and a single "Search" action.
+20. **`SearchResultsScreen`** (S-08, `presentation/screens/search_results_screen.dart`) — provider cards,
+    loading state, error state (with retry), pull-to-refresh, and Decision 7's two *textually distinct* empty
+    states modeled as a real `SearchResultsStatus.idle` vs. `loaded`-with-empty-results distinction in
+    `SearchResultsController` (not merely a synthetic test-only state) -- `idle` is genuinely reachable via
+    `AppRoutes.searchResults` with no/invalid `extra` (the route renders `SearchResultsScreen(filters: null)`
+    rather than redirecting, unlike `otpEntry`/`addressForm`'s `extra`-required redirect pattern), since
+    Decision 7 frames "reached without filters applied" as part of this screen's own contract. Tap-through on
+    a card shows a "coming soon" snackbar (S-09 doesn't exist yet) -- mirrors CUS-002's own precedent.
+21. **`ProviderSearchCard`** (`presentation/widgets/provider_search_card.dart`) -- photo (falls back to a
+    placeholder icon on a null `primaryPhotoUrl` or a load error), name, category labels, rating+count per
+    Decision 2's rendering rule (`"No reviews yet"` vs. `"4.8 (3 reviews)"`, ICU plural for the count), and
+    distance formatted as `"{n} m away"` under 1 km or `"{n} km away"` at/above 1 km. Renders exactly
+    `SearchResultProvider`'s fields with no ranking-specific UI, so MAT-001 can reuse it unchanged.
+22. **Controllers**: `SearchFiltersController`/`SearchResultsController` (both `StateNotifierProvider.
+    autoDispose`, matching this codebase's established convention -- e.g. `StorefrontController` -- over the
+    `AsyncNotifierProvider` shape used for simpler eager-fetch state, since both need explicit, multi-field
+    state transitions no plain async fetch captures). No business logic in either screen widget.
+
+## Deviations from the Plan, flagged for `tester`/`architect`
+
+- **Item 19 says "the existing `SavedAddressRepository`"** -- `features/search/state/search_filters_controller.dart`
+  imports `features/customer/data/saved_address_repository.dart` (and its `SavedAddress`/`SavedAddressException`
+  models) directly, a `search -> customer` feature-to-feature edge. This exactly mirrors the *pre-existing*
+  `home -> customer` edge already in `home_placeholder_screen.dart` (unchanged by this story) -- not a new
+  category of coupling, and explicitly instructed by the Plan's own item 19 wording. Flagged per point 6's
+  instruction to call out any cross-feature import reasoning: `features/search/` imports **only** from
+  `customer` (this one, Plan-directed, precedented edge) and `shared/` (`ProviderType` from
+  `shared/models/provider_type.dart`, per VER-001's fix) -- it never imports from `features/provider/` or
+  `features/verification/`, confirmed by grep.
+- **Decision 7's "pre-search" state is real, not test-only**: `AppRoutes.searchResults` accepts a missing/
+  invalid `extra` as a supported state (renders the idle empty state) rather than redirecting away, unlike
+  every other `extra`-required route in this router (`otpEntry`, `addressForm`, `verificationConfirm`). This
+  is a deliberate, narrow exception to that pattern -- flagged for `architect` to confirm it reads as
+  intentional rather than an inconsistency, given Decision 7's explicit "if reached without filters applied"
+  framing.
+- **No `SearchException`/error-copy util was explicitly named in the Plan's items 17-18**, but one was added
+  (`domain/models/search_exception.dart`, `presentation/utils/search_error_copy.dart`) to match every other
+  repository's established plain-language-failure convention (`ProviderException`/`SavedAddressException` +
+  their own `*_error_copy.dart` utils) -- flagged as a consistency-driven addition, not scope creep.
+- The now-orphaned `searchComingSoonMessage` l10n key (CUS-002's temporary snackbar, superseded by the real
+  `SearchFiltersScreen` navigation) was removed from both `app_en.arb`/`app_ar.arb`, and
+  `first_address_prompt_test.dart`'s second test was updated in place (asserts `SearchFiltersScreen` now
+  renders, not the old snackbar text) rather than left stale -- no other call site referenced it.
+
+## Full test results (mobile, this session)
+
+Flutter SDK used: a pre-built 3.44.9 checkout found in the sandbox's scratchpad directory (no `flutter` on
+`PATH` by default in this environment) -- `flutter pub get` / `analyze` / `test` all ran clean against it.
+
+- `flutter analyze` -> **No issues found.**
+- `dart format --output=none --set-exit-if-changed .` -> **0 files would change** (148 files, all
+  already formatted).
+- `flutter test` (full suite, not just this story's new tests) -> **144 passed**, 0 failed (134
+  pre-existing + 10 new: 5 in `search_results_screen_test.dart`, 4 in `search_filters_screen_test.dart`, and
+  1 pre-existing `first_address_prompt_test.dart` test updated in place to match the new navigation target
+  rather than counted as "new").
+
 ## What's explicitly next
 
-1. **`frontend`** — mobile items 17-27 (Search Filters screen, Search Results screen S-08, provider card,
-   repository/models/controllers, `HomePlaceholderScreen` rewire, routing, mobile tests). Backend endpoints
-   are live: `GET /api/v1/search/providers`, `GET /api/v1/search/categories`.
-2. **`tester`** — verify all 7 ACs; particular attention per the Plan's own Delegation section to AC2's
+1. **`tester`** — verify all 7 ACs; particular attention per the Plan's own Delegation section to AC2's
    literal clause order (read `provider_search_repository.py`'s `_WHERE_CLAUSE` directly), AC6 (independently
    re-run `test_provider_search_repository.py::TestAC6QueryPlanUsesTheGistIndex`), AC7's reversed-insertion
-   tie-break tests, and Decision 2's both-rating-states coverage.
-3. **`architect`** — review Decision 4 (module placement) and Decision 8 (raw `text()` SQL, the `CAST(...
+   tie-break tests, and Decision 2's both-rating-states coverage (both backend and, now, mobile -- confirm
+   `"0.0 (0 reviews)"` never appears anywhere in `provider_search_card.dart`'s rendering paths). Also verify
+   AC4's mobile half: the pre-search and zero-results copy strings are genuinely distinct
+   (`search_results_screen_test.dart` covers this, but an independent re-check is worth it given Decision
+   7's subtlety).
+2. **`architect`** — review Decision 4 (module placement) and Decision 8 (raw `text()` SQL, the `CAST(...
    AS text)` addition) as flagged above; also review the `ProviderService.get_primary_photo_urls`/
-   `portfolio_repository` addition (item 5 above) for architectural soundness.
+   `portfolio_repository` addition (item 5 above) for architectural soundness; review the mobile deviations
+   flagged above (the `search -> customer` edge, and the `searchResults` route's non-redirecting `extra`
+   handling).
 
 ## Files touched (backend)
 
@@ -132,3 +205,27 @@ Modified:
 - `backend/tests/modules/provider/test_availability_service.py`, `test_portfolio_service.py`,
   `test_provider_service.py`, `test_provider_service_update.py`
 - `backend/tests/modules/verification/test_admin_verification_service.py`, `test_verification_service.py`
+
+## Files touched (mobile)
+
+New:
+- `mobile/lib/features/search/domain/models/search_result_provider.dart`, `category_option.dart`,
+  `search_exception.dart`, `search_filters_args.dart`
+- `mobile/lib/features/search/data/search_repository.dart`
+- `mobile/lib/features/search/state/search_filters_controller.dart`, `search_results_controller.dart`
+- `mobile/lib/features/search/presentation/screens/search_filters_screen.dart`,
+  `search_results_screen.dart`
+- `mobile/lib/features/search/presentation/widgets/provider_search_card.dart`
+- `mobile/lib/features/search/presentation/utils/search_error_copy.dart`
+- `mobile/test/features/search/fakes/fake_search_repository.dart`
+- `mobile/test/features/search/search_filters_screen_test.dart`, `search_results_screen_test.dart`
+
+Modified:
+- `mobile/lib/core/routing/app_routes.dart`, `app_router.dart` (new `searchFilters`/`searchResults` routes)
+- `mobile/lib/features/home/presentation/screens/home_placeholder_screen.dart` (`_onFindService` rewired to
+  `AppRoutes.searchFilters` once a saved address exists; the AC5 address-required gate itself is unchanged)
+- `mobile/lib/l10n/app_en.arb`, `app_ar.arb` (new Search strings added; the now-orphaned
+  `searchComingSoonMessage` key removed)
+- `mobile/test/features/auth/first_address_prompt_test.dart` (its second test updated to assert navigation
+  to `SearchFiltersScreen` instead of the retired snackbar; `searchRepositoryProvider` overridden with
+  `FakeSearchRepository` for hermeticity)

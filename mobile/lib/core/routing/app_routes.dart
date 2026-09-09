@@ -80,4 +80,19 @@ class AppRoutes {
   /// verification status chip, and landed on after a successful
   /// submission from [verificationUpload]/[verificationConfirm].
   static const String verificationStatus = '/verification-status';
+
+  /// The minimal, structured (non-AI) Search entry point (DIR-001,
+  /// `Plan_S06_DIR-001.md` Decision 6). Reached from [homePlaceholder]'s
+  /// "Find a Service" action once a saved address exists — replacing that
+  /// button's prior "coming soon" snackbar stand-in.
+  static const String searchFilters = '/search-filters';
+
+  /// S-08 — Search Results (DIR-001). Reached by `push(..., extra:
+  /// SearchFiltersArgs(...))` from [searchFilters]'s "Search" action. A
+  /// bare deep link with no `extra` is a real, supported state here (unlike
+  /// [otpEntry]/[addressForm]'s `extra`-required redirect pattern) — it
+  /// renders the pre-search empty state (Decision 7) rather than bouncing
+  /// back, since "reached without filters applied" is itself part of this
+  /// screen's contract.
+  static const String searchResults = '/search-results';
 }
