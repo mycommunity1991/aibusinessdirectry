@@ -1,11 +1,18 @@
 # AI Marketplace — Category Taxonomy (v1 Launch Set)
 
 **Document ID:** AI-17
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Status:** Active — CTO-approved 09 September 2026, resolving `13_OPEN_DECISIONS.md` item 1
 **Owner:** CTO
 **Audience:** Engineering Team, AI Assistants, Content/Localization
 **Last Updated:** 09 September 2026
+
+**Change note (v1.0.0 → v1.1.0):** `CTG-001`'s implementation found that v1.0.0's per-category question tables
+never actually included Arabic question text (`question_text_ar`), despite this document's prose claiming the
+same first-pass-translation caveat covered it — an honest gap the `backend` agent caught and correctly refused
+to paper over by fabricating translations. v1.1.0 adds real first-pass Arabic text for every one of the 47
+questions across all 14 categories, carrying the identical "first-pass, not yet native-speaker-verified" caveat
+already stated for the category names.
 
 ---
 
@@ -52,120 +59,120 @@ Each category lists its `category_question_templates` rows, in `sort_order`. `qu
 
 ## Plumbing
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What's the issue? | single_select | Leak, Blockage, Installation, Other |
-| 1 | How urgent is this? | single_select | Emergency — need someone today, Within a few days, Just planning |
-| 2 | Where is this? | single_select | Home, Office / Commercial |
-| 3 | Anything else we should know? | text | — (`is_required=false`) |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What's the issue? | ما هي المشكلة؟ | single_select | Leak, Blockage, Installation, Other |
+| 1 | How urgent is this? | ما مدى إلحاح الأمر؟ | single_select | Emergency — need someone today, Within a few days, Just planning |
+| 2 | Where is this? | أين يقع الموقع؟ | single_select | Home, Office / Commercial |
+| 3 | Anything else we should know? | هل هناك أي تفاصيل إضافية تود إخبارنا بها؟ | text | — (`is_required=false`) |
 
 ## Electrical
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What do you need? | single_select | Power outage / fault, New installation, Wiring repair, Appliance connection, Other |
-| 1 | How urgent is this? | single_select | Emergency — need someone today, Within a few days, Just planning |
-| 2 | Where is this? | single_select | Home, Office / Commercial |
-| 3 | Anything else we should know? | text | — (`is_required=false`) |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What do you need? | ما الذي تحتاجه؟ | single_select | Power outage / fault, New installation, Wiring repair, Appliance connection, Other |
+| 1 | How urgent is this? | ما مدى إلحاح الأمر؟ | single_select | Emergency — need someone today, Within a few days, Just planning |
+| 2 | Where is this? | أين يقع الموقع؟ | single_select | Home, Office / Commercial |
+| 3 | Anything else we should know? | هل هناك أي تفاصيل إضافية تود إخبارنا بها؟ | text | — (`is_required=false`) |
 
 ## AC Repair & Maintenance
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What's wrong? | single_select | Not cooling, Not turning on, Leaking water, Routine maintenance / service, New installation, Other |
-| 1 | What type of AC? | single_select | Split unit, Central AC, Window unit, Not sure |
-| 2 | How urgent is this? | single_select | Emergency — need someone today, Within a few days, Just planning |
-| 3 | Where is this? | single_select | Home, Office / Commercial |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What's wrong? | ما المشكلة؟ | single_select | Not cooling, Not turning on, Leaking water, Routine maintenance / service, New installation, Other |
+| 1 | What type of AC? | ما نوع جهاز التكييف؟ | single_select | Split unit, Central AC, Window unit, Not sure |
+| 2 | How urgent is this? | ما مدى إلحاح الأمر؟ | single_select | Emergency — need someone today, Within a few days, Just planning |
+| 3 | Where is this? | أين يقع الموقع؟ | single_select | Home, Office / Commercial |
 
 ## Carpentry
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What do you need? | single_select | Furniture repair, Custom furniture, Door / window fixing, Installation (shelves, cabinets), Other |
-| 1 | How urgent is this? | single_select | Emergency — need someone today, Within a few days, Just planning |
-| 2 | Anything else we should know? | text | — (`is_required=false`) |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What do you need? | ما الذي تحتاجه؟ | single_select | Furniture repair, Custom furniture, Door / window fixing, Installation (shelves, cabinets), Other |
+| 1 | How urgent is this? | ما مدى إلحاح الأمر؟ | single_select | Emergency — need someone today, Within a few days, Just planning |
+| 2 | Anything else we should know? | هل هناك أي تفاصيل إضافية تود إخبارنا بها؟ | text | — (`is_required=false`) |
 
 ## Painting
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What needs painting? | multi_select | Walls, Ceiling, Doors / windows, Furniture, Exterior |
-| 1 | Approximately how much space? | single_select | Small touch-up, Single room, Whole apartment / villa, Not sure |
-| 2 | What's your timeline? | single_select | As soon as possible, Within 2 weeks, Flexible |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What needs painting? | ما الذي يحتاج إلى دهان؟ | multi_select | Walls, Ceiling, Doors / windows, Furniture, Exterior |
+| 1 | Approximately how much space? | ما هي المساحة التقريبية؟ | single_select | Small touch-up, Single room, Whole apartment / villa, Not sure |
+| 2 | What's your timeline? | ما هو الإطار الزمني المطلوب؟ | single_select | As soon as possible, Within 2 weeks, Flexible |
 
 ## Handyman / General Repairs
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What needs fixing? | text | — |
-| 1 | How urgent is this? | single_select | Emergency — need someone today, Within a few days, Just planning |
-| 2 | Where is this? | single_select | Home, Office / Commercial |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What needs fixing? | ما الذي يحتاج إلى إصلاح؟ | text | — |
+| 1 | How urgent is this? | ما مدى إلحاح الأمر؟ | single_select | Emergency — need someone today, Within a few days, Just planning |
+| 2 | Where is this? | أين يقع الموقع؟ | single_select | Home, Office / Commercial |
 
 ## Home Cleaning
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What type of cleaning? | single_select | Regular / recurring, One-time deep clean, Move-in / move-out clean, Post-construction clean |
-| 1 | What size is the property? | single_select | Studio / 1 bedroom, 2–3 bedrooms, 4+ bedrooms / Villa |
-| 2 | When do you need it? | single_select | Today / tomorrow, This week, Flexible |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What type of cleaning? | ما نوع التنظيف المطلوب؟ | single_select | Regular / recurring, One-time deep clean, Move-in / move-out clean, Post-construction clean |
+| 1 | What size is the property? | ما حجم العقار؟ | single_select | Studio / 1 bedroom, 2–3 bedrooms, 4+ bedrooms / Villa |
+| 2 | When do you need it? | متى تحتاج إلى هذه الخدمة؟ | single_select | Today / tomorrow, This week, Flexible |
 
 ## Pest Control
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What pest issue are you having? | single_select | Cockroaches, Ants, Bed bugs, Rodents, Termites, Other |
-| 1 | How urgent is this? | single_select | Emergency — need someone today, Within a few days, Just planning |
-| 2 | Where is this? | single_select | Home, Office / Commercial |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What pest issue are you having? | ما نوع الحشرات التي تواجهها؟ | single_select | Cockroaches, Ants, Bed bugs, Rodents, Termites, Other |
+| 1 | How urgent is this? | ما مدى إلحاح الأمر؟ | single_select | Emergency — need someone today, Within a few days, Just planning |
+| 2 | Where is this? | أين يقع الموقع؟ | single_select | Home, Office / Commercial |
 
 ## Appliance Repair
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | Which appliance? | single_select | Washing machine, Refrigerator, Dishwasher, Oven / Stove, Water heater, Other |
-| 1 | What's the issue? | text | — |
-| 2 | How urgent is this? | single_select | Emergency — need someone today, Within a few days, Just planning |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | Which appliance? | ما هو الجهاز؟ | single_select | Washing machine, Refrigerator, Dishwasher, Oven / Stove, Water heater, Other |
+| 1 | What's the issue? | ما هي المشكلة؟ | text | — |
+| 2 | How urgent is this? | ما مدى إلحاح الأمر؟ | single_select | Emergency — need someone today, Within a few days, Just planning |
 
 ## Moving & Packing
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What size is the move? | single_select | Studio / 1 bedroom, 2–3 bedrooms, 4+ bedrooms / Villa, Office |
-| 1 | Do you need packing service too? | boolean | — |
-| 2 | Is this within the same city or a different Emirate? | single_select | Same city, Different Emirate |
-| 3 | When do you need to move? | text | — (`is_required=false`) |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What size is the move? | ما حجم عملية النقل؟ | single_select | Studio / 1 bedroom, 2–3 bedrooms, 4+ bedrooms / Villa, Office |
+| 1 | Do you need packing service too? | هل تحتاج إلى خدمة التغليف أيضاً؟ | boolean | — |
+| 2 | Is this within the same city or a different Emirate? | هل النقل داخل نفس المدينة أم إلى إمارة أخرى؟ | single_select | Same city, Different Emirate |
+| 3 | When do you need to move? | متى تحتاج إلى الانتقال؟ | text | — (`is_required=false`) |
 
 ## Tutoring & Private Lessons
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What subject or skill? | text | — |
-| 1 | What level is the student? | single_select | Primary school, Secondary school, University, Adult |
-| 2 | Where would you prefer lessons? | single_select | At my home, Online, Tutor's location, No preference |
-| 3 | How often? | single_select | One-time / exam prep, Weekly ongoing, Not sure yet |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What subject or skill? | ما هي المادة أو المهارة؟ | text | — |
+| 1 | What level is the student? | ما هو المستوى الدراسي للطالب؟ | single_select | Primary school, Secondary school, University, Adult |
+| 2 | Where would you prefer lessons? | أين تفضل أن تكون الدروس؟ | single_select | At my home, Online, Tutor's location, No preference |
+| 3 | How often? | ما مدى تكرار الدروس؟ | single_select | One-time / exam prep, Weekly ongoing, Not sure yet |
 
 ## Salon & Barbershop
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What service do you need? | multi_select | Haircut, Hair coloring, Styling, Manicure / Pedicure, Facial, Shaving / Grooming, Other |
-| 1 | For whom? | single_select | Men, Women, Kids |
-| 2 | Preferred timing? | text | — (`is_required=false`) |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What service do you need? | ما الخدمة التي تحتاجها؟ | multi_select | Haircut, Hair coloring, Styling, Manicure / Pedicure, Facial, Shaving / Grooming, Other |
+| 1 | For whom? | لمن هذه الخدمة؟ | single_select | Men, Women, Kids |
+| 2 | Preferred timing? | ما هو الوقت المفضل؟ | text | — (`is_required=false`) |
 
 ## Car Service & Garage
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What does your car need? | single_select | Routine service / oil change, Mechanical repair, Body work / paint, Tyres, Battery, AC service, Other |
-| 1 | Car make and model? | text | — |
-| 2 | How urgent is this? | single_select | Emergency — need someone today, Within a few days, Just planning |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What does your car need? | ما الذي تحتاجه سيارتك؟ | single_select | Routine service / oil change, Mechanical repair, Body work / paint, Tyres, Battery, AC service, Other |
+| 1 | Car make and model? | ما هي ماركة وموديل السيارة؟ | text | — |
+| 2 | How urgent is this? | ما مدى إلحاح الأمر؟ | single_select | Emergency — need someone today, Within a few days, Just planning |
 
 ## Tailoring & Alterations
 
-| # | question_text | question_type | options |
-|---|---|---|---|
-| 0 | What do you need? | single_select | Alterations (resize / fix), Custom tailoring, Other |
-| 1 | What kind of garment? | text | — |
-| 2 | What's your timeline? | single_select | As soon as possible, Within a week, Flexible |
+| # | question_text | question_text_ar | question_type | options |
+|---|---|---|---|---|
+| 0 | What do you need? | ما الذي تحتاجه؟ | single_select | Alterations (resize / fix), Custom tailoring, Other |
+| 1 | What kind of garment? | ما نوع الملابس؟ | text | — |
+| 2 | What's your timeline? | ما هو الإطار الزمني المطلوب؟ | single_select | As soon as possible, Within a week, Flexible |
 
 ---
 
@@ -173,6 +180,7 @@ Each category lists its `category_question_templates` rows, in `sort_order`. `qu
 
 - `category.categories`: 14 rows, `parent_category_id = NULL` for all (flat, v1), `sort_order` per the table above, `icon_url = NULL`.
 - `category.category_question_templates`: one row per question listed above, `category_id` FK to the matching category, `sort_order` per its position within the category, `options` as a JSONB array of strings for `single_select`/`multi_select` types, `NULL` for `text`/`boolean`/`number` types.
+- `options` values are seeded in English only for v1 — `04_DATABASE.md`'s spec does not define a bilingual structure for this JSONB column (no `options_ar` sibling), so localizing individual choice values is a separate, later schema decision, not something this document or its implementing story invents unilaterally. This is a known, deliberate simplification, the same category as `icon_url` being left `NULL`.
 - This data should be seeded via a data migration (or a dedicated, idempotent seed step run as part of the same migration that creates these tables) — not left for manual `INSERT`s, so it ships identically across every environment.
 - Once this domain exists for real, PRO-002's interim `provider.provider_category_labels` (free-text) and the real `category.provider_categories` join table both exist side by side for a transition period — reconciling a provider's free-text labels into real category references is explicitly **not** part of this taxonomy decision or its implementing story; see `13_OPEN_DECISIONS.md` item 1's "Current workaround" section for that follow-up's own scope.
 
