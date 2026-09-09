@@ -13,6 +13,7 @@ from app.database.database import engine
 # must be imported here.
 import app.modules.administration.models  # noqa: E402,F401
 import app.modules.audit.models  # noqa: E402,F401
+import app.modules.category.models  # noqa: E402,F401
 import app.modules.customer.models  # noqa: E402,F401
 import app.modules.identity.models  # noqa: E402,F401
 import app.modules.notification.models  # noqa: E402,F401

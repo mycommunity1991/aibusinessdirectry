@@ -91,6 +91,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
 
     import app.modules.administration.models  # noqa: F401 - registers admin_action_log
     import app.modules.audit.models  # noqa: F401 - registers the audit_logs table
+    import app.modules.category.models  # noqa: F401 - registers category tables
     import app.modules.customer.models  # noqa: F401 - registers customer tables
     import app.modules.identity.models  # noqa: F401 - registers identity tables
     import app.modules.notification.models  # noqa: F401 - registers notification tables
@@ -103,6 +104,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
     async with engine.begin() as conn:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS identity"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS audit"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS category"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS customer"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS provider"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS verification"))
@@ -116,6 +118,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.execute(text("DROP SCHEMA IF EXISTS identity CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS audit CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS category CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS customer CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS provider CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS verification CASCADE"))
@@ -133,6 +136,11 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     """
     from app.modules.administration.models import AdminActionLog
     from app.modules.audit.models import AuditLog
+    from app.modules.category.models import (
+        Category,
+        CategoryQuestionTemplate,
+        ProviderCategory,
+    )
     from app.modules.customer.models import (
         CustomerPreferences,
         CustomerProfile,
@@ -185,6 +193,9 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             ProviderCategoryLabel,
             BusinessProfile,
             FreelancerProfile,
+            ProviderCategory,
+            CategoryQuestionTemplate,
+            Category,
             Provider,
             RefreshToken,
             Session,
