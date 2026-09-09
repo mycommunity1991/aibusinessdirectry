@@ -1,9 +1,9 @@
 # AI Marketplace — Open Decisions
 
 **Document ID:** AI-13
-**Version:** 0.3.0
-**Status:** Draft — Reconstructed; item 4 resolved and item 3 given an interim sequencing decision by the CTO on
-08 September 2026, items 1/5/8/10/11/12 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
+**Version:** 0.4.0
+**Status:** Draft — Reconstructed; items 1 and 4 resolved and item 3 given an interim sequencing decision by the
+CTO, items 5/8/10/11/12 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
 **Owner:** CTO
 **Audience:** Engineering Team, Product Team, AI Assistants
 **Last Updated:** 09 September 2026
@@ -54,25 +54,45 @@ from scratch by a fourth or fifth story.
 
 ## Item 1 — Category Taxonomy
 
-**Status:** Open — critical path
+**Status:** Resolved (09 September 2026) — v1 launch taxonomy locked; implementation not yet built (see `Blocks`)
 
 **Description:** The full category taxonomy (which service categories exist, their bilingual names, and the
 category-specific follow-up questions the AI intake asks per category) has not been designed or locked. This
 blocks the entire AI question-flow design (`03_DOMAIN_MODEL.md`: "it blocks AI question-flow design and must be
 locked before that work starts").
 
-**Current workaround:** `04_DATABASE.md` keeps `categories` self-referential and freely insertable, and
+**Resolution:** the CTO and engineering walked through and approved a 14-category v1 launch taxonomy, deliberately
+scoped to trade/repair/personal-service needs where an AI follow-up-question flow clearly fits ("my AC broke, ask
+me what's wrong" — not "I want a coffee"). Food & beverage, healthcare/clinics, and pet care are deliberately
+excluded from v1, not ruled out permanently. Categories are flat (no subcategories) for v1. The full category
+list, bilingual (EN/AR) names, slugs, and each category's follow-up question set are recorded in the new
+`docs/AI/17_CATEGORY_TAXONOMY.md` — the authoritative source, not reproduced here. Arabic names/questions are a
+first-pass translation, explicitly flagged in that document as needing native-speaker review before treated as
+launch-final; that review does not block starting implementation, since `categories.name_ar` is nullable until
+populated per `04_DATABASE.md`'s own column spec.
+
+**Previous workaround (now superseded by this resolution, but still true of the shipped code until the real
+domain is built):** `04_DATABASE.md` keeps `categories` self-referential and freely insertable, and
 `category_question_templates.options` as JSONB, so the eventual taxonomy is a data change, not a migration
-(Section 14). Two shipped stories have each built their own interim stand-in because the real `category.categories`
+(Section 14). Two shipped stories each built their own interim stand-in because the real `category.categories`
 table doesn't exist yet: PRO-001's `providers.category_label` (a single free-text column, since dropped) and
 PRO-002's `provider.provider_category_labels` (a small, deliberately-not-`provider_categories`-named table
-supporting multiple labels + one marked primary). Both are documented as temporary, pending this decision.
+supporting multiple labels + one marked primary), and DIR-001 extended the same interim posture to query-time
+matching (ADR-027). Both remain in place until the real domain is built and a separate reconciliation decision
+migrates their data — reconciling free-text labels into real category references is explicitly out of scope for
+this decision and its implementing story.
 
-**Blocks:** AI Conversation/Intake design (Sprint 7+), the real `provider_categories` join table, category-based
-search/matching.
+**Blocks:** AI Conversation/Intake design (Sprint 7: AI-001, AI-002), the real `provider_categories` join table,
+category-based search/matching, and — transitively, per the Tracker's own dependency chain — every story in
+Sprints 7 through 12 (MAT-001, CON-001, REV-001/002, LEAD-001/002, ADM-001/002, ENG-001/002). **The taxonomy
+question itself is now resolved**, but the real `category` schema domain (tables + seed data) has not been built
+yet — that is a new story, `CTG-001`, added to Sprint 7 to unblock `AI-001` for real. This item stays open until
+`CTG-001` ships; closing it fully at the content-decision stage, before the domain exists in code, would
+misrepresent AI-001 as unblocked when it still has a real, unbuilt dependency.
 
 **Related:** `03_DOMAIN_MODEL.md` (Category domain), `04_DATABASE.md` (Category Domain section, Section 14),
-`Plan_S04_PRO-001.md` Decision 4, `Plan_S04_PRO-002.md` Decision 1, `Walkthrough_S04_PRO-002.md`.
+`docs/AI/17_CATEGORY_TAXONOMY.md` (the resolution's full content), `Plan_S04_PRO-001.md` Decision 4,
+`Plan_S04_PRO-002.md` Decision 1, `Walkthrough_S04_PRO-002.md`, `Plan_S06_DIR-001.md` Decision 1 (ADR-027).
 
 ---
 
@@ -337,6 +357,11 @@ from VER-001's review).
   `features/home` both import `features/customer`'s `SavedAddressRepository` directly, violating
   `02_ARCHITECTURE.md`'s "features must not depend directly on each other" rule. Logged as accepted debt with a
   recommended remediation shape, not fixed inside `DIR-001` — see item 12 for the architect's full reasoning.
+- **09 September 2026 (same day)** — Item 1 (Category Taxonomy) resolved: the CTO and engineering walked through
+  and approved a 14-category v1 launch taxonomy (bilingual EN/AR names, flat structure, per-category AI
+  follow-up questions), recorded in full in the new `docs/AI/17_CATEGORY_TAXONOMY.md`. The content decision is
+  locked; the real `category` schema domain still needs to be built, tracked as new Sprint 7 story `CTG-001`
+  (added to the Tracker), which `AI-001`'s `Depends On` now includes alongside `DIR-001`.
 
 ---
 
