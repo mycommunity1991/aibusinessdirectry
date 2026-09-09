@@ -26,6 +26,7 @@ void main() {
     categoryLabels: ['Plumbing'],
     reviewCount: 0,
     distanceMeters: 850,
+    isClaimed: true,
   );
 
   // Decision 2's "has reviews" path can only be exercised via fixture-
@@ -41,6 +42,7 @@ void main() {
     averageRating: 4.8,
     reviewCount: 3,
     distanceMeters: 2400,
+    isClaimed: true,
   );
 
   testWidgets('reached with no filters (Decision 7) shows the pre-search empty '

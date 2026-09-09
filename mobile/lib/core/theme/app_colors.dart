@@ -22,6 +22,12 @@ class AppColors {
   /// Pending verification / unclaimed-listing states.
   static const Color warning = Color(0xFFF59E0B);
 
+  /// Text/icon color for content painted directly on top of [warning] --
+  /// e.g. the full-width "Unclaimed" banner (CLM-001, Decision 8,
+  /// `16_UX_GUIDELINES.md`) -- never a plain white/black literal chosen
+  /// ad hoc per widget. Matches `docs/AI/DESIGN.md`'s `on-warning` token.
+  static const Color onWarning = Color(0xFF3F2E00);
+
   /// Rejected verification / failed OTP states.
   static const Color error = Color(0xFFEF4444);
 

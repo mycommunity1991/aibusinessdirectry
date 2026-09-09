@@ -95,4 +95,19 @@ class AppRoutes {
   /// back, since "reached without filters applied" is itself part of this
   /// screen's contract.
   static const String searchResults = '/search-results';
+
+  /// S-21 — Claim Search (CLM-001, AC3). Reached either from the unclaimed
+  /// banner's search-first journey (`providerIntro`/`homePlaceholder`'s
+  /// "Already listed on Google?" entry point) or independent of a search
+  /// result at all.
+  static const String claimSearch = '/claim-search';
+
+  /// S-22 — Claim OTP Verification (CLM-001, AC4/AC5/AC6). Always reached
+  /// via `push(..., extra: providerId)` -- a plain `String`, never a bare
+  /// deep link, mirroring [otpEntry]/[addressForm]'s `extra`-required
+  /// pattern. Reachable two ways: from [claimSearch]'s "Select listing"
+  /// action, or directly from the unclaimed banner on a search result
+  /// card (`ProviderSearchCard`, Decision 8) -- skipping [claimSearch]
+  /// entirely, since the user already found that exact listing.
+  static const String claimOtp = '/claim-otp';
 }

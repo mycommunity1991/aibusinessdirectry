@@ -114,6 +114,14 @@ class HomePlaceholderScreen extends ConsumerWidget {
                 child: Text(l10n.findServiceButtonLabel),
               ),
               const SizedBox(height: AppSpacing.md),
+              // CLM-001, Mobile item 39 -- a secondary entry point into the
+              // Claim flow (S-21), reachable independent of stumbling onto
+              // an unclaimed listing's card while browsing search results.
+              TextButton(
+                onPressed: () => context.push(AppRoutes.claimSearch),
+                child: Text(l10n.claimEntryPointLabel),
+              ),
+              const SizedBox(height: AppSpacing.md),
               TextButton(
                 onPressed: () => _onLogOut(ref, context),
                 child: Text(l10n.logOutLabel),

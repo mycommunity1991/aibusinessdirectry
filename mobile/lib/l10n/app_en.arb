@@ -806,5 +806,102 @@
   "providerProfileComingSoonMessage": "Provider profiles are coming soon.",
   "@providerProfileComingSoonMessage": {
     "description": "Snackbar shown when tapping a provider search result card -- the real Provider Profile screen (S-09) doesn't exist yet (DIR-001, Mobile item 20)."
+  },
+
+  "unclaimedBannerLabel": "Unclaimed — Is this your business? Claim it",
+  "@unclaimedBannerLabel": {
+    "description": "CLM-001, Decision 8 -- the exact, locked copy for the full-width Warning-color banner on an unclaimed Google-seeded provider card (16_UX_GUIDELINES.md, verbatim -- do not reword)."
+  },
+  "claimEntryPointLabel": "Already listed on Google? Claim your business",
+  "@claimEntryPointLabel": {
+    "description": "Secondary entry point into the Claim flow (S-21), reachable independent of stumbling onto an unclaimed listing's card in search results (CLM-001, Mobile item 39)."
+  },
+  "claimSearchTitle": "Claim your listing",
+  "@claimSearchTitle": {
+    "description": "Title on the Claim Search screen (S-21, CLM-001, AC3)."
+  },
+  "claimSearchSubtitle": "Search for your business among unclaimed listings by name or address.",
+  "@claimSearchSubtitle": {
+    "description": "Subtitle on the Claim Search screen (S-21, CLM-001, AC3)."
+  },
+  "claimSearchFieldLabel": "Business name or address",
+  "@claimSearchFieldLabel": {
+    "description": "Search field label on the Claim Search screen (S-21, CLM-001, AC3)."
+  },
+  "claimSearchIdleMessage": "Search by your business's name or address to find your listing.",
+  "@claimSearchIdleMessage": {
+    "description": "Empty-state copy on the Claim Search screen shown before any search has been performed (CLM-001, AC3) -- deliberately distinct from claimSearchZeroResultsMessage."
+  },
+  "claimSearchZeroResultsMessage": "No unclaimed listings match this search — try a different name or address.",
+  "@claimSearchZeroResultsMessage": {
+    "description": "Empty-state copy on the Claim Search screen shown after a search returns zero results (CLM-001, AC3) -- deliberately distinct from claimSearchIdleMessage."
+  },
+  "claimSelectListingLabel": "Select listing",
+  "@claimSelectListingLabel": {
+    "description": "Action on each Claim Search result row, navigating to the Claim OTP screen (S-22) for that listing (CLM-001, AC3)."
+  },
+  "claimOtpTitle": "Verify your business",
+  "@claimOtpTitle": {
+    "description": "Title on the Claim OTP screen (S-22, CLM-001, AC4/AC5)."
+  },
+  "claimOtpSubtitle": "We've sent a code to the phone number on file for this listing.",
+  "@claimOtpSubtitle": {
+    "description": "Subtitle on the Claim OTP screen (S-22, CLM-001, AC4) -- deliberately never displays the actual phone number: the claimant is proving they already have access to it, not being told what it is."
+  },
+  "claimNotWorkingLinkLabel": "This isn't working",
+  "@claimNotWorkingLinkLabel": {
+    "description": "Always-visible fallback link on the Claim OTP screen (S-22, CLM-001, AC6) -- never conditionally shown only after repeated OTP failures."
+  },
+  "claimReviewSheetTitle": "What's going on?",
+  "@claimReviewSheetTitle": {
+    "description": "Title of the reason-selection sheet opened from claimNotWorkingLinkLabel (CLM-001, AC6)."
+  },
+  "claimReviewReasonNoCodeLabel": "I didn't receive a code",
+  "@claimReviewReasonNoCodeLabel": {
+    "description": "First option on the \"this isn't working\" reason sheet (CLM-001, AC6)."
+  },
+  "claimReviewReasonWrongNumberLabel": "This isn't my business's number",
+  "@claimReviewReasonWrongNumberLabel": {
+    "description": "Second option on the \"this isn't working\" reason sheet (CLM-001, AC6)."
+  },
+  "claimReviewConfirmedTitle": "We've flagged this for manual review",
+  "@claimReviewConfirmedTitle": {
+    "description": "Confirmation state shown after request-admin-review succeeds (CLM-001, AC6), whether triggered manually from the reason sheet or automatically for a listing with no public number on file."
+  },
+  "claimReviewConfirmedMessage": "Our team will take a look and follow up with you. This usually takes 1–2 business days.",
+  "@claimReviewConfirmedMessage": {
+    "description": "Body copy for the manual-review confirmation state (CLM-001, AC6)."
+  },
+  "claimSuccessTitle": "You're verified as the owner",
+  "@claimSuccessTitle": {
+    "description": "Title of the success state shown after a successful verify-otp finalizes the claim (CLM-001, AC5)."
+  },
+  "claimSuccessMessage": "Next, submit your verification documents so customers can see you're a trusted, verified business.",
+  "@claimSuccessMessage": {
+    "description": "Body copy for the claim-success state (CLM-001, AC5) -- points the claimant toward VER-001's document submission flow, the same Verification gate a self-registered Business goes through."
+  },
+  "claimContinueToVerificationLabel": "Continue to Verification",
+  "@claimContinueToVerificationLabel": {
+    "description": "CTA on the claim-success state, routing to Verification Upload (S-19, CLM-001, AC5)."
+  },
+  "claimTargetNotFoundMessage": "This listing is no longer available to claim.",
+  "@claimTargetNotFoundMessage": {
+    "description": "Plain-language message for the backend's 404 ClaimTargetNotFoundError (CLM-001)."
+  },
+  "claimAlreadyClaimedMessage": "This listing has already been claimed.",
+  "@claimAlreadyClaimedMessage": {
+    "description": "Plain-language message for the backend's 409 ClaimAlreadyClaimedError (CLM-001)."
+  },
+  "claimInvalidCodeMessage": "That code didn't work. Double-check it and try again.",
+  "@claimInvalidCodeMessage": {
+    "description": "Plain-language message for the backend's 400 invalid/expired/used OTP code (CLM-001, AC5)."
+  },
+  "claimTooManyAttemptsMessage": "Too many attempts. Please wait a moment and try again.",
+  "@claimTooManyAttemptsMessage": {
+    "description": "Plain-language message for the backend's 429 (OTP locked or rate-limited, CLM-001) -- mirrors AuthErrorType.tooManyAttempts's identical collapsed reasoning."
+  },
+  "claimPublicNumberUnavailableMessage": "This listing has no public phone number on file.",
+  "@claimPublicNumberUnavailableMessage": {
+    "description": "Plain-language message for the backend's 409 ClaimPublicNumberUnavailableError (CLM-001, AC6) -- defensive only: the controller normally handles this case invisibly by auto-submitting the admin-review fallback rather than ever displaying this string."
   }
 }

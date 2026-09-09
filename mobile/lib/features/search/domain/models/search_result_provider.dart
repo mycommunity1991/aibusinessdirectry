@@ -20,6 +20,7 @@ class SearchResultProvider {
     this.averageRating,
     required this.reviewCount,
     required this.distanceMeters,
+    required this.isClaimed,
   });
 
   factory SearchResultProvider.fromJson(Map<String, dynamic> json) {
@@ -38,6 +39,9 @@ class SearchResultProvider {
       averageRating: (json['average_rating'] as num?)?.toDouble(),
       reviewCount: (json['review_count'] as num).toInt(),
       distanceMeters: (json['distance_meters'] as num).toDouble(),
+      // CLM-001, Decision 8 -- server-driven off this one boolean; the
+      // mobile card never infers "unclaimed" from any other signal.
+      isClaimed: json['is_claimed'] as bool,
     );
   }
 
@@ -60,4 +64,11 @@ class SearchResultProvider {
 
   /// Great-circle distance from the search origin, in meters.
   final double distanceMeters;
+
+  /// `false` for a still-unclaimed Google-seeded listing
+  /// (`listing_source=google_seeded_unclaimed`, CLM-001, Decision 8) --
+  /// drives `provider_search_card.dart`'s full-width Warning-color banner.
+  /// Server-driven off this one boolean; never inferred client-side from
+  /// any other field.
+  final bool isClaimed;
 }

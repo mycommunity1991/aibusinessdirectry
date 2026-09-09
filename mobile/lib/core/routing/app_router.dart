@@ -6,6 +6,8 @@ import '../../features/auth/presentation/screens/language_selection_screen.dart'
 import '../../features/auth/presentation/screens/otp_entry_screen.dart';
 import '../../features/auth/presentation/screens/phone_entry_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
+import '../../features/claim/presentation/screens/claim_otp_screen.dart';
+import '../../features/claim/presentation/screens/claim_search_screen.dart';
 import '../../features/customer/domain/models/address_form_args.dart';
 import '../../features/customer/presentation/screens/add_first_address_screen.dart';
 import '../../features/customer/presentation/screens/address_form_screen.dart';
@@ -153,6 +155,23 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
           return SearchResultsScreen(
             filters: extra is SearchFiltersArgs ? extra : null,
           );
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.claimSearch,
+        builder: (context, state) => const ClaimSearchScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.claimOtp,
+        // Claim OTP always needs the target `providerId` -- reachable only
+        // via `push(..., extra: providerId)`, never a bare deep link,
+        // mirroring `otpEntry`/`addressForm`'s own `extra`-required
+        // redirect.
+        redirect: (context, state) =>
+            state.extra is String ? null : AppRoutes.claimSearch,
+        builder: (context, state) {
+          final providerId = state.extra as String;
+          return ClaimOtpScreen(providerId: providerId);
         },
       ),
     ],

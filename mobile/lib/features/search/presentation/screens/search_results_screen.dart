@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/app_error_message.dart';
@@ -68,6 +70,14 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     );
   }
 
+  /// CLM-001, Decision 8 -- the unclaimed banner's CTA navigates straight
+  /// to the Claim OTP screen (S-22) for this specific listing, skipping
+  /// the Claim Search screen (S-21) entirely, since the user already found
+  /// this exact card here.
+  void _onClaimTap(BuildContext context, String providerId) {
+    context.push(AppRoutes.claimOtp, extra: providerId);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -101,6 +111,8 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                       itemBuilder: (context, index) => ProviderSearchCard(
                         provider: state.results[index],
                         onTap: () => _onCardTap(context),
+                        onClaimTap: () =>
+                            _onClaimTap(context, state.results[index].id),
                       ),
                     ),
                   ),
