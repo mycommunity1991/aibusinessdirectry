@@ -1,10 +1,10 @@
 # AI Marketplace — Open Decisions
 
 **Document ID:** AI-13
-**Version:** 0.5.0
+**Version:** 0.6.0
 **Status:** Draft — Reconstructed; item 1 resolved and implemented (`CTG-001` shipped), item 4 resolved, item 3
-given an interim sequencing decision by the CTO, items 5/8/10/11/12 still pending CTO review, items 2/6/7 still
-unrecoverable numbering gaps
+given an explicit CTO risk-acceptance decision (still Open — the underlying legal question is unresolved),
+items 5/8/10/11/12 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
 **Owner:** CTO
 **Audience:** Engineering Team, Product Team, AI Assistants
 **Last Updated:** 09 September 2026
@@ -118,8 +118,8 @@ number.
 
 ## Item 3 — Google Places Data Legal Review
 
-**Status:** Open — interim sequencing decision made (08 September 2026), underlying legal question still
-unresolved
+**Status:** Open — CTO has made an explicit, informed risk-acceptance decision (09 September 2026) to proceed
+with `CLM-001` for MVP anyway; the underlying legal question itself remains genuinely unresolved
 
 **Description:** The platform plans to seed initial Business listings from Google Places data
 (`listing_source = 'google_seeded_unclaimed'`) before a real owner claims them. Whether this is legally
@@ -132,26 +132,52 @@ Google's terms permit) — bulk-importing many businesses as permanent, pre-clai
 actual reading of Google's *current* Terms of Service (they are revised periodically) and, given personal data
 (names, phone numbers) is involved, a check against UAE PDPL — neither of which this document or any engineering
 agent can perform; it requires either legal counsel or a careful first-party reading of Google's current terms
-by someone at the company.
+by someone at the company. **Neither has happened as of this decision** — see below.
 
-**Interim decision (08 September 2026):** rather than build `CLM-001` against an unreviewed legal assumption,
-the CTO chose to **defer `CLM-001` entirely** until this item is actually resolved. Sprint 6 proceeds with
-`DIR-001` only, which does not depend on this item at all — confirmed directly from the Tracker: `DIR-001`
-("Browse nearby providers by category and location") depends only on `CUS-002`/`PRO-002`/`VER-002` (all done)
-and searches only self-registered providers with `is_discoverable=true`; it never touches Google Places data or
-the `google_seeded_unclaimed`/`is_claimed` columns. `CLM-001` alone (depends on `DIR-001`, `VER-002`) is the one
-blocked by this item, and stays out of Sprint 6's delivered scope until it resolves. This decision only concerns
-*when* `CLM-001` is built, not the underlying legal question, which remains genuinely open.
+**First interim decision (08 September 2026, superseded by the risk-acceptance decision below):** rather than
+build `CLM-001` against an unreviewed legal assumption, the CTO initially chose to defer `CLM-001` entirely
+until this item resolved. Sprint 6 proceeded with `DIR-001` only in the meantime.
 
-**Current workaround (unchanged, still relevant once this resolves):** `04_DATABASE.md` already models
-`providers.listing_source` and `google_place_id` (unique when set) as the exact filter needed if legal review
-later forces deletion of imported data (Section 14): "if legal review forces deletion of imported data,
-`listing_source = 'google_seeded_unclaimed'` rows are the exact filter needed."
+**Risk-acceptance decision (09 September 2026):** after walking through several alternative designs with
+engineering — (a) live-query-only with no persistent Google content, (b) a rolling cache refreshed before a
+~30-day cutoff, (c) fetch-then-verify-by-owner-then-store, (d) human-sourced leads (no API use at all) funneled
+into ordinary self-registration — the CTO decided **not** to adopt any of those lower-risk designs for MVP.
+Instead, `CLM-001` proceeds in its **original scope**: bulk-import Business listings from the Google Places API
+as permanent `providers` rows (`listing_source = 'google_seeded_unclaimed'`, `is_claimed = false`) **without**
+per-listing owner verification at seed time. The owner-verification mechanism (fetch → verify by owner via
+OTP-to-public-number or another mechanism → only then treat as fully trusted) is explicitly planned as a
+**later-stage improvement**, retrofitted onto whatever is pre-seeded now — not scheduled or scoped as of this
+decision.
 
-**Blocks:** `CLM-001` only (not `DIR-001`, confirmed above) and any Google Places API integration work.
+**This is a deliberate risk-acceptance, not a resolution of the legal question.** Recorded plainly, so the
+record is honest about what was and wasn't decided:
+- The underlying question — whether this pattern is permitted under Google's current Maps Platform Terms of
+  Service and UAE PDPL — **remains genuinely open**. No legal counsel review and no first-party reading of
+  Google's current terms has happened. This decision does not make the activity compliant; it means the CTO has
+  chosen to proceed under uncertainty for MVP speed.
+- Known, accepted exposure: possible breach of Google Maps Platform Terms of Service (API key/project
+  suspension is the most likely enforcement mechanism, which would also affect any other Google Maps Platform
+  use in the app, not just this feature); possible UAE PDPL exposure from holding unverified personal data
+  (business owner names, phone numbers) sourced from a third party rather than collected directly with consent;
+  reputational/diligence risk if this surfaces during fundraising, an app-store review, or a partnership
+  evaluation.
+- Existing mitigation, unchanged: `providers.listing_source`/`google_place_id` (unique when set) are already
+  modeled specifically as the exact filter needed to bulk-delete every imported row if legal review later forces
+  it (`04_DATABASE.md` Section 14).
+- Explicit commitment, not yet scheduled: the fetch-verify-then-trust mechanism discussed this session is the
+  intended long-term direction, to be implemented as a follow-up story once prioritized — existing pre-seeded,
+  unverified rows would be expected to migrate toward that verified state over time, not remain permanently
+  unverified.
+- This item **stays Open**, not Resolved — proceeding under accepted risk is not the same as the legal question
+  being answered, and a future legal review could still require changes (including deleting already-seeded
+  data) to whatever `CLM-001` ships under this decision.
+
+**Blocks:** Nothing now — `CLM-001` is unblocked for planning and implementation under this risk-acceptance
+decision. The underlying legal question remains open and should still get an actual legal/first-party ToS
+review when practical; this is no longer treated as blocking, but it has not gone away.
 
 **Related:** `04_DATABASE.md` (`providers` table, Section 14), `14_USER_FLOWS.md` Flow 3 (Claim-Your-Listing),
-`docs/AI/Project_Tracker.xlsx` (`DIR-001`/`CLM-001` rows, Sprint 6).
+`docs/AI/Project_Tracker.xlsx` (`CLM-001` row, Sprint 6), `docs/AI/PROJECT_IMPLEMENTATION_STATE.md` Section 17.
 
 ---
 
@@ -381,6 +407,13 @@ from VER-001's review).
   `AI-002` and everything cascading from them through Sprint 12 are now genuinely unblocked at the code level.
   Reconciling `provider_category_labels` into `provider_categories` remains separately deferred, not resolved by
   this story.
+- **09 September 2026 (same day)** — Item 3 (Google Places Data Legal Review) updated: after reviewing several
+  lower-risk alternative designs (live-query-only, rolling short-term cache, fetch-verify-then-store, human-
+  sourced leads with no API use), the CTO made an explicit, informed decision to proceed with `CLM-001` in its
+  original bulk-import scope for MVP — unverified Google-seeded listings, owner verification deferred to a later
+  story — accepting the known Google ToS/UAE PDPL exposure this carries rather than resolving it first. This is a
+  **risk-acceptance, not a resolution**: the item stays Open, `CLM-001` is no longer blocked, and the underlying
+  legal question is unchanged. See item 3 above for the full record of what was and wasn't decided.
 
 ---
 
