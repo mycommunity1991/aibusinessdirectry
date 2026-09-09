@@ -1666,6 +1666,268 @@ original read-then-write code and pass against this fix.
 
 ---
 
+# ADR-025
+
+## Title
+
+New `search` Module Placement — A Genuinely New Domain's First Slice Keeps Its Actual Query Inside the Module That Owns the Queried Tables
+
+**Date**
+
+2026-09-09
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story DIR-001 needed a structured (non-AI) category + geospatial-radius + discoverability query — the first
+implementation of any part of `02_ARCHITECTURE.md`'s "Search Request & Matching" domain, which it names as its
+own core business module distinct from Provider. Every table the query touches (`providers`,
+`provider_category_labels`, `service_areas`), however, lives entirely in the `provider` schema — there is no
+`search`-owned table this story needed to create (Decision 5 of `Plan_S06_DIR-001.md` explains why
+`search.search_requests`/`provider_matches`/`search_event_log` are deliberately not built yet). This is the same
+shape VER-001 already resolved for `verification` (a real, architecturally-named domain gets its own module even
+when its first slice mostly reads another module's data) — but DIR-001 additionally needed a genuinely complex
+query (raw parameterized SQL, multi-table join, pagination) against tables it doesn't own, which
+`02_ARCHITECTURE.md`'s explicit "Module → Another Module's Repository: Not Allowed" rule directly constrains.
+
+### Decision
+
+A new `backend/app/modules/search/` module was created — this domain's first slice, with no `models.py` (no new
+tables). The actual geospatial/category/discoverability SQL lives inside a new, dedicated
+`ProviderSearchRepository` (`backend/app/modules/provider/repositories/provider_search_repository.py`) — **inside
+the `provider` module**, since the query only ever touches `provider`-schema tables, kept as its own class
+(separate from `ProviderRepository`'s simple CRUD) because of its genuine complexity. `ProviderService` gains one
+new, thin, read-only method, `search_nearby(...)`, exposed to other modules the same way `ProviderService.list_by_ids`
+already is (VER-002's precedent). `search`'s own `SearchService` depends on `ProviderService` only, via
+constructor injection — the same one-directional, cycle-free cross-module shape ADR-014/016 already established
+— and owns response-shaping (category-label/photo enrichment, distance formatting) that is genuinely
+`search`'s own concern, not `provider`'s.
+
+**The general rule this establishes:** when a new domain's first slice needs a genuinely complex query against
+data owned by another, already-existing module, the query itself (the repository class issuing it) is built
+inside the module that owns the queried tables, never inside the new module reaching across via a raw session or
+a second module's repository directly. The new module's own service depends on the owning module's *service*
+(never its repository) to reach that capability, keeping `02_ARCHITECTURE.md`'s "Module → Another Module's
+Repository: Not Allowed" rule intact even for a domain whose conceptual home is elsewhere.
+
+### Alternatives Considered
+
+- **Extend the `provider` module directly with a `GET /providers/search` endpoint, no new `search` module**
+  (rejected — this is exactly the "Search Request & Matching" responsibility `02_ARCHITECTURE.md` names as its
+  own domain, and the story's own explicitly-named future upgrade path, MAT-001, will need ranking/merit logic
+  that has nothing to do with a provider's own self-service storefront management; colocating it inside
+  `provider` now would misrepresent domain ownership and bloat a module whose current responsibility is strictly
+  "manage my own listing").
+- **Build the real `search.search_requests`/`provider_matches`/`search_event_log` tables now** (rejected —
+  `search_requests.category_id` is a hard `NOT NULL` FK to a `category.categories` table that does not exist yet;
+  building these tables now, with a fabricated or nullable-hacked category reference, would misrepresent a
+  conversational-flow table as something this purely structural query produces).
+- **A `ProviderSearchRepository` placed inside `search`, issuing SQL against `provider`-schema tables via a raw
+  session** (rejected outright per `02_ARCHITECTURE.md`'s explicit prohibition on one module directly accessing
+  another module's repository/tables).
+
+### Consequences
+
+- Any future new domain module (e.g. the real `search.search_requests`-backed conversational flow, once the
+  Category Taxonomy resolves) whose first slice needs to query another module's existing tables should default to
+  this same shape — the query lives in the owning module, exposed via a thin service method — rather than
+  reaching across module boundaries directly.
+- `provider` now has a `ProviderSearchRepository` distinct from `ProviderRepository`, a precedent for splitting a
+  module's repositories by genuine query complexity rather than always extending one monolithic repository class
+  per module.
+- `search → provider` is a new, one-directional, read-only, cycle-free cross-module edge; `provider` has zero
+  imports from `search`.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md
+- 03_DOMAIN_MODEL.md (Search Request & Matching domain)
+- 09_DECISIONS.md (ADR-014, ADR-016 — the cross-module service-injection shape this reuses)
+- docs/implementation/plans/Plan_S06_DIR-001.md (Decision 4)
+- docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md
+
+---
+
+# ADR-026
+
+## Title
+
+First Raw Parameterized SQL via `sqlalchemy.text()` — Justified Only When No ORM Expression-Language Mapping Exists for the Needed Database Function
+
+**Date**
+
+2026-09-09
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story DIR-001's geospatial query needed `earth_box`, `earth_distance`, and `ll_to_earth` — SQL functions provided
+by PostgreSQL's `earthdistance`/`cube` contrib extensions (`04_DATABASE.md` Section 13, `09_DECISIONS.md`'s
+existing commitment to these extensions over PostGIS). None of these functions, nor the `@>` containment operator
+`earth_box` results are queried with, have any SQLAlchemy Core/ORM expression-language mapping. Every query in
+this codebase before this story was expressible entirely through SQLAlchemy's Python-object query builder — a
+repo-wide check during planning confirmed no `sqlalchemy.text()`/raw-SQL usage existed anywhere.
+
+### Decision
+
+`ProviderSearchRepository.search_nearby` (and its matching `COUNT(*)` variant, sharing the identical `WHERE`
+clause) issues a fully parameterized query via `sqlalchemy.text()`:
+
+```sql
+... WHERE
+    (:category IS NULL OR EXISTS (... lower(pcl.label) = lower(:category) ...))
+    AND earth_box(ll_to_earth(:origin_lat, :origin_lng), :radius_meters)
+        @> ll_to_earth(sa.center_latitude, sa.center_longitude)
+    AND earth_distance(ll_to_earth(:origin_lat, :origin_lng), ll_to_earth(sa.center_latitude, sa.center_longitude))
+        <= :radius_meters
+    AND p.is_discoverable = true AND p.is_active = true
+ORDER BY distance_meters ASC, p.id ASC
+```
+
+Every value (`:origin_lat`, `:origin_lng`, `:radius_meters`, `:category`, `:limit`, `:offset`) is a bound
+parameter — never string-formatted or concatenated user input — satisfying `06_SECURITY.md`'s and
+`08_CODING_STANDARDS.md`'s parameterized-query rule in full, even though the query is not expressed through the
+ORM's Python-object query builder. One driver-forced, non-semantic addition was required during implementation:
+`:category` is wrapped in `CAST(... AS text)` at its first (`IS NULL`) usage, because the psycopg3 driver raised
+`AmbiguousParameter` without explicit type context on a bare `:category IS NULL` comparison — this changes
+nothing about clause order, filter semantics, or parameterization safety; it is purely a driver-compatibility
+fix, confirmed by `architect`'s review.
+
+**The general rule this establishes:** raw parameterized `text()` SQL is justified specifically when no
+SQLAlchemy Core/ORM expression-language mapping exists for a database function or operator the query genuinely
+needs (contrib-extension functions being the paradigm case) — never as a convenience shortcut for a query that
+could be expressed through the ORM query builder. Any future raw-SQL use must, like this one, remain fully bound
+via `text()`'s parameter substitution, never string-interpolated, and should be reserved for genuinely
+unmappable database capabilities rather than adopted as a general pattern.
+
+### Alternatives Considered
+
+- **Compute distance in Python after fetching all candidate rows** (rejected — defeats the entire purpose of the
+  GiST index (`idx_service_areas_location`) and AC6's index-usage verification; degrades to an O(n) full-table
+  scan and Python-side Haversine computation at any real provider volume).
+- **PostGIS `ST_DWithin`/`ST_Distance` instead of `cube`/`earthdistance`** (rejected — `04_DATABASE.md` Section 13
+  and this codebase's existing architecture already commit to `cube`/`earthdistance` specifically because
+  PostGIS is not an approved dependency per `12_TECH_STACK.md`; introducing it now would be unapproved
+  infrastructure).
+
+### Consequences
+
+- This codebase's first documented precedent for raw parameterized SQL; any future query needing a database
+  function/operator with no ORM mapping should follow the same shape (isolated in a dedicated repository method,
+  fully bound parameters, no string interpolation) rather than re-deriving the reasoning or, worse, falling back
+  to unsafe string formatting.
+- `08_CODING_STANDARDS.md`'s "Database access must use SQLAlchemy ORM / parameterized queries" wording is
+  confirmed, by this ADR, to be satisfied by bound `text()` queries — the requirement is parameterization, not
+  exclusively the ORM's Python-object query builder.
+- Any future maintainer touching `ProviderSearchRepository.search_nearby` must preserve the `earth_box`-before-
+  `earth_distance` clause order (the GiST-indexed containment check narrowing candidates before the expensive
+  exact recheck) — reordering or removing the `earth_box` clause would still be functionally correct but would
+  silently regress AC6's index-usage guarantee.
+
+### Related Documents
+
+- 04_DATABASE.md (Section 13 — Geospatial Query Strategy)
+- 06_SECURITY.md (SQL Injection Prevention)
+- 08_CODING_STANDARDS.md
+- docs/implementation/plans/Plan_S06_DIR-001.md (Decision 8)
+- docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md
+
+---
+
+# ADR-027
+
+## Title
+
+Free-Text Category Filtering — Case-Insensitive Exact Match Against `provider_category_labels.label`, an Interim Search-Query Mechanism Pending the Real Category Taxonomy
+
+**Date**
+
+2026-09-09
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`13_OPEN_DECISIONS.md` item 1 (Category Taxonomy, still Open) already documents PRO-002's `provider_category_labels`
+table itself as a deliberate, flagged interim stand-in for the real `category.categories`/`provider_categories`
+domain — but that decision (recorded only in `Plan_S04_PRO-002.md`/`Walkthrough_S04_PRO-002.md`, never given its
+own ADR entry) only had to address *storing* free-text labels. Story DIR-001 is the first to need to *filter/match*
+against this same ungoverned, unvalidated free-text field at query time — a genuinely new decision, since
+matching semantics (exact vs. substring vs. fuzzy) over free text with no taxonomy to validate against carries a
+real risk of silently wrong results that storage alone does not.
+
+### Decision
+
+`GET /search/providers?category=<value>` matches via a case-insensitive **exact** match
+(`lower(pcl.label) = lower(:category)`) against any of a provider's `provider_category_labels` rows (not only the
+primary one) — never a substring/`ILIKE` match. A free-text field with no taxonomy is exactly the situation where
+substring matching produces silently wrong results with nothing to sanity-check against (e.g. `"AC"` matching
+`"Vacation Cleaning"`) — an honest, narrow exact-match tool is chosen over a falsely-broad fuzzy one, the same
+"never assert ungrounded data" principle `00_PROJECT_CONTEXT.md` applies to AI output, generalized here to search
+matching. `category` is optional on the endpoint (omitting it browses across all categories, still filtered by
+geo + discoverability). A new, small, deliberately **unpaginated** `GET /search/categories` endpoint (extending
+ADR-012's exception to a platform-wide-but-genuinely-small collection, bounded by the number of distinct labels
+real providers have actually typed, not by provider count) returns the case-normalized distinct set of labels
+currently in use by `is_discoverable=true` providers, backing the mobile category-picker — never a hardcoded
+client-side chip list, which would silently drift from whatever labels providers have actually entered.
+
+### Alternatives Considered
+
+- **Build a minimal real `categories` table now, even a handful of hardcoded rows** (rejected outright — item 1
+  explicitly frames the taxonomy as blocking the entire AI question-flow design; inventing one as a side effect
+  of a search story would pre-empt that larger, still-open product decision).
+- **Substring/`ILIKE` matching** (rejected per the false-positive reasoning above — a substring match over
+  ungoverned free text is more likely to mislead than help without a real taxonomy to bound it).
+- **A hardcoded, static client-side chip list, no picker-source endpoint** (rejected — would drift from whatever
+  labels providers have actually typed, which have zero validation against any fixed set, producing chips that
+  either filter to empty results or omit categories real providers actually use).
+
+### Consequences
+
+- Any future story filtering or matching against `provider_category_labels` before the real Category Taxonomy
+  (item 1) resolves should default to this same case-insensitive exact-match pattern, never substring/fuzzy
+  matching, to avoid silently misleading results over ungoverned free text.
+- Once item 1 resolves and the real `category.categories`/`provider_categories` domain ships, both this
+  exact-match filter and the `GET /search/categories` endpoint are expected to be replaced by real
+  `category_id`-based filtering — this decision is explicitly interim, mirroring ADR-017/018's "honest interim
+  capability" precedent, not a preview of the real feature.
+- `GET /search/categories` extends ADR-012's unpaginated-collection exception to a second, platform-wide (rather
+  than single-owner-scoped) case — justified because its cardinality is bounded by real-world input (distinct
+  labels providers have typed) rather than by data volume that grows with provider count.
+
+### Related Documents
+
+- 00_PROJECT_CONTEXT.md (Section 3 — "never assert ungrounded data" principle)
+- 09_DECISIONS.md (ADR-012 — the unpaginated-collection exception this extends; ADR-017, ADR-018 — the "honest
+  interim capability" precedent this mirrors)
+- 13_OPEN_DECISIONS.md (item 1 — Category Taxonomy, still Open)
+- docs/implementation/plans/Plan_S04_PRO-002.md (Decision 1 — the `provider_category_labels` storage precedent
+  this extends to query-time matching)
+- docs/implementation/plans/Plan_S06_DIR-001.md (Decision 1)
+- docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

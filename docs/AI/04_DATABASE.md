@@ -1,11 +1,19 @@
 # AI Marketplace Database Design
 
 **Document ID:** AI-04
-**Version:** 3.4.0
+**Version:** 3.5.0
 **Status:** Active
 **Owner:** CTO
 **Audience:** Engineering Team, Database Engineers, AI Assistants
-**Last Updated:** 2026-09-08
+**Last Updated:** 2026-09-09
+
+**Change note (v3.4.0 → v3.5.0):** Confirmed Section 13's `idx_service_areas_location` and
+`idx_saved_addresses_location` GiST indexes shipped exactly per this document's own pre-existing spec, by Story
+DIR-001 (Sprint 6) — via a new, reversible Alembic migration enabling the `cube`/`earthdistance` extensions and
+creating both indexes. Updated the `service_areas` and `saved_addresses` table sections' Indexes lists
+accordingly (previously noting the geospatial index as "not yet added, no story queries it yet" — no longer
+accurate). See ADR-025/ADR-026 (`09_DECISIONS.md`) for the new `search` module and raw-SQL precedents this
+story's query established.
 
 **Change note (v3.3.0 → v3.4.0):** Documented `administration.admin_action_log` and `notification.notifications`
 as shipped exactly per their pre-existing spec by Story VER-002 (Sprint 5), both built with the full
@@ -321,7 +329,12 @@ Reused across every OTP use case in the product — registration/login, arrival-
 transactional (the service layer unsets every other active default for that customer before writing the new
 one, on the same session, before this index would ever need to reject a write) — see CUS-002 and ADR-015.
 
-**Indexes:** `idx_saved_addresses_customer_id`
+**Indexes:** `idx_saved_addresses_customer_id`; `idx_saved_addresses_location` — GiST, `ll_to_earth(latitude,
+longitude)`, added by Story DIR-001 (Sprint 6) per Section 13's spec. Built for AC1's explicit, literal
+requirement and forward-looking parity with `service_areas`' own geospatial index; DIR-001's own search query
+never queries through this index (its origin point is a raw request lat/lng, never a `saved_addresses` FK — see
+`Plan_S06_DIR-001.md` Decision 5) — it exists ready for a future story needing a `saved_addresses`-centered
+geospatial query.
 
 ## customer_preferences
 
@@ -453,9 +466,11 @@ when a row is soft-deleted — orphaned-file cleanup is a future administrative/
 Shipped by Story PRO-002, exactly per this spec — no deviation. Internal-only: no direct API exposes this
 table for reading or editing; it is kept in sync automatically by `ProviderService` whenever a provider's
 location/radius fields (business fixed location + delivery radius, or freelancer base location + service
-radius) are created or edited, in the same flush. Exists for a future geospatial-matching story to query — the
-`cube`/`earthdistance` GiST index in Section 13 was deliberately not added by PRO-002, since no story queries
-it yet.
+radius) are created or edited, in the same flush. PRO-002 deliberately deferred the `cube`/`earthdistance` GiST
+index in Section 13 to "the future Search & Matching story that actually queries it" — that story, DIR-001
+(Sprint 6), has since shipped the index and is this table's first real query consumer, via a new
+`ProviderSearchRepository` (`provider` module) issuing Section 13's exact `earth_box`/`earth_distance` query
+shape (recorded as ADR-025/ADR-026 in `09_DECISIONS.md`).
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
@@ -464,7 +479,9 @@ it yet.
 | center_longitude | DOUBLE PRECISION | No | |
 | radius_meters | INTEGER | No | Business: derived from fixed location + optional delivery radius. Freelancer: travel radius. |
 
-**Indexes:** `idx_service_areas_provider_id`; geospatial index — see Section 13
+**Indexes:** `idx_service_areas_provider_id`; `idx_service_areas_location` — GiST, `ll_to_earth(center_latitude,
+center_longitude)`, shipped by Story DIR-001 (Sprint 6) exactly per Section 13's pre-existing spec, no deviation
+— see Section 13.
 
 ## provider_category_labels
 
@@ -1003,7 +1020,9 @@ search.search_requests.status
 
 Location + service-area matching (core to the product, per `00_PROJECT_CONTEXT.md` Section 1) is not covered by any extension in the currently approved stack (`12_TECH_STACK.md` lists PostgreSQL FTS for Phase 1 and vector search for Phase 3, but no geospatial extension). Naive `lat/long` range filtering with plain B-tree indexes does not scale past a small provider count.
 
-**Recommendation for MVP (Phase 1):** use PostgreSQL's built-in `cube` and `earthdistance` contrib extensions (ship with core PostgreSQL, no new package-approval overhead) to build a GiST index over each provider's location:
+**Shipped exactly per this spec by Story DIR-001 (Sprint 6, 09 September 2026) — confirmed, not merely
+recommended.** Uses PostgreSQL's built-in `cube` and `earthdistance` contrib extensions (ship with core
+PostgreSQL, no new package-approval overhead) to build a GiST index over each provider's location:
 
 ```
 CREATE EXTENSION IF NOT EXISTS cube;
@@ -1014,7 +1033,17 @@ CREATE INDEX idx_service_areas_location
   USING gist (ll_to_earth(center_latitude, center_longitude));
 ```
 
-This supports "providers within N meters of point (lat, lng)" queries efficiently without introducing PostGIS as a new approved dependency. If richer geospatial needs emerge later (polygon zones, routing), evaluate PostGIS at that point and record the decision in `09_DECISIONS.md`. This recommendation should be ratified as a formal ADR before Sprint 2 implementation begins, since Search Request matching (Stage 2 of the build sequence in `11_MVP_SCOPE.md`) depends on it directly.
+DIR-001's migration additionally created a matching `idx_saved_addresses_location` GiST index on
+`customer.saved_addresses` (`ll_to_earth(latitude, longitude)`) for forward-looking parity — not queried by
+DIR-001's own search (its origin point is always a raw request lat/lng, never a `saved_addresses` FK), but ready
+for a future story that needs a `saved_addresses`-centered geospatial query. Both indexes were verified via a
+dedicated `EXPLAIN (FORMAT JSON)` test at representative data volume (≥1,000 seeded `service_areas` rows) to
+confirm the Postgres planner genuinely chooses an `Index Scan`/`Bitmap Index Scan` over a sequential scan, not
+merely that the index exists. `DROP EXTENSION` is deliberately never run on migration downgrade (extensions are
+shared, low-risk-to-leave, high-risk-to-drop if anything else depends on them) — only the two indexes are
+dropped.
+
+This supports "providers within N meters of point (lat, lng)" queries efficiently without introducing PostGIS as a new approved dependency. The actual query issued against this index — `earth_box` GiST-indexed containment narrowing candidates before an exact `earth_distance` recheck, `ORDER BY distance ASC, id ASC` for deterministic tie-breaking — lives in `backend/app/modules/provider/repositories/provider_search_repository.py`, this codebase's first use of raw parameterized `sqlalchemy.text()` SQL (recorded as ADR-026 in `09_DECISIONS.md`, since `earth_box`/`earth_distance`/`ll_to_earth` have no SQLAlchemy ORM/Core expression-language mapping). If richer geospatial needs emerge later (polygon zones, routing), evaluate PostGIS at that point and record the decision in `09_DECISIONS.md`.
 
 ---
 

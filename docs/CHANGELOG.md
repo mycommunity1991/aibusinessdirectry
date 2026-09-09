@@ -11,6 +11,36 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Search domain — browse nearby providers by category and location (Story DIR-001): a new, first-slice `search`
+  module (no new tables — the domain's actual query is owned by the `provider` module it reads, recorded as
+  ADR-025) exposing `GET /api/v1/search/providers` (category exact-match → `earth_box` GiST-indexed containment
+  → `earth_distance` exact recheck → `is_discoverable`/`is_active`, deterministic `ORDER BY distance_meters ASC,
+  id ASC` tie-break) and `GET /api/v1/search/categories` (an unpaginated distinct-label picker source, extending
+  ADR-012's exception). Both endpoints require `ROLE_CUSTOMER`, no guest path, per `14_USER_FLOWS.md` Flow 1. A
+  new, reversible Alembic migration enables the `cube`/`earthdistance` Postgres contrib extensions and creates
+  `provider.service_areas`'s and `customer.saved_addresses`'s `idx_service_areas_location`/
+  `idx_saved_addresses_location` GiST indexes, exactly per `04_DATABASE.md` Section 13's pre-existing (previously
+  unbuilt) spec — verified via a real `EXPLAIN (FORMAT JSON)` test at representative volume to confirm the
+  planner genuinely chooses the index over a sequential scan. A new `ProviderSearchRepository` (`provider`
+  module) issues this codebase's first raw parameterized `sqlalchemy.text()` SQL (ADR-026), since
+  `earth_box`/`earth_distance`/`ll_to_earth` have no SQLAlchemy ORM/Core mapping. Category filtering is a
+  case-insensitive exact match against the existing free-text `provider_category_labels.label` (never substring/
+  `ILIKE`), an explicitly interim mechanism pending the real Category Taxonomy (recorded as ADR-027).
+  `average_rating`/`review_count` render honestly ("No reviews yet" when `NULL`, never a fabricated `0.0 (0
+  reviews)`) since the Review domain has never been built. **Fixed during review:** an N+1 query in
+  `SearchService.search_providers` (one category-label lookup per result instead of a batch), resolved with a
+  new `ProviderService.get_category_labels_by_provider_id` batch method mirroring the already-batched photo-URL
+  lookup. **Logged as accepted debt, not fixed in this story:** mobile `features/search`/`features/home` both
+  import `features/customer`'s `SavedAddressRepository` directly — a real, pre-existing-in-kind architecture-rule
+  violation, recorded as `docs/AI/13_OPEN_DECISIONS.md` item 12 pending a deliberate shared-abstraction
+  extraction covering both call sites together.
+- Mobile Search screens (Story DIR-001): a new `features/search/` module — the Search Filters screen (category
+  chips, a location field pre-filled from the customer's default saved address, a radius slider) and the real
+  S-08 Search Results screen (provider cards, two textually distinct empty states — "no search performed yet" vs.
+  "no results for this search" — loading/error states, pull-to-refresh). A new, reusable `ProviderSearchCard`
+  widget renders rating+count honestly and has no ranking-specific UI, so a future AI-ranked-results story
+  (MAT-001) can reuse it unchanged. `HomePlaceholderScreen`'s "Find a Service" button now opens the Search
+  Filters screen, replacing CUS-002's temporary "coming soon" snackbar.
 - Verification domain — review provider verification as an administrator (Story VER-002): a new, ownerless
   `require_role(ROLE_ADMIN)`-only authorization shape (recorded as ADR-023, extending ADR-015's framework with a
   genuinely third category) backs four new admin-only routes at `/api/v1/admin/verification`: `GET .../records`
