@@ -1928,6 +1928,109 @@ client-side chip list, which would silently drift from whatever labels providers
 
 ---
 
+# ADR-028
+
+## Title
+
+Idempotent Data-Seeding Migration Pattern — `ON CONFLICT ... RETURNING`-Gated Child Inserts, Plain-Data Source
+Module, and a DDL-Existence-Check Guard on `upgrade()`
+
+**Date**
+
+2026-09-09
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Every one of this codebase's 8 prior Alembic migrations is schema/DDL only — none has ever inserted a data row.
+Story `CTG-001` needed to seed the CTO-approved v1 launch taxonomy (`docs/AI/17_CATEGORY_TAXONOMY.md` — 14
+categories and 47 per-category question templates) into `category.categories`/`category.category_question_templates`
+via a migration (`17_CATEGORY_TAXONOMY.md`'s own "Migration Notes for Implementation" section explicitly requires
+this, so the seed ships identically across every environment rather than via manual `INSERT`s or an
+application-level seed-on-startup mechanism, which `app/.agents/agents.md`'s Architecture Stability Rule would
+treat as an unrequested parallel migration mechanism). This is a genuinely new pattern this codebase had not yet
+established, and needed a concrete, empirically-provable idempotency mechanism — the story's AC4 explicitly
+required proving no duplicate rows result from running `upgrade()` twice, or from `upgrade() → downgrade() →
+upgrade()`, not merely trusting Alembic's own "don't reapply an already-applied revision" bookkeeping.
+
+### Decision
+
+A reusable three-part pattern for any future reference-data-seeding migration in this codebase:
+
+1. **A plain-Python source-data module** (here, `backend/app/modules/category/seed_data.py`) holding the seed
+   content as plain dicts/lists, with **no SQLAlchemy ORM import** — only plain data. This lets the same source
+   be imported both by the migration (which, matching every existing migration's convention, uses raw
+   `sa.table()`/Core constructs, never `app.modules.*.models` ORM classes) and by test fixtures, so the taxonomy
+   is never transcribed twice (`08_CODING_STANDARDS.md`: never duplicate code/data).
+2. **Parent-row inserts via `postgresql.insert(...).on_conflict_do_nothing(index_elements=[...]).returning(...)`**,
+   against the table's own real unique constraint (here, `categories.slug`/`uq_categories_slug`) — capturing
+   exactly which rows were *freshly inserted this run*, not the full candidate list. **Any child-row insert batch
+   for a table with no unique constraint of its own** (here, `category_question_templates`, which
+   `04_DATABASE.md`'s spec deliberately gives no unique constraint) **is gated transitively on its parent having
+   been freshly returned** — a child batch is only ever inserted when its parent row was itself freshly inserted
+   this run, so the parent's `ON CONFLICT DO NOTHING` propagates idempotency down to children with no unique
+   constraint of their own, rather than inventing one purely to support seeding (which would be an unrequested
+   schema deviation from the authoritative spec).
+3. **An `upgrade()` DDL-existence-check guard** — `upgrade()` checks whether its target table(s) already exist
+   (via `sa.inspect(bind).get_table_names(schema=...)`) before running `CREATE TABLE`/`CREATE INDEX` DDL, skipping
+   DDL (but still running the idempotent seed step) if they do. A real `alembic upgrade head` run never actually
+   re-invokes an already-applied revision's `upgrade()` — Alembic's own version-bookkeeping table prevents that —
+   but this guard makes the function itself safely re-callable even when a test or an operator bypasses that
+   bookkeeping and calls `upgrade()` directly against an already-migrated connection, which is exactly the shape
+   `CTG-001`'s own idempotency tests use to prove AC4 empirically rather than by trusting Alembic's bookkeeping
+   alone.
+
+### Alternatives Considered
+
+- **A standalone seed script run manually or via a deploy step, outside Alembic** — rejected: could be forgotten
+  in any one environment, unlike a migration Alembic runs automatically as part of `alembic upgrade head`; also
+  directly contradicted `17_CATEGORY_TAXONOMY.md`'s own explicit instruction against manual `INSERT`s.
+- **Application-level "seed on startup" logic** — rejected: introduces a second, parallel seeding mechanism
+  outside Alembic, which `app/.agents/agents.md`'s Architecture Stability Rule explicitly protects "Database
+  migration strategy" against without explicit instruction.
+- **Add a new unique constraint to the child table purely so it could use its own symmetric `ON CONFLICT DO
+  NOTHING`** — rejected: `04_DATABASE.md`'s spec for `category_question_templates` lists exactly one index and no
+  unique constraint; adding one not in the authoritative spec is an unrequested schema deviation. Gating child
+  inserts on which parent rows were genuinely freshly returned achieves full idempotency without touching the
+  spec at all.
+- **Trust Alembic's own revision-bookkeeping alone as the idempotency guarantee, with no DDL-existence check in
+  `upgrade()` itself** — rejected: this is exactly what the story's own AC4 wording ("upgrade run twice") asked
+  to be proven true independent of that bookkeeping, and a bookkeeping-only guarantee would make a migration's
+  own idempotency untestable outside the full `alembic upgrade head` CLI flow.
+
+### Consequences
+
+- Any future reference-data-seeding migration in this codebase (e.g. a future taxonomy edit, or a new reference
+  table for another domain) should reuse this exact three-part shape: plain-data source module (no ORM import),
+  `ON CONFLICT ... RETURNING`-gated parent inserts, child inserts gated on genuinely-fresh parent rows (not a
+  fabricated unique constraint), and a DDL-existence-check guard on `upgrade()` if the migration's own idempotency
+  needs to be provable by direct re-invocation, not merely inferred from Alembic's own bookkeeping.
+- `category.categories`/`category.category_question_templates`'s seed content is now a data change (editing
+  `seed_data.py` and writing a small follow-up migration to insert any newly-added rows), not a schema change —
+  exactly the flexibility `04_DATABASE.md` Section 14 and `17_CATEGORY_TAXONOMY.md` both intended.
+- `category.provider_categories` was created empty by this migration — this pattern was not applied to it, since
+  no story yet writes to it (reconciling `provider.provider_category_labels` into it is a separate, deferred
+  story).
+
+### Related Documents
+
+- 04_DATABASE.md (Category Domain section — `categories`, `category_question_templates`, `provider_categories`;
+  Section 14 — Schema Flexibility Against Open Decisions)
+- 08_CODING_STANDARDS.md (no duplicate code/data)
+- 13_OPEN_DECISIONS.md (item 1 — Category Taxonomy, now closed at the implementation level by this story)
+- 17_CATEGORY_TAXONOMY.md (the seeded content itself)
+- docs/implementation/plans/Plan_S07_CTG-001.md (Decision 2 — the full design reasoning this ADR records)
+- docs/implementation/walkthroughs/Walkthrough_S07_CTG-001.md
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

@@ -1,9 +1,10 @@
 # AI Marketplace — Open Decisions
 
 **Document ID:** AI-13
-**Version:** 0.4.0
-**Status:** Draft — Reconstructed; items 1 and 4 resolved and item 3 given an interim sequencing decision by the
-CTO, items 5/8/10/11/12 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
+**Version:** 0.5.0
+**Status:** Draft — Reconstructed; item 1 resolved and implemented (`CTG-001` shipped), item 4 resolved, item 3
+given an interim sequencing decision by the CTO, items 5/8/10/11/12 still pending CTO review, items 2/6/7 still
+unrecoverable numbering gaps
 **Owner:** CTO
 **Audience:** Engineering Team, Product Team, AI Assistants
 **Last Updated:** 09 September 2026
@@ -54,7 +55,11 @@ from scratch by a fourth or fifth story.
 
 ## Item 1 — Category Taxonomy
 
-**Status:** Resolved (09 September 2026) — v1 launch taxonomy locked; implementation not yet built (see `Blocks`)
+**Status:** Resolved and implemented (09 September 2026) — v1 launch taxonomy locked *and* built: `CTG-001` has
+shipped the real `category.categories`/`category.category_question_templates`/`category.provider_categories`
+schema, seeded with the full 14-category, 47-question taxonomy (`docs/AI/17_CATEGORY_TAXONOMY.md` v1.1.0). This
+item is now closed at both the content-decision level and the code level — see `Blocks` below for what is
+genuinely unblocked as a result.
 
 **Description:** The full category taxonomy (which service categories exist, their bilingual names, and the
 category-specific follow-up questions the AI intake asks per category) has not been designed or locked. This
@@ -82,13 +87,18 @@ matching (ADR-027). Both remain in place until the real domain is built and a se
 migrates their data — reconciling free-text labels into real category references is explicitly out of scope for
 this decision and its implementing story.
 
-**Blocks:** AI Conversation/Intake design (Sprint 7: AI-001, AI-002), the real `provider_categories` join table,
-category-based search/matching, and — transitively, per the Tracker's own dependency chain — every story in
-Sprints 7 through 12 (MAT-001, CON-001, REV-001/002, LEAD-001/002, ADM-001/002, ENG-001/002). **The taxonomy
-question itself is now resolved**, but the real `category` schema domain (tables + seed data) has not been built
-yet — that is a new story, `CTG-001`, added to Sprint 7 to unblock `AI-001` for real. This item stays open until
-`CTG-001` ships; closing it fully at the content-decision stage, before the domain exists in code, would
-misrepresent AI-001 as unblocked when it still has a real, unbuilt dependency.
+**Blocks (now unblocked at the code level):** AI Conversation/Intake design (Sprint 7: `AI-001`, `AI-002`) and —
+transitively, per the Tracker's own dependency chain — every story in Sprints 7 through 12 (`MAT-001`, `CON-001`,
+`REV-001`/`002`, `LEAD-001`/`002`, `ADM-001`/`002`, `ENG-001`/`002`) can now genuinely be planned and built against
+a real, queryable taxonomy — `CTG-001` (Sprint 7) has shipped the real `category` schema domain and its seed
+data, so this is no longer a blocker at the code level for any of them. **Not resolved by `CTG-001`, and still
+tracked separately:** reconciling `provider.provider_category_labels`'s free-text values into the real
+`category.provider_categories` join table remains a deliberately deferred, not-yet-scheduled follow-up story —
+`provider_categories` was created empty by `CTG-001`'s migration and stays empty until that story ships; DIR-001's
+free-text category filter (ADR-027) is likewise unaffected by `CTG-001` and continues to work against
+`provider_category_labels` until that reconciliation happens. Native-speaker verification of the seeded Arabic
+text (category names and all 47 question texts) also remains open, non-blocking, tracked at the
+`17_CATEGORY_TAXONOMY.md` source-document level.
 
 **Related:** `03_DOMAIN_MODEL.md` (Category domain), `04_DATABASE.md` (Category Domain section, Section 14),
 `docs/AI/17_CATEGORY_TAXONOMY.md` (the resolution's full content), `Plan_S04_PRO-001.md` Decision 4,
@@ -362,6 +372,15 @@ from VER-001's review).
   follow-up questions), recorded in full in the new `docs/AI/17_CATEGORY_TAXONOMY.md`. The content decision is
   locked; the real `category` schema domain still needs to be built, tracked as new Sprint 7 story `CTG-001`
   (added to the Tracker), which `AI-001`'s `Depends On` now includes alongside `DIR-001`.
+- **09 September 2026 (Sprint 7)** — Item 1 fully implemented: `CTG-001` shipped the real
+  `category.categories`/`category.category_question_templates`/`category.provider_categories` schema and seeded
+  it with the full taxonomy, via this codebase's first data-seeding migration (recorded as ADR-028). During
+  implementation, `17_CATEGORY_TAXONOMY.md` v1.0.0 was found to be missing the Arabic question text its own prose
+  claimed existed; the CTO corrected the document (now v1.1.0, real first-pass Arabic text for all 47 questions)
+  and the seed data was updated accordingly. Item 1's Status updated to "Resolved and implemented" — `AI-001`/
+  `AI-002` and everything cascading from them through Sprint 12 are now genuinely unblocked at the code level.
+  Reconciling `provider_category_labels` into `provider_categories` remains separately deferred, not resolved by
+  this story.
 
 ---
 

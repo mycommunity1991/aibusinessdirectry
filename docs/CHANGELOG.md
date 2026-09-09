@@ -11,6 +11,28 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Category domain — build the real Category domain and seed the v1 launch taxonomy (Story CTG-001): a new
+  `category` Postgres schema with `categories`, `category_question_templates`, and `provider_categories`
+  (created empty) tables, all exactly per `04_DATABASE.md`'s pre-existing spec, via a new reversible Alembic
+  migration (`category_domain`) — this codebase's first data-seeding migration, recorded as ADR-028: an
+  idempotent `INSERT ... ON CONFLICT (slug) DO NOTHING ... RETURNING` against `categories`, with
+  each category's question-template insert batch gated on that category having been genuinely freshly inserted
+  this run (`category_question_templates` has no unique constraint of its own per spec, so its idempotency is
+  entirely inherited from the parent's conflict target), and an `upgrade()` DDL-existence-check guard making the
+  function safely re-callable outside Alembic's own one-time-per-revision bookkeeping. Seeds the full
+  CTO-approved v1 launch taxonomy — 14 categories and 47 AI follow-up question templates
+  (`docs/AI/17_CATEGORY_TAXONOMY.md`, bumped to v1.1.0 after implementation found v1.0.0 was missing the Arabic
+  question text its own prose claimed existed; the CTO supplied real first-pass Arabic text for all 47 questions).
+  A new, real, read-only `CategoryService` (`list_active_categories`, `get_question_templates`) exposes both
+  tables for a future cross-module consumer (`AI-001`) — no `api.py`/HTTP route in this story, since no real
+  caller exists yet, mirroring the established `ProviderService.list_by_ids` cross-module-read precedent.
+  Backend-only; does not modify, migrate, or reconcile `provider.provider_category_labels`, and does not alter
+  DIR-001's `search` module or its endpoint behavior in any way. **Fixed during review:** a tautological test
+  assertion (`assert "questions_unique_constraints" not in info`, a dict key never added, so it always passed
+  regardless of the database's real state) was replaced with a real assertion against
+  `inspector.get_unique_constraints(...)`. `docs/AI/13_OPEN_DECISIONS.md` item 1 (Category Taxonomy) is now
+  resolved *and implemented* — `AI-001`/`AI-002` and everything cascading from them through Sprint 12 are
+  genuinely unblocked at the code level.
 - Search domain — browse nearby providers by category and location (Story DIR-001): a new, first-slice `search`
   module (no new tables — the domain's actual query is owned by the `provider` module it reads, recorded as
   ADR-025) exposing `GET /api/v1/search/providers` (category exact-match → `earth_box` GiST-indexed containment

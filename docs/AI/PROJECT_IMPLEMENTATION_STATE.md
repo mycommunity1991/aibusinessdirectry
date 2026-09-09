@@ -3,9 +3,9 @@
 
 **Project:** AI Marketplace
 **Current Phase:** MVP Development
-**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (Complete — 2 of 2 stories done) → Sprint 4 (Complete — 2 of 2 stories done) → Sprint 5 (Complete — 2 of 2 stories done) → Sprint 6 (In Progress — 1 of 2 stories done: DIR-001 done, CLM-001 deferred)
-**Completed Story:** DIR-001 Browse Nearby Providers by Category and Location
-**Status:** Identity & Access domain complete. Customer domain complete: profile/preferences auto-provisioning, `GET`/`PATCH /customers/me`, and saved service-location addresses (`GET`/`POST`/`PATCH`/`DELETE /customers/me/addresses`) have all shipped. Provider domain fully shipped for Sprint 4's scope: PRO-001 shipped the new `provider` module (`providers`/`business_profiles`/`freelancer_profiles`, immutable-type onboarding wizard, one-provider-per-account); PRO-002 shipped the ongoing Storefront (`provider_availability`, `portfolios`, `service_areas`, the new `provider_category_labels` interim table, this codebase's first file-upload capability, and the mobile Storefront screen). **Sprint 5 (Provider Verification) is now complete.** VER-001 shipped a new `verification` module (`verification_records`/`verification_documents`, an OCR-stub-assisted preview→confirm→submit flow, a private/public file-storage split for sensitive documents) and the mobile S-19/S-20 screens. VER-002 has since shipped the admin review side on top of it: an admin-only review queue and approve/reject endpoints, an atomic status+discoverability cache update (with a DB-level `CHECK` constraint as defense-in-depth), two new first-slice domain modules (`administration`, `notification`), and a new ops-only `grant_admin_role.py` script — backend-only, by deliberate design, since the admin dashboard is out of the mobile MVP's screen inventory. A genuine concurrency bug (two truly concurrent approve calls on the same record both succeeding) was found during review and fixed with an atomic conditional `UPDATE`; see `docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md` for the full account. Sprint 5's two stories together complete the Verification domain's trust gate: a Provider can now submit for verification, be reviewed by an Admin, and become discoverable once approved. **Sprint 6 (Directory & Listing Claims) is now in progress.** DIR-001 (browse nearby providers by category and location) has shipped: this codebase's first `search` domain module, the `cube`/`earthdistance` GiST geospatial indexes `04_DATABASE.md` Section 13 had only ever specified (now confirmed shipped), a category+radius+discoverability structured directory query (this codebase's first raw parameterized `sqlalchemy.text()` SQL, ADR-026), and the mobile Search Filters/Search Results screens (S-08). `CLM-001` ("claim my Google-seeded business listing"), Sprint 6's second story, remains **deferred**: `13_OPEN_DECISIONS.md` item 3 (Google Places Data Legal Review) is still genuinely open pending a real legal/UAE-PDPL review no engineering agent can perform. See `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md` for DIR-001's full account.
+**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (Complete — 2 of 2 stories done) → Sprint 4 (Complete — 2 of 2 stories done) → Sprint 5 (Complete — 2 of 2 stories done) → Sprint 6 (In Progress — 1 of 2 stories done: DIR-001 done, CLM-001 deferred) → Sprint 7 (Started — CTG-001 done, unblocking AI-001/AI-002; neither yet started)
+**Completed Story:** CTG-001 Build the Real Category Domain and Seed the v1 Launch Taxonomy
+**Status:** Identity & Access domain complete. Customer domain complete: profile/preferences auto-provisioning, `GET`/`PATCH /customers/me`, and saved service-location addresses (`GET`/`POST`/`PATCH`/`DELETE /customers/me/addresses`) have all shipped. Provider domain fully shipped for Sprint 4's scope: PRO-001 shipped the new `provider` module (`providers`/`business_profiles`/`freelancer_profiles`, immutable-type onboarding wizard, one-provider-per-account); PRO-002 shipped the ongoing Storefront (`provider_availability`, `portfolios`, `service_areas`, the new `provider_category_labels` interim table, this codebase's first file-upload capability, and the mobile Storefront screen). **Sprint 5 (Provider Verification) is now complete.** VER-001 shipped a new `verification` module (`verification_records`/`verification_documents`, an OCR-stub-assisted preview→confirm→submit flow, a private/public file-storage split for sensitive documents) and the mobile S-19/S-20 screens. VER-002 has since shipped the admin review side on top of it: an admin-only review queue and approve/reject endpoints, an atomic status+discoverability cache update (with a DB-level `CHECK` constraint as defense-in-depth), two new first-slice domain modules (`administration`, `notification`), and a new ops-only `grant_admin_role.py` script — backend-only, by deliberate design, since the admin dashboard is out of the mobile MVP's screen inventory. A genuine concurrency bug (two truly concurrent approve calls on the same record both succeeding) was found during review and fixed with an atomic conditional `UPDATE`; see `docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md` for the full account. Sprint 5's two stories together complete the Verification domain's trust gate: a Provider can now submit for verification, be reviewed by an Admin, and become discoverable once approved. **Sprint 6 (Directory & Listing Claims) is now in progress.** DIR-001 (browse nearby providers by category and location) has shipped: this codebase's first `search` domain module, the `cube`/`earthdistance` GiST geospatial indexes `04_DATABASE.md` Section 13 had only ever specified (now confirmed shipped), a category+radius+discoverability structured directory query (this codebase's first raw parameterized `sqlalchemy.text()` SQL, ADR-026), and the mobile Search Filters/Search Results screens (S-08). `CLM-001` ("claim my Google-seeded business listing"), Sprint 6's second story, remains **deferred**: `13_OPEN_DECISIONS.md` item 3 (Google Places Data Legal Review) is still genuinely open pending a real legal/UAE-PDPL review no engineering agent can perform. See `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md` for DIR-001's full account. **Sprint 7 (Category Domain / AI Intake foundation) has now started.** CTG-001 (build the real Category domain and seed the v1 launch taxonomy) has shipped: a new `category` domain module (`category.categories`/`category.category_question_templates`/`category.provider_categories`, all exactly per `04_DATABASE.md`'s pre-existing spec), seeded via this codebase's first data-seeding migration (ADR-028) with the full CTO-approved 14-category, 47-question v1 launch taxonomy (`docs/AI/17_CATEGORY_TAXONOMY.md`, now v1.1.0). `13_OPEN_DECISIONS.md` item 1 (Category Taxonomy) is now resolved and implemented — `AI-001`/`AI-002` (Sprint 7's Conversation/AI Intake stories) and everything cascading from them through Sprint 12 are genuinely unblocked at the code level, though neither has yet been planned or started. See `docs/implementation/walkthroughs/Walkthrough_S07_CTG-001.md` for CTG-001's full account.
 **Last Updated:** 09 September 2026
 **Owner:** CTO
 
@@ -26,6 +26,10 @@ Sprint 3 (Customer Profile & Locations) is now complete. Its first story, CUS-00
 Sprint 5 (Provider Verification) is now complete. Its first story, VER-001 (submit my provider verification), shipped a new `verification` domain module (`verification_records`/`verification_documents`), reusing `provider`'s existing `verification_status` Postgres enum type rather than duplicating it (`create_type=False`); a deliberate three-step preview→confirm→submit flow so OCR-extracted fields are shown and made editable before any database row exists; `StubDocumentOcrService`, this codebase's first OCR integration point, honestly returning empty candidate fields pending a future story's real pipeline (recorded as ADR-018); and a private-vs-public file-storage split (`FileStorage` gains a `public_url_prefix` parameter, a separate never-mounted `VERIFICATION_UPLOAD_DIR` root, and an authenticated streaming-download endpoint) so sensitive identity/license documents are never reachable through the existing public `/media` mount PRO-002 built for portfolio photos (recorded as ADR-019 — the single most consequential decision in this story, per both the Plan and the architect's own assessment). On mobile, a new `features/verification/` module delivers the S-19 upload and S-20 status screens plus the OCR-confirm step, wired into the end of the Provider onboarding wizard and a new status chip on the Storefront screen. This story's review was more eventful than prior ones: a real pending-slot file bug was found and fixed during backend review (a stale file from an earlier preview with a different extension could otherwise be picked up at submit time), a dead exception class was found and removed by the tester, and the architect's first-pass review returned CHANGES REQUIRED over a genuine bidirectional mobile feature-coupling violation between `features/provider/` and `features/verification/` — fixed by moving `ProviderType` to `shared/` and introducing two minimal shared accessor repositories, then confirmed by a focused architect re-review that returned APPROVED WITH RECOMMENDATIONS. **Important scope note, stated explicitly so it is never overstated:** VER-001 only got a submission into the `pending` queue and let a provider view their own current status — it did not make any provider discoverable and did not implement any part of the admin review/approval mechanism. See `docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md` for full detail.
 
 Sprint 5's second and final story, VER-002 (review provider verification as an administrator), has since shipped the admin side of the trust gate VER-001 left open: a new, ownerless `require_role(ROLE_ADMIN)`-only authorization shape (a genuinely third endpoint category alongside ADR-015's existing two, recorded as ADR-023) backs a new admin-only review queue (this codebase's first real use of the previously-unused `CollectionResponse`/`PaginationMeta` pagination infrastructure) and approve/reject endpoints; approving atomically updates `providers.verification_status`/`is_discoverable` in the same transaction as the `verification_records` status change, for **both** Freelancer and Business Providers (Decision 5, explicitly confirmed by the user), backed by a new DB-level `chk_providers_discoverable_requires_approved` `CHECK` constraint as defense-in-depth. Two new, first-slice domain modules were built — `administration` (`admin_action_log`, recorded as ADR-021) and `notification` (`notifications`, recorded as ADR-022) — both honestly minimal, in-app-record-only capabilities, not full build-outs of their much larger future scope. A new ops-only `backend/scripts/grant_admin_role.py` CLI script (recorded as ADR-020, explicitly confirmed by the user before implementation) grants `ROLE_ADMIN` to an already-registered Account; no new admin login mechanism was built. This story's review found a genuine, empirically-reproduced concurrency bug — two truly concurrent approve calls on the same record could both succeed, each writing a duplicate `admin_action_log`/`notification` row — fixed with an atomic conditional `UPDATE` (`VerificationRecordRepository.try_claim_for_review`, recorded as ADR-024, this codebase's first use of this optimistic-concurrency-control pattern), independently re-verified by the architect (who reverted and re-applied the fix to confirm it) before returning APPROVED WITH RECOMMENDATIONS. **This story is backend-only, by deliberate design** — the admin operations dashboard is explicitly excluded from the mobile MVP's screen inventory. **Sprint 5 (Provider Verification) is now complete**: a Provider can submit for verification, be reviewed by an Admin, and become discoverable once approved — the full trust gate this domain exists to enforce. See `docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md` for full detail.
+
+Sprint 6 (Directory & Listing Claims) is in progress. Its first story, DIR-001 (browse nearby providers by category and location), shipped this codebase's first `search` domain module (no new tables of its own — the geospatial/category/discoverability query lives inside the `provider` module, ADR-025), confirmed the `cube`/`earthdistance` GiST indexes `04_DATABASE.md` Section 13 had only ever specified, and delivered the mobile Search Filters/Search Results (S-08) screens, searching only self-registered, `is_discoverable=true` providers via a free-text category exact-match against `provider_category_labels` (ADR-027). `CLM-001` ("claim my Google-seeded business listing"), Sprint 6's second story, remains **deferred**, blocked on `13_OPEN_DECISIONS.md` item 3's still-open Google Places legal/UAE-PDPL review. See `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md` for full detail.
+
+Sprint 7 (Category Domain / AI Intake foundation) has now started. Its first story, CTG-001 (build the real Category domain and seed the v1 launch taxonomy), shipped a new `category` domain module — `category.categories`, `category.category_question_templates`, and `category.provider_categories` (created empty), all exactly per `04_DATABASE.md`'s pre-existing spec — seeded via this codebase's first data-seeding migration (an idempotent `ON CONFLICT (slug) DO NOTHING ... RETURNING`-gated insert, recorded as ADR-028) with the full CTO-approved 14-category, 47-question v1 launch taxonomy (`docs/AI/17_CATEGORY_TAXONOMY.md`, now v1.1.0 after a genuine Arabic-content gap found during implementation was corrected). A new, real, read-only `CategoryService` (no HTTP route yet — no caller exists this story) exposes both tables for a future consumer. Backend-only; does not touch `provider_category_labels`, `provider_categories` reconciliation, or DIR-001's `search` module. `13_OPEN_DECISIONS.md` item 1 (Category Taxonomy) is now resolved *and implemented* — `AI-001`/`AI-002` (this same sprint's remaining stories) and everything cascading from them through Sprint 12 are genuinely unblocked at the code level, though neither has yet been planned or started. See `docs/implementation/walkthroughs/Walkthrough_S07_CTG-001.md` for full detail.
 
 ---
 
@@ -347,6 +351,28 @@ counsel or a first-party reading of Google's current terms — something no engi
 (Unclaimed Listing UX) is separately already resolved (a full-width Warning-color banner, `16_UX_GUIDELINES.md`),
 so `CLM-001` has no open design question left once item 3 resolves and it is actually planned.
 
+## Sprint 7 — Category Domain / AI Intake foundation (Started — 1 story done)
+
+Scope covers building the real Category domain and seeding the v1 launch taxonomy (`CTG-001`), then the
+Conversation/AI Intake domain itself (`AI-001`, `AI-002`) on top of it.
+
+| Story | Description | Status |
+|--------|-------------|--------|
+| CTG-001 | Build the real Category domain and seed the v1 launch taxonomy | ✅ Done |
+| AI-001 | Conversation / AI Intake (Sprint 7) | ⏳ Not started — unblocked at the code level, not yet planned |
+| AI-002 | Conversation / AI Intake (Sprint 7) | ⏳ Not started — unblocked at the code level, not yet planned |
+
+**CTG-001** has shipped and been signed off — see `docs/implementation/walkthroughs/Walkthrough_S07_CTG-001.md`.
+It builds this codebase's first data-seeding migration (ADR-028), a new `category` domain module
+(`category.categories`/`category.category_question_templates`/`category.provider_categories`, the last created
+empty), seeded with the full 14-category, 47-question v1 launch taxonomy, and a real, read-only `CategoryService`
+for a future consumer to call. Backend-only — no mobile change, no HTTP route (no caller exists yet).
+
+**`AI-001`/`AI-002` are now genuinely unblocked at the code level** — `13_OPEN_DECISIONS.md` item 1 (Category
+Taxonomy) is resolved and implemented — but **neither has been planned or started**. This closeout does not plan
+`AI-001`; that remains a separate future planning pass, per standing process (no story combines with another
+without explicit instruction).
+
 ---
 
 # 9. Current Backend Capabilities
@@ -455,7 +481,18 @@ and creates `idx_service_areas_location`/`idx_saved_addresses_location` (both Gi
 Section 13's long-specified-but-unbuilt design), verified via a real `EXPLAIN (FORMAT JSON)` test at
 representative volume to confirm the planner genuinely chooses the index over a sequential scan.
 
-The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain is now fully shipped as well — profile/preferences (CUS-001) and saved addresses (CUS-002) — completing Sprint 3. The Provider domain is now fully shipped for its Sprint 4 scope — PRO-001 shipped the Provider aggregate root and onboarding wizard, and PRO-002 has since completed the aggregate (portfolio/availability/service-area/category-labels) and the ongoing Storefront screen — completing Sprint 4. **Sprint 5 (Provider Verification) is now complete**: VER-001 shipped the document-submission half of the Verification domain, and VER-002 has since shipped the admin review/approval half on top of it, including this codebase's first two `administration`/`notification` domain modules. **Sprint 6 (Directory & Listing Claims) is now in progress**: DIR-001 has shipped this codebase's first Search domain slice — a structured (non-AI) category+radius+discoverability directory query and its mobile Search Filters/Search Results screens; `CLM-001` remains deferred pending `13_OPEN_DECISIONS.md` item 3's still-open legal review.
+✓ Category domain — build the real Category domain and seed the v1 launch taxonomy (CTG-001): a new
+`category` schema with `categories`, `category_question_templates`, and `provider_categories` (created empty)
+tables, all exactly per `04_DATABASE.md`'s pre-existing spec, via this codebase's first data-seeding migration
+(`ON CONFLICT (slug) DO NOTHING ... RETURNING`-gated inserts sourced from a plain-data `seed_data.py` module with
+no ORM import, ADR-028) that seeds the full CTO-approved 14-category, 47-question v1 launch taxonomy
+(`docs/AI/17_CATEGORY_TAXONOMY.md`, now v1.1.0). A new, real, read-only `CategoryService`
+(`list_active_categories`, `get_question_templates`) exposes both tables for a future cross-module consumer —
+no `api.py`/HTTP route in this story, since no real caller (`AI-001`) exists yet. Does not touch
+`provider.provider_category_labels`, does not populate `provider_categories`, and does not alter DIR-001's
+`search` module in any way.
+
+The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain is now fully shipped as well — profile/preferences (CUS-001) and saved addresses (CUS-002) — completing Sprint 3. The Provider domain is now fully shipped for its Sprint 4 scope — PRO-001 shipped the Provider aggregate root and onboarding wizard, and PRO-002 has since completed the aggregate (portfolio/availability/service-area/category-labels) and the ongoing Storefront screen — completing Sprint 4. **Sprint 5 (Provider Verification) is now complete**: VER-001 shipped the document-submission half of the Verification domain, and VER-002 has since shipped the admin review/approval half on top of it, including this codebase's first two `administration`/`notification` domain modules. **Sprint 6 (Directory & Listing Claims) is now in progress**: DIR-001 has shipped this codebase's first Search domain slice — a structured (non-AI) category+radius+discoverability directory query and its mobile Search Filters/Search Results screens; `CLM-001` remains deferred pending `13_OPEN_DECISIONS.md` item 3's still-open legal review. **Sprint 7 (Category Domain / AI Intake foundation) has now started**: CTG-001 has shipped the real Category domain and its seeded v1 launch taxonomy — `13_OPEN_DECISIONS.md` item 1 is now resolved and implemented, genuinely unblocking `AI-001`/`AI-002` at the code level, though neither has yet been planned or started.
 
 ---
 
@@ -611,6 +648,18 @@ Implemented layers include:
   `idx_saved_addresses_location` GiST indexes). Touched no other existing module. This shipped Sprint 6's first
   story.
 
+- Category module (`backend/app/modules/category/`) — build the real Category domain and seed the v1 launch
+  taxonomy (CTG-001): a new `category` schema with `models.py` (`Category`, `CategoryQuestionTemplate`,
+  `ProviderCategory`), `repositories/` (`CategoryRepository.list_active`,
+  `CategoryQuestionTemplateRepository.list_for_category`), `services/category_service.py` (`CategoryService`:
+  `list_active_categories`, `get_question_templates`), and `dependencies.py` — no `api.py`, mirroring
+  `administration`/`notification`'s "first slice of a real domain, no HTTP route" shape. A new
+  `seed_data.py` (plain data, no ORM import) sources this codebase's first data-seeding migration
+  (`category_domain`, ADR-028), which seeds the full 14-category, 47-question taxonomy via an idempotent
+  `ON CONFLICT (slug) DO NOTHING ... RETURNING`-gated insert. Touched no other existing module — does not read or
+  write `provider.provider_category_labels`, and `category.provider_categories` was created empty. This shipped
+  Sprint 7's first story.
+
 Remaining business modules are deferred until their corresponding sprint stories.
 
 The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001), real Google/Apple sign-in buttons on the Phone Entry screen (AUTH-002), and secure cross-restart session persistence, a silent-refresh Dio interceptor, and a "Log out" action on the Home stub (AUTH-003), are implemented. A dedicated Manage Sessions UI was deliberately not built this story (see AUTH-003's Walkthrough). CUS-001 added a new `features/customer/` module and a Profile & Settings screen (reachable via a temporary entry point on the Home stub, not yet a bottom-nav tab) plus an `AcceptLanguageInterceptor` on `ApiClient`. CUS-002 extended `features/customer/` with a Saved Addresses management screen and a skippable first-address prompt wired into registration, plus a new shared, reusable `LocationPickerScreen` (`shared/widgets/location_picker/`) and three new Flutter dependencies (`google_maps_flutter`, `geolocator`, `geocoding`). PRO-001 added a new `features/provider/` module (a five-screen onboarding wizard reusing `LocationPickerScreen` for address/base-location capture) and this codebase's first shared `StepIndicator` widget, plus a "List Your Business" tile on Profile & Settings. PRO-002 extended `features/provider/` with the ongoing Storefront screen (S-25, four independently-saveable sections), a portfolio manager widget backed by a new `image_picker` dependency, and a new shared `WeeklyHoursEditor` widget (`shared/widgets/weekly_hours_editor.dart`) factored out of PRO-001's onboarding screen. VER-001 added a new, sibling `features/verification/` module (the S-19 upload, OCR-confirm, and S-20 status screens, using a new `file_picker` dependency since `image_picker` cannot browse an arbitrary PDF), wired into the end of the Provider onboarding wizard and a new status chip on the Storefront screen; two small shared additions (`shared/models/provider_type.dart`, moved from `features/provider/`, plus two new minimal accessor repositories — `CurrentProviderTypeRepository`, `VerificationStatusSummaryRepository`) keep `features/provider/` and `features/verification/` from importing each other's internals directly, per `02_ARCHITECTURE.md`'s "features must not depend directly on each other" rule (a real coupling violation the architect caught and this fix resolved — see VER-001's Walkthrough). DIR-001 added a new `features/search/` module (Search Filters and Search Results — S-08 — screens, a reusable `ProviderSearchCard` widget, Riverpod controllers) and rewired `HomePlaceholderScreen`'s "Find a Service" button to open it, replacing CUS-002's temporary "coming soon" snackbar. `features/search/` (and the pre-existing `features/home/`) import `features/customer/`'s `SavedAddressRepository` directly to pre-fill the search origin — a real, logged architecture-rule deviation, not fixed in this story (`13_OPEN_DECISIONS.md` item 12). The full S-06 Home screen (AI input box, mic icon), a bottom-navigation shell, and all other feature areas remain unbuilt.
@@ -631,17 +680,28 @@ Not yet implemented:
   path now exists end to end, and DIR-001 has since shipped a structured way to actually browse those
   discoverable providers. Claim-Your-Listing (`CLM-001`) remains unbuilt and **deferred** — blocked on
   `13_OPEN_DECISIONS.md` item 3's still-open Google Places legal/PDPL review, not merely unscheduled. The real
-  Category domain remains unbuilt too; `provider_category_labels` (PRO-002) is an explicitly flagged, free-text
-  interim stand-in, not the real taxonomy — DIR-001's category filter (ADR-027) works against this same interim
-  shape.
-- Category taxonomy
-- Conversation / AI Intake
+  Category domain **has since shipped (CTG-001, Sprint 7)** — `category.categories`/
+  `category.category_question_templates`/`category.provider_categories` all now exist, seeded with the full v1
+  launch taxonomy. `provider_category_labels` (PRO-002) remains in place, unchanged, as a free-text interim
+  stand-in — DIR-001's category filter (ADR-027) still works against it, not the real taxonomy; reconciling the
+  two is a separate, not-yet-scheduled follow-up story, tracked at `13_OPEN_DECISIONS.md` item 1.
+- Category taxonomy — **no longer a gap, fully shipped (CTG-001):** the real `category` schema domain
+  (`categories`/`category_question_templates`/`provider_categories`) exists and is seeded with the CTO-approved
+  14-category, 47-question v1 launch taxonomy (`docs/AI/17_CATEGORY_TAXONOMY.md` v1.1.0), exposed via a
+  real, read-only `CategoryService` for a future consumer. **Not yet built:** any HTTP route for reading it (no
+  caller exists yet — deferred to `AI-001`), native-speaker verification of the seeded Arabic text (tracked
+  non-blocking at the source-document level), and reconciling `provider_category_labels` into
+  `provider_categories` (a separate, deferred story).
+- Conversation / AI Intake — **unblocked at the code level as of CTG-001**, but still genuinely not started or
+  planned: `AI-001`/`AI-002` (Sprint 7) can now be built against a real, queryable taxonomy instead of inventing
+  their own interim category stand-in.
 - Search & Matching — **partially shipped as of DIR-001**: a structured, proximity-ordered (non-AI) directory
   browse exists (`GET /search/providers`/`GET /search/categories`, the mobile Search Filters/Search Results
   screens), searching only self-registered, `is_discoverable=true` providers via free-text category exact-match
   (`13_OPEN_DECISIONS.md` item 1's interim posture, ADR-027) and the now-confirmed-shipped `cube`/`earthdistance`
   GiST indexes (`04_DATABASE.md` Section 13). **Not yet built:** the AI Conversation intake (AI-001/AI-002,
-  Sprint 7, blocked on Category Taxonomy), AI-ranked/merit-based results (MAT-001), and the real
+  Sprint 7 — now unblocked at the code level by CTG-001's real Category domain, but not yet planned or started),
+  AI-ranked/merit-based results (MAT-001), and the real
   `search.search_requests`/`provider_matches`/`search_event_log` tables — DIR-001's query is deliberately
   ephemeral and writes none of them (`Plan_S06_DIR-001.md` Decision 5).
 - Contact View
@@ -666,7 +726,7 @@ Not yet implemented:
   wider "operations dashboard" scope, explicitly out of VER-002's bounds.
 - Flutter application (beyond the auth flow and the Profile & Settings screen — Home screen, a bottom-navigation shell, and all other feature areas)
 
-These will be implemented according to the approved sprint backlog, gated by the open decisions in `13_OPEN_DECISIONS.md` — category taxonomy in particular blocks the AI intake work.
+These will be implemented according to the approved sprint backlog, gated by the open decisions in `13_OPEN_DECISIONS.md`. Category taxonomy (item 1) no longer blocks the AI intake work at the code level as of CTG-001 — `AI-001`/`AI-002` are genuinely unblocked, though not yet planned or started; other still-open items (e.g. item 3, the Google Places legal review blocking `CLM-001`) continue to gate their own respective stories.
 
 ---
 
@@ -694,7 +754,11 @@ for verification, be reviewed by an Admin, and become discoverable once approved
 Directory & Listing Claims — In Progress (Sprint 6, 1 of 2 stories done: DIR-001 shipped a structured,
 non-AI directory browse; CLM-001 deferred pending `13_OPEN_DECISIONS.md` item 3's legal review)
 
-Conversation / AI Intake — Not Started
+Category Domain — Complete for Sprint 7's foundation scope (CTG-001 shipped the real `category` schema domain
+and seeded the v1 launch taxonomy; `13_OPEN_DECISIONS.md` item 1 resolved and implemented)
+
+Conversation / AI Intake — Not Started (unblocked at the code level by CTG-001; `AI-001`/`AI-002` not yet
+planned)
 
 Flutter Application — In Progress (auth flow: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out; Profile & Settings screen with live language switching, CUS-001; Saved Addresses management, a shared Location Picker, and a skippable first-address-at-registration flow, CUS-002; Provider onboarding wizard — type selection, basic info, Business/Freelancer details, PRO-001; Storefront screen — portfolio, availability, category labels, PRO-002; Verification upload/confirm/status screens — S-19/S-20, VER-001; VER-002 is backend-only, no mobile changes; Search Filters/Search Results screens — S-08, DIR-001)
 
@@ -726,6 +790,14 @@ PRO-002 ("manage my provider storefront") have both shipped and been signed off;
 `DIR-001` ("browse nearby providers by category and location") shipped and was signed off on 09 September 2026;
 see `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md`.
 
+**Sprint 7 (Category Domain / AI Intake foundation) has started — `CTG-001` is done.**
+`CTG-001` ("build the real Category domain and seed the v1 launch taxonomy") shipped and was signed off on
+09 September 2026; see `docs/implementation/walkthroughs/Walkthrough_S07_CTG-001.md`. `13_OPEN_DECISIONS.md`
+item 1 (Category Taxonomy) is now resolved and implemented, genuinely unblocking `AI-001`/`AI-002` (Sprint 7's
+remaining stories) and everything cascading from them through Sprint 12 at the code level. **`AI-001`/`AI-002`
+are not yet planned or started** — this closeout deliberately does not plan them; that is a separate future
+planning pass.
+
 **Next story in backlog sequence: `CLM-001`** ("claim my Google-seeded business listing") — **do not plan or
 start this story.** It remains genuinely blocked, not merely next-in-line: `docs/AI/13_OPEN_DECISIONS.md` item 3
 (Google Places Data Legal Review) is still Open — whether bulk-importing Google Places data as permanent,
@@ -739,10 +811,12 @@ design question is separately already resolved (a full-width Warning-color banne
 it stays out of the delivered/planned backlog entirely.
 
 A future session picking up Sprint 6/7 planning should first check whether `13_OPEN_DECISIONS.md` item 3 has
-been resolved. If it has not, and the CTO wants engineering work to continue rather than idle, the next
-*unblocked* candidate would need to come from a later sprint not gated on this item or on Category Taxonomy
-(item 1) — that decision itself is a product/sequencing call for the CTO, not one this document makes on its
-own.
+been resolved before planning `CLM-001`. Category Taxonomy (item 1) is no longer a gating concern for a next
+candidate — it resolved and was implemented by `CTG-001` — so `AI-001` (Conversation/AI Intake, Sprint 7) is now
+a genuinely unblocked candidate at the code level if the CTO wants engineering work to continue past `CLM-001`'s
+block. Whether to actually plan `AI-001` next, ahead of or instead of waiting on `CLM-001`'s legal review, is a
+product/sequencing call for the CTO, not one this document makes on its own — no engineering agent should plan
+or start `AI-001` without that explicit direction.
 
 ---
 

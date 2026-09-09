@@ -1,11 +1,19 @@
 # AI Marketplace Database Design
 
 **Document ID:** AI-04
-**Version:** 3.5.0
+**Version:** 3.6.0
 **Status:** Active
 **Owner:** CTO
 **Audience:** Engineering Team, Database Engineers, AI Assistants
 **Last Updated:** 2026-09-09
+
+**Change note (v3.5.0 → v3.6.0):** Confirmed the Category Domain section's three tables (`categories`,
+`category_question_templates`, `provider_categories`) shipped exactly per this document's own pre-existing spec,
+by Story CTG-001 (Sprint 7) — via this codebase's first data-seeding migration (ADR-028, `09_DECISIONS.md`),
+seeding the full v1 launch taxonomy into `categories`/`category_question_templates`. `provider_categories` was
+created empty; reconciling `provider_category_labels` into it remains a separate, deferred story. Updated the
+`provider_category_labels` and Category Domain sections accordingly (previously noting the real domain "does not
+exist yet" — no longer accurate).
 
 **Change note (v3.4.0 → v3.5.0):** Confirmed Section 13's `idx_service_areas_location` and
 `idx_saved_addresses_location` GiST indexes shipped exactly per this document's own pre-existing spec, by Story
@@ -488,13 +496,13 @@ center_longitude)`, shipped by Story DIR-001 (Sprint 6) exactly per Section 13's
 **New table, added by Story PRO-002 (Decision 1) — deliberately NOT the `provider_categories` join table
 this document's Category Domain section (below) reserves that name for.** The real Category domain
 (`category.categories`, `category.category_question_templates`, and the real `provider_categories` join table
-with a hard FK to `category.categories.id`) does not exist yet — Category taxonomy remains a critical-path,
-still-open decision (`13_OPEN_DECISIONS.md` item 1 — note: this file is referenced by name throughout
-`docs/AI/` but does not currently exist in the repository; flagged as a cross-story documentation gap in
-`PROJECT_IMPLEMENTATION_STATE.md` Section 6). `provider_category_labels` is a distinctly-named, deliberate
-interim stand-in: it stores free-text category labels with no taxonomy validation, satisfying the *structural*
-shape a provider having "one or more categories, exactly one primary" requires, without pretending to be the
-real Category entity.
+with a hard FK to `category.categories.id`) has since shipped via Story `CTG-001` (Sprint 7) — see the Category
+Domain section below. `provider_category_labels` remains in place as a distinctly-named interim stand-in: it
+stores free-text category labels with no taxonomy validation, satisfying the *structural* shape a provider
+having "one or more categories, exactly one primary" requires, without pretending to be the real Category
+entity. Reconciling its free-text values into the real `provider_categories` join table (created empty by
+`CTG-001`) remains a separate, deliberately deferred follow-up story (`13_OPEN_DECISIONS.md` item 1) — both
+tables exist side by side for a transition period.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
@@ -521,6 +529,16 @@ not decided by PRO-002.
 ---
 
 # Category Domain (`category` schema)
+
+**Shipped exactly per this section's spec by Story `CTG-001` (Sprint 7, 09 September 2026)** — no deviation. All
+three tables below exist via a reversible Alembic migration (`category_domain`,
+`backend/alembic/versions/2026_09_09_1000-a804c46bf703_category_domain.py`), and `categories`/
+`category_question_templates` are seeded with the full CTO-approved v1 launch taxonomy (14 categories, 47
+question templates — `docs/AI/17_CATEGORY_TAXONOMY.md`) via this codebase's first data-seeding migration
+(recorded as ADR-028 in `09_DECISIONS.md`). `category.provider_categories` was created **empty** — reconciling
+`provider.provider_category_labels` (above) into it remains a separate, deliberately deferred follow-up story;
+this section's previous "not yet built" framing no longer applies to any of the three tables themselves. See
+`docs/implementation/walkthroughs/Walkthrough_S07_CTG-001.md` for the full account.
 
 ## categories
 
