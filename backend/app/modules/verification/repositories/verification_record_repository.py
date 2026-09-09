@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, not_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,16 +22,46 @@ class VerificationRecordRepository(BaseRepository[VerificationRecord]):
         self, provider_id: uuid.UUID
     ) -> VerificationRecord | None:
         """
-        Returns a provider's single latest verification cycle, ordered by
-        `submitted_at` descending -- used by both `GET
+        Returns a provider's single latest **real** verification cycle,
+        ordered by `submitted_at` descending -- used by both `GET
         /providers/me/verification` (AC6, reads this directly, never
         `providers.verification_status`, Decision 2) and
         `VerificationService.submit`'s resubmission-eligibility check
         (Decision 4/AC7).
+
+        Excludes a system-generated, never-human-reviewed `APPROVED`
+        record (`status=APPROVED AND reviewed_by IS NULL`) -- the exact,
+        exclusive signature of CLM-001's import-time synthetic approval
+        (`Plan_S06_CLM-001.md` Decision 2), which every real admin
+        approval never produces (`AdminVerificationService.approve`
+        always sets `reviewed_by=<the acting admin's id>`, confirmed
+        directly by reading that method). A Google-seeded listing's
+        synthetic pre-claim approval was never a genuine reviewed cycle,
+        so once claimed it must not count as "the latest cycle" for
+        either purpose -- otherwise a freshly claimed listing could
+        never pass its first real `submit()` call (the stale
+        `APPROVED` record blocks resubmission, since only `REJECTED`
+        allows it) and would show a dishonest "Approved" status on `GET
+        /providers/me/verification` despite `providers.verification_
+        status` having already been reset to `pending` at claim time
+        (`ClaimService._finalize_claim`). With this record excluded, a
+        freshly claimed listing behaves identically to a freshly
+        self-registered Business -- `latest is None` until it actually
+        submits -- which is the literal mechanism of AC5's "routes
+        through the same Verification gate a self-registered Business
+        would go through."
         """
         stmt = (
             select(VerificationRecord)
-            .where(VerificationRecord.provider_id == provider_id)
+            .where(
+                VerificationRecord.provider_id == provider_id,
+                not_(
+                    and_(
+                        VerificationRecord.status == VerificationStatus.APPROVED,
+                        VerificationRecord.reviewed_by.is_(None),
+                    )
+                ),
+            )
             .order_by(VerificationRecord.submitted_at.desc())
             .limit(1)
         )
