@@ -7,7 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.database.session import get_db
-from app.modules.identity.dependencies import get_role_assignment_service
+from app.modules.administration.dependencies import get_claim_review_request_service
+from app.modules.administration.services.claim_review_request_service import (
+    ClaimReviewRequestService,
+)
+from app.modules.identity.dependencies import (
+    get_otp_service,
+    get_role_assignment_service,
+)
+from app.modules.identity.services.otp_service import OtpService
 from app.modules.identity.services.role_assignment_service import (
     RoleAssignmentService,
 )
@@ -33,7 +41,9 @@ from app.modules.provider.repositories.provider_search_repository import (
 from app.modules.provider.repositories.service_area_repository import (
     ServiceAreaRepository,
 )
+from app.modules.provider.services.admin_claim_service import AdminClaimService
 from app.modules.provider.services.availability_service import AvailabilityService
+from app.modules.provider.services.claim_service import ClaimService
 from app.modules.provider.services.portfolio_service import PortfolioService
 from app.modules.provider.services.provider_service import ProviderService
 from app.shared.storage.interfaces import FileStorage
@@ -186,5 +196,54 @@ def get_availability_service(
     session."""
     return AvailabilityService(
         provider_availability_repository=provider_availability_repository,
+        provider_service=provider_service,
+    )
+
+
+def get_claim_service(
+    provider_repository: Annotated[
+        ProviderRepository, Depends(get_provider_repository)
+    ],
+    provider_service: Annotated[ProviderService, Depends(get_provider_service)],
+    otp_service: Annotated[OtpService, Depends(get_otp_service)],
+    role_assignment_service: Annotated[
+        RoleAssignmentService, Depends(get_role_assignment_service)
+    ],
+    claim_review_request_service: Annotated[
+        ClaimReviewRequestService, Depends(get_claim_review_request_service)
+    ],
+) -> ClaimService:
+    """
+    Provides a `ClaimService` bound to the request-scoped DB session
+    (CLM-001, Decision 7, `Plan_S06_CLM-001.md`).
+
+    Imports `get_otp_service`/`get_role_assignment_service` from
+    `identity/dependencies.py` (the same `provider -> identity` shape
+    ADR-016 already established) and `get_claim_review_request_service`
+    from `administration/dependencies.py` (the same `X ->
+    administration` shape VER-002's `get_admin_verification_service`
+    already established via `get_admin_action_log_service`).
+    """
+    return ClaimService(
+        provider_repository=provider_repository,
+        provider_service=provider_service,
+        otp_service=otp_service,
+        role_assignment_service=role_assignment_service,
+        claim_review_request_service=claim_review_request_service,
+    )
+
+
+def get_admin_claim_service(
+    claim_review_request_service: Annotated[
+        ClaimReviewRequestService, Depends(get_claim_review_request_service)
+    ],
+    claim_service: Annotated[ClaimService, Depends(get_claim_service)],
+    provider_service: Annotated[ProviderService, Depends(get_provider_service)],
+) -> AdminClaimService:
+    """Provides an `AdminClaimService` bound to the request-scoped DB
+    session (CLM-001, Decision 9, `Plan_S06_CLM-001.md`)."""
+    return AdminClaimService(
+        claim_review_request_service=claim_review_request_service,
+        claim_service=claim_service,
         provider_service=provider_service,
     )

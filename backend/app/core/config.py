@@ -119,6 +119,19 @@ class Settings(BaseSettings):
     BUSINESS_VERIFICATION_TYPE: str = "business_lightweight"
     BUSINESS_VERIFICATION_DOCUMENT_REQUIRED: bool = False
 
+    # Google Places import (CLM-001, Decision 10, `Plan_S06_CLM-001.md`)
+    # -- deliberately optional, unlike `GOOGLE_OAUTH_CLIENT_ID`: only the
+    # standalone `scripts/import_google_places.py` script consumes this,
+    # never the running API application, so no environment is forced to
+    # hold a real or dummy Places API key just to boot the app.
+    GOOGLE_PLACES_API_KEY: str | None = None
+
+    # Claim search (CLM-001, Backend Proposed Changes item 19,
+    # `Plan_S06_CLM-001.md`) -- a claim-search result set (a person
+    # searching for their own, specific business) is expected to be
+    # small, hence a tighter cap than `SEARCH_MAX_PAGE_SIZE`.
+    CLAIM_SEARCH_MAX_PAGE_SIZE: int = 20
+
     # Config dict to support loading from parent .env or current .env
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

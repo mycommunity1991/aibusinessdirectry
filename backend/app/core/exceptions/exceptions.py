@@ -435,6 +435,72 @@ class RateLimitExceededError(BusinessException):
         super().__init__(message=message, status_code=429)
 
 
+class ClaimTargetNotFoundError(BusinessException):
+    """
+    Raised by `ClaimService` (CLM-001, Backend Proposed Changes item 5,
+    `Plan_S06_CLM-001.md`) when the target `provider_id` either doesn't
+    exist at all, or exists but is not a still-unclaimed Google-seeded
+    listing (`listing_source=google_seeded_unclaimed`, `is_claimed=
+    false`) -- a self-registered or already-claimed provider can never
+    be a claim target, and both cases collapse into the same 404 rather
+    than revealing which.
+    """
+
+    def __init__(self, message: str = "This listing is not available to claim."):
+        super().__init__(message=message, status_code=404)
+
+
+class ClaimPublicNumberUnavailableError(BusinessException):
+    """
+    Raised by `ClaimService.request_otp` (CLM-001, AC6) when the target
+    listing has no public phone number on record
+    (`phone_number is None`) -- the OTP-against-public-record trust gate
+    is structurally unusable for this listing, so no OTP is ever sent;
+    the caller is expected to fall back to `request_admin_review` with
+    `reason="no_public_number"`.
+    """
+
+    def __init__(
+        self,
+        message: str = (
+            "This listing has no public phone number on file. Please request "
+            "manual review instead."
+        ),
+    ):
+        super().__init__(message=message, status_code=409)
+
+
+class ClaimAlreadyClaimedError(BusinessException):
+    """
+    Raised by `ClaimService._finalize_claim` (CLM-001, Decision 6,
+    `Plan_S06_CLM-001.md`) when the target listing has already been
+    claimed by the time finalization runs -- either re-checked
+    immediately before the write (defends against two concurrent
+    claimants racing the same listing) or because the claimant's own
+    Account already owns a different Provider (the existing
+    one-Provider-per-Account rule, PRO-001 AC8, reused unmodified via
+    the same `ProviderAlreadyExistsError`-style 409 shape, under a
+    claim-specific name/message).
+    """
+
+    def __init__(
+        self,
+        message: str = "This listing has already been claimed.",
+    ):
+        super().__init__(message=message, status_code=409)
+
+
+class ClaimReviewRequestNotFoundError(BusinessException):
+    """
+    Raised by `AdminClaimService`/`ClaimReviewRequestService` (CLM-001,
+    Decision 9) when a `claim_review_requests` row does not exist for
+    the given id.
+    """
+
+    def __init__(self, message: str = "Claim review request not found."):
+        super().__init__(message=message, status_code=404)
+
+
 class InvalidSearchRadiusError(BusinessException):
     """
     Raised by `GET /search/providers` (DIR-001, Backend Proposed Changes

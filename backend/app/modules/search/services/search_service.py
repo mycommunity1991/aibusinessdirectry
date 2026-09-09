@@ -56,15 +56,17 @@ class SearchService:
         limit = page_size
         offset = (page - 1) * page_size
 
-        providers, distances_by_id, total_items = (
-            await self.provider_service.search_nearby(
-                category=category,
-                origin_lat=latitude,
-                origin_lng=longitude,
-                radius_meters=radius_meters,
-                limit=limit,
-                offset=offset,
-            )
+        (
+            providers,
+            distances_by_id,
+            total_items,
+        ) = await self.provider_service.search_nearby(
+            category=category,
+            origin_lat=latitude,
+            origin_lng=longitude,
+            radius_meters=radius_meters,
+            limit=limit,
+            offset=offset,
         )
 
         provider_ids = [provider.id for provider in providers]
@@ -72,9 +74,7 @@ class SearchService:
             provider_ids
         )
         category_labels_by_id = (
-            await self.provider_service.get_category_labels_by_provider_id(
-                provider_ids
-            )
+            await self.provider_service.get_category_labels_by_provider_id(provider_ids)
         )
 
         results = [
@@ -88,6 +88,7 @@ class SearchService:
                 average_rating=provider.average_rating,
                 review_count=provider.review_count,
                 distance_meters=distances_by_id[provider.id],
+                is_claimed=provider.is_claimed,
             )
             for provider in providers
         ]

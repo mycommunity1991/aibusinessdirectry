@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -388,3 +389,78 @@ class UpdateAvailabilityRequest(BaseModel):
         if len(weekdays) != len(set(weekdays)):
             raise ValueError("Each weekday may appear at most once per request.")
         return self
+
+
+class ClaimSearchResultResponse(BaseModel):
+    """
+    One unclaimed Google-seeded listing result for `GET /claims/search`
+    (CLM-001, AC3, Decision 5, `Plan_S06_CLM-001.md`).
+
+    `phone_number_masked` lets a searcher sanity-check "is this my
+    number" without the full number being exposed to anyone who merely
+    searched (e.g. `"+971 5*****67"`) -- `None` if the listing has no
+    public number on record at all.
+    """
+
+    id: uuid.UUID
+    display_name: str
+    address_line: str | None = None
+    city: str | None = None
+    phone_number_masked: str | None = None
+
+
+class VerifyClaimOtpRequest(BaseModel):
+    """Request payload for `POST /claims/{provider_id}/verify-otp` (AC5)."""
+
+    code: str = Field(..., min_length=4, max_length=10)
+
+
+class RequestClaimAdminReviewRequest(BaseModel):
+    """
+    Request payload for `POST /claims/{provider_id}/request-admin-review`
+    (AC6) -- the explicit "this isn't working" fallback.
+    """
+
+    reason: Literal["otp_failed", "no_public_number"] = Field(
+        ...,
+        description=(
+            '"otp_failed" -- verification was attempted and failed/locked; '
+            '"no_public_number" -- the listing has no usable public number, '
+            "so OTP was never attempted."
+        ),
+    )
+
+
+class ClaimResultResponse(BaseModel):
+    """Response payload for a successful `POST
+    /claims/{provider_id}/verify-otp` (AC5)."""
+
+    provider_id: uuid.UUID
+    is_claimed: bool
+    verification_status: VerificationStatus
+
+
+class AdminClaimReviewRequestResponse(BaseModel):
+    """
+    Response payload for the admin claim-review surface (CLM-001,
+    Decision 9) -- `GET /admin/claims` and the `approve`/`reject`
+    responses. Carries enough Provider context for an Admin acting
+    across every listing's queue, mirroring `AdminVerificationRecordResponse`'s
+    shape.
+    """
+
+    id: uuid.UUID
+    provider_id: uuid.UUID
+    provider_display_name: str
+    claimant_user_id: uuid.UUID
+    reason: str
+    status: str
+    resolution: str | None = None
+    resolution_notes: str | None = None
+    reviewed_at: datetime | None = None
+
+
+class RejectClaimReviewRequest(BaseModel):
+    """Request payload for `POST /admin/claims/{request_id}/reject`."""
+
+    resolution_notes: str | None = Field(None, max_length=2000)

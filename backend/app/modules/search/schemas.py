@@ -36,6 +36,15 @@ class SearchResultProviderResponse(BaseModel):
     distance_meters: float = Field(
         ..., description="Great-circle distance from the search origin, in meters."
     )
+    is_claimed: bool = Field(
+        ...,
+        description=(
+            "CLM-001, Decision 8 -- `false` for a still-unclaimed "
+            "Google-seeded listing, driving the mobile card's full-width "
+            "Warning-color 'Unclaimed' banner. Server-driven off this one "
+            "boolean; never inferred client-side from other signals."
+        ),
+    )
 
 
 class CategoryOptionResponse(BaseModel):

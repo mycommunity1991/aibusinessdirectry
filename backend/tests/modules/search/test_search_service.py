@@ -185,9 +185,7 @@ class TestSearchProvidersResponseShaping:
             {provider.id: 42.0},
             1,
         )
-        mock_provider_service.get_primary_photo_urls.return_value = {
-            provider.id: None
-        }
+        mock_provider_service.get_primary_photo_urls.return_value = {provider.id: None}
 
         results, _total_items = await search_service.search_providers(
             category=None,
@@ -251,6 +249,61 @@ class TestSearchProvidersResponseShaping:
         _args, kwargs = mock_provider_service.search_nearby.call_args
         assert kwargs["limit"] == 20
         assert kwargs["offset"] == 40
+
+
+class TestIsClaimedField:
+    """CLM-001, AC2's backend half, Decision 8: `is_claimed` is populated
+    directly from `Provider.is_claimed` for both claimed and unclaimed
+    fixtures."""
+
+    @pytest.mark.anyio
+    async def test_an_unclaimed_google_seeded_provider_returns_is_claimed_false(
+        self, search_service: SearchService, mock_provider_service: MagicMock
+    ) -> None:
+        provider = _provider(
+            listing_source=ListingSource.GOOGLE_SEEDED_UNCLAIMED,
+            is_claimed=False,
+        )
+        mock_provider_service.search_nearby.return_value = (
+            [provider],
+            {provider.id: 100.0},
+            1,
+        )
+
+        results, _total_items = await search_service.search_providers(
+            category=None,
+            latitude=_ORIGIN_LAT,
+            longitude=_ORIGIN_LNG,
+            radius_km=10.0,
+            page=1,
+            page_size=20,
+        )
+
+        assert results[0].is_claimed is False
+
+    @pytest.mark.anyio
+    async def test_a_claimed_provider_returns_is_claimed_true(
+        self, search_service: SearchService, mock_provider_service: MagicMock
+    ) -> None:
+        provider = _provider(
+            listing_source=ListingSource.SELF_REGISTERED, is_claimed=True
+        )
+        mock_provider_service.search_nearby.return_value = (
+            [provider],
+            {provider.id: 100.0},
+            1,
+        )
+
+        results, _total_items = await search_service.search_providers(
+            category=None,
+            latitude=_ORIGIN_LAT,
+            longitude=_ORIGIN_LNG,
+            radius_km=10.0,
+            page=1,
+            page_size=20,
+        )
+
+        assert results[0].is_claimed is True
 
 
 class TestRadiusValidation:

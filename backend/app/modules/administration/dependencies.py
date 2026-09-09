@@ -9,8 +9,14 @@ from app.database.session import get_db
 from app.modules.administration.repositories.admin_action_log_repository import (
     AdminActionLogRepository,
 )
+from app.modules.administration.repositories.claim_review_request_repository import (
+    ClaimReviewRequestRepository,
+)
 from app.modules.administration.services.admin_action_log_service import (
     AdminActionLogService,
+)
+from app.modules.administration.services.claim_review_request_service import (
+    ClaimReviewRequestService,
 )
 
 
@@ -30,3 +36,24 @@ def get_admin_action_log_service(
     """Provides an `AdminActionLogService` bound to the request-scoped
     DB session."""
     return AdminActionLogService(admin_action_log_repository)
+
+
+def get_claim_review_request_repository(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ClaimReviewRequestRepository:
+    """Provides a `ClaimReviewRequestRepository` bound to the
+    request-scoped DB session (CLM-001, Decision 9,
+    `Plan_S06_CLM-001.md`)."""
+    return ClaimReviewRequestRepository(db)
+
+
+def get_claim_review_request_service(
+    claim_review_request_repository: Annotated[
+        ClaimReviewRequestRepository, Depends(get_claim_review_request_repository)
+    ],
+) -> ClaimReviewRequestService:
+    """Provides a `ClaimReviewRequestService` bound to the request-scoped
+    DB session -- imported into `provider/dependencies.py` the same way
+    `get_admin_action_log_service` is already imported by
+    `verification/dependencies.py`."""
+    return ClaimReviewRequestService(claim_review_request_repository)

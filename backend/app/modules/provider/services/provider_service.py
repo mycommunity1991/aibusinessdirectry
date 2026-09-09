@@ -203,15 +203,17 @@ class ProviderService:
         row-order guarantee, so the ordering is reconstructed here from
         the repository's already-ordered id list, not re-derived.
         """
-        ordered_ids, distances_by_id, total_items = (
-            await self.provider_search_repository.search_nearby(
-                category=category,
-                origin_lat=origin_lat,
-                origin_lng=origin_lng,
-                radius_meters=radius_meters,
-                limit=limit,
-                offset=offset,
-            )
+        (
+            ordered_ids,
+            distances_by_id,
+            total_items,
+        ) = await self.provider_search_repository.search_nearby(
+            category=category,
+            origin_lat=origin_lat,
+            origin_lng=origin_lng,
+            radius_meters=radius_meters,
+            limit=limit,
+            offset=offset,
         )
         providers_by_id = {
             provider.id: provider
@@ -287,6 +289,221 @@ class ProviderService:
                 "is_discoverable": is_discoverable,
             },
         )
+
+    async def create_google_seeded_provider(
+        self,
+        *,
+        google_place_id: str,
+        display_name: str,
+        phone_country_code: str | None,
+        phone_number: str | None,
+        country_code: str,
+        business_details: dict[str, Any],
+        category_label: str | None,
+    ) -> Provider:
+        """
+        Creates a Google-seeded-unclaimed Business listing (CLM-001,
+        AC1, Decision 2/3/4, `Plan_S06_CLM-001.md`) -- the import
+        job's create path (called only when `ProviderRepository.get_by_
+        google_place_id` found no existing row for this place).
+
+        Hardcodes `provider_type=BUSINESS` (Decision 3 -- Google Places
+        data never fits a Freelancer), `listing_source=
+        GOOGLE_SEEDED_UNCLAIMED`, `is_claimed=False`, `user_id=None`,
+        `claimed_at=None`, and -- the load-bearing part of Decision 2 --
+        `verification_status=APPROVED`/`is_discoverable=True` set
+        directly by this write (never through
+        `apply_verification_outcome`, since there is no existing row to
+        update yet). Never `listing_source=SELF_REGISTERED` under any
+        circumstance.
+
+        Also creates the matching `business_profiles` row and a
+        `service_areas` row (Decision 4 -- omitting this would silently
+        make the listing invisible to DIR-001's actual geospatial search
+        query despite `is_discoverable=True`), plus one best-effort
+        primary category label if `category_label` is given. Does
+        **not** create the matching `verification.verification_records`
+        row itself (this module has no dependency on `verification`) --
+        the caller (the import script) creates that row, per Decision 2.
+        """
+        slug = await self._generate_unique_slug(display_name)
+
+        provider = await self.provider_repository.create(
+            {
+                "user_id": None,
+                "provider_type": ProviderType.BUSINESS,
+                "display_name": display_name,
+                "slug": slug,
+                "description": None,
+                "phone_country_code": phone_country_code,
+                "phone_number": phone_number,
+                "whatsapp_number": None,
+                "listing_source": ListingSource.GOOGLE_SEEDED_UNCLAIMED,
+                "is_claimed": False,
+                "claimed_at": None,
+                "google_place_id": google_place_id,
+                "verification_status": VerificationStatus.APPROVED,
+                "is_discoverable": True,
+                "review_count": 0,
+                "country_code": country_code,
+            }
+        )
+
+        await self.business_profile_repository.create(
+            {"provider_id": provider.id, **business_details}
+        )
+        await self.service_area_repository.upsert_for_provider(
+            provider.id,
+            center_latitude=business_details["latitude"],
+            center_longitude=business_details["longitude"],
+            radius_meters=business_details.get("delivery_radius_meters") or 0,
+        )
+
+        if category_label:
+            await self.provider_category_label_repository.replace_all(
+                provider.id, [{"label": category_label, "is_primary": True}]
+            )
+
+        return provider
+
+    async def backfill_google_seeded_provider(
+        self,
+        provider: Provider,
+        *,
+        display_name: str,
+        phone_country_code: str | None,
+        phone_number: str | None,
+        country_code: str,
+        business_details: dict[str, Any],
+        category_label: str | None,
+    ) -> Provider:
+        """
+        Re-syncs an already-imported Google-seeded listing with freshly-
+        fetched Google data (CLM-001, AC7, Decision 6, `Plan_S06_CLM-
+        001.md`'s field-write policy) -- the import job's update path
+        (called when `get_by_google_place_id` found an existing row).
+
+        **If `provider.is_claimed` is `False`:** fully overwrites every
+        mapped field with the fresh data -- safe, since no owner exists
+        yet whose edits could be lost.
+
+        **If `provider.is_claimed` is `True`:** writes **only** fields
+        whose current stored value is `NULL`/empty-string, leaving any
+        field that already holds a non-empty value untouched regardless
+        of what the fresh Google data says (AC7's literal "imported
+        data only backfills genuinely empty fields") -- this is the
+        one-and-only place in this codebase that ever writes to a
+        claimed listing's basic-info fields without the owner having
+        asked for it, so the empty-only guard is the entire safety net.
+
+        Never touches `is_claimed`/`user_id`/`claimed_at`/
+        `verification_status`/`is_discoverable`/`google_place_id` --
+        this method's sole concern is the Google-sourced content
+        fields.
+        """
+        business_profile = await self.business_profile_repository.get_by_provider_id(
+            provider.id
+        )
+        if business_profile is None:
+            raise ProviderNotFoundError()
+
+        full_overwrite = not provider.is_claimed
+
+        provider_fields = {
+            "display_name": display_name,
+            "phone_country_code": phone_country_code,
+            "phone_number": phone_number,
+            "country_code": country_code,
+        }
+        applicable_provider_fields = self._select_writable_fields(
+            provider, provider_fields, full_overwrite=full_overwrite
+        )
+        if applicable_provider_fields:
+            provider = await self.provider_repository.update(
+                provider, applicable_provider_fields
+            )
+
+        applicable_business_fields = self._select_writable_fields(
+            business_profile, business_details, full_overwrite=full_overwrite
+        )
+        if applicable_business_fields:
+            business_profile = await self.business_profile_repository.update(
+                business_profile, applicable_business_fields
+            )
+
+        if full_overwrite:
+            await self.service_area_repository.upsert_for_provider(
+                provider.id,
+                center_latitude=business_profile.latitude,
+                center_longitude=business_profile.longitude,
+                radius_meters=business_profile.delivery_radius_meters or 0,
+            )
+
+        if category_label:
+            label_repository = self.provider_category_label_repository
+            existing_labels = await label_repository.list_for_provider(provider.id)
+            if full_overwrite or not existing_labels:
+                await self.provider_category_label_repository.replace_all(
+                    provider.id, [{"label": category_label, "is_primary": True}]
+                )
+
+        return provider
+
+    @staticmethod
+    def _is_empty(value: Any) -> bool:
+        return value is None or (isinstance(value, str) and value.strip() == "")
+
+    @classmethod
+    def _select_writable_fields(
+        cls,
+        current_obj: Any,
+        fresh_values: dict[str, Any],
+        *,
+        full_overwrite: bool,
+    ) -> dict[str, Any]:
+        """
+        AC7's field-write policy, applied generically to any (current
+        row, fresh values) pair: with `full_overwrite=True`, every
+        key in `fresh_values` is applied unconditionally; otherwise only
+        keys whose *current* value on `current_obj` is empty (Decision
+        6's `_is_empty`) are applied -- an already-non-empty field is
+        never overwritten, regardless of what the fresh value is.
+        """
+        if full_overwrite:
+            return dict(fresh_values)
+
+        return {
+            field: value
+            for field, value in fresh_values.items()
+            if cls._is_empty(getattr(current_obj, field, None))
+        }
+
+    async def search_unclaimed_listings(
+        self, *, query: str, limit: int, offset: int
+    ) -> tuple[list[Provider], int]:
+        """
+        Thin pass-through to `ProviderRepository.search_unclaimed`
+        (CLM-001, AC3, Decision 5, `Plan_S06_CLM-001.md`) -- `provider`'s
+        own `ClaimService` depends on this method, never on
+        `ProviderRepository` directly, mirroring `search_nearby`'s
+        existing shape.
+        """
+        return await self.provider_repository.search_unclaimed(
+            query=query, limit=limit, offset=offset
+        )
+
+    async def get_business_profiles_by_provider_id(
+        self, provider_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, BusinessProfile]:
+        """
+        Batch-resolves each provider's `business_profiles` row in one
+        query (CLM-001, AC3) -- backs `GET /claims/search`'s
+        `address_line`/`city` fields without an N+1 query per result.
+        """
+        profiles = await self.business_profile_repository.list_by_provider_ids(
+            provider_ids
+        )
+        return {profile.provider_id: profile for profile in profiles}
 
     async def create_provider(
         self, user_id: uuid.UUID, *, payload: CreateProviderRequest

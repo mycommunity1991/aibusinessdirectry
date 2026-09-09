@@ -24,9 +24,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 # its own): the `if` guard below makes this a no-op on any interpreter whose
 # `typing._eval_type()` already accepts the keyword.
 # ---------------------------------------------------------------------------
-if sys.version_info >= (3, 14) and "prefer_fwd_module" not in inspect.signature(
-    typing._eval_type
-).parameters:
+if (
+    sys.version_info >= (3, 14)
+    and "prefer_fwd_module" not in inspect.signature(typing._eval_type).parameters
+):
     _original_eval_type = typing._eval_type
 
     def _eval_type_compat(*args: object, **kwargs: object) -> object:
@@ -134,7 +135,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     after every test so tests remain isolated from one another regardless
     of whether the test (or the code under test) committed.
     """
-    from app.modules.administration.models import AdminActionLog
+    from app.modules.administration.models import AdminActionLog, ClaimReviewRequest
     from app.modules.audit.models import AuditLog
     from app.modules.category.models import (
         Category,
@@ -181,6 +182,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         for model in (
             AuditLog,
             AdminActionLog,
+            ClaimReviewRequest,
             Notification,
             SavedAddress,
             CustomerPreferences,

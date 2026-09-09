@@ -5,6 +5,10 @@ Exceptions package providing centralized error handling.
 from app.core.exceptions.exceptions import (
     AuthenticationRequiredError,
     BusinessException,
+    ClaimAlreadyClaimedError,
+    ClaimPublicNumberUnavailableError,
+    ClaimReviewRequestNotFoundError,
+    ClaimTargetNotFoundError,
     ExpiredTokenError,
     InsufficientRoleError,
     InvalidCategoryLabelsError,
@@ -62,4 +66,8 @@ __all__ = [
     "VerificationDocumentRequiredError",
     "VerificationDocumentTooLargeError",
     "VerificationDocumentInvalidTypeError",
+    "ClaimTargetNotFoundError",
+    "ClaimPublicNumberUnavailableError",
+    "ClaimAlreadyClaimedError",
+    "ClaimReviewRequestNotFoundError",
 ]
