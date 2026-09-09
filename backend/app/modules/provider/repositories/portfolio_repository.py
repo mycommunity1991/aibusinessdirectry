@@ -39,6 +39,31 @@ class PortfolioRepository(BaseRepository[Portfolio]):
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def list_active_for_provider_ids(
+        self, provider_ids: list[uuid.UUID]
+    ) -> Sequence[Portfolio]:
+        """
+        Batch-fetches every active photo for a set of providers in one
+        query (DIR-001, `Plan_S06_DIR-001.md`) -- used by
+        `ProviderService.get_primary_photo_urls` to enrich a page of
+        search results without an N+1 query per result. Ordered by
+        `provider_id`, then `sort_order` (Decision 3) so the first photo
+        encountered per provider while iterating the result is always
+        that provider's primary (lowest `sort_order`) photo.
+        """
+        if not provider_ids:
+            return []
+        stmt = (
+            select(Portfolio)
+            .where(
+                Portfolio.provider_id.in_(provider_ids),
+                Portfolio.is_active.is_(True),
+            )
+            .order_by(Portfolio.provider_id, Portfolio.sort_order.asc())
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def get_active_by_id(self, portfolio_id: uuid.UUID) -> Portfolio | None:
         """
         Retrieves a photo by id only if it has not been soft-deleted.

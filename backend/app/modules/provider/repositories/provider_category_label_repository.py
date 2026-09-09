@@ -1,10 +1,10 @@
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.provider.models import ProviderCategoryLabel
+from app.modules.provider.models import Provider, ProviderCategoryLabel
 from app.repositories.base_repository import BaseRepository
 
 
@@ -47,3 +47,30 @@ class ProviderCategoryLabelRepository(BaseRepository[ProviderCategoryLabel]):
         for row in created:
             await self.session.refresh(row)
         return created
+
+    async def list_distinct_labels_for_discoverable_providers(self) -> list[str]:
+        """
+        Backs `GET /search/categories` (DIR-001, Decision 1,
+        `Plan_S06_DIR-001.md`) -- the distinct set of `label` values
+        currently in use across active category labels belonging to
+        `is_discoverable=true` providers, case-collapsed
+        (`DISTINCT ON (lower(label))`) so "Plumbing" and "plumbing"
+        return as a single chip, not two. Deliberately unpaginated
+        (mirrors ADR-012's exception): bounded by the number of distinct
+        labels real providers have actually typed, not by provider
+        count.
+        """
+        stmt = (
+            select(ProviderCategoryLabel.label)
+            .distinct(func.lower(ProviderCategoryLabel.label))
+            .join(Provider, Provider.id == ProviderCategoryLabel.provider_id)
+            .where(
+                Provider.is_discoverable.is_(True),
+                ProviderCategoryLabel.is_active.is_(True),
+            )
+            .order_by(
+                func.lower(ProviderCategoryLabel.label), ProviderCategoryLabel.label
+            )
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

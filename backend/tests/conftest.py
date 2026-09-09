@@ -1,10 +1,39 @@
+import inspect
 import os
+import sys
+import typing
 from collections.abc import AsyncGenerator
 
 import pytest_asyncio
 from redis.asyncio import Redis
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+
+# ---------------------------------------------------------------------------
+# Environment-only compatibility shim -- NOT related to any story's business
+# logic. This sandbox's interpreter is a Python 3.14.0rc2 pre-release build
+# whose stdlib `typing._eval_type()` does not yet accept the `prefer_fwd_
+# module` keyword argument that the installed `pydantic` (2.13.4, the latest
+# release available at the time of writing) unconditionally passes on any
+# `sys.version_info >= (3, 14)` interpreter. Without this shim, importing
+# `pydantic`/`pydantic_settings` raises `TypeError: _eval_type() got an
+# unexpected keyword argument 'prefer_fwd_module'` and the entire test suite
+# fails to collect -- reproducible on a clean checkout, unrelated to this
+# story. Safe to remove once the sandbox's Python is upgraded to a final
+# 3.14 release (or a pydantic release adds a matching compatibility shim of
+# its own): the `if` guard below makes this a no-op on any interpreter whose
+# `typing._eval_type()` already accepts the keyword.
+# ---------------------------------------------------------------------------
+if sys.version_info >= (3, 14) and "prefer_fwd_module" not in inspect.signature(
+    typing._eval_type
+).parameters:
+    _original_eval_type = typing._eval_type
+
+    def _eval_type_compat(*args: object, **kwargs: object) -> object:
+        kwargs.pop("prefer_fwd_module", None)
+        return _original_eval_type(*args, **kwargs)  # type: ignore[arg-type]
+
+    typing._eval_type = _eval_type_compat  # type: ignore[assignment]
 
 # Set default environment variables for testing before any imports occur
 os.environ["DATABASE_URL"] = "postgresql://postgres:postgres@localhost:5432/test_db"

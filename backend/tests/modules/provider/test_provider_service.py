@@ -85,6 +85,20 @@ def mock_role_assignment_service() -> MagicMock:
 
 
 @pytest.fixture
+def mock_provider_search_repository() -> MagicMock:
+    repo = MagicMock()
+    repo.search_nearby = AsyncMock(return_value=([], {}, 0))
+    return repo
+
+
+@pytest.fixture
+def mock_portfolio_repository() -> MagicMock:
+    repo = MagicMock()
+    repo.list_active_for_provider_ids = AsyncMock(return_value=[])
+    return repo
+
+
+@pytest.fixture
 def provider_service(
     mock_provider_repository: MagicMock,
     mock_business_profile_repository: MagicMock,
@@ -92,6 +106,8 @@ def provider_service(
     mock_provider_category_label_repository: MagicMock,
     mock_service_area_repository: MagicMock,
     mock_role_assignment_service: MagicMock,
+    mock_provider_search_repository: MagicMock,
+    mock_portfolio_repository: MagicMock,
 ) -> ProviderService:
     return ProviderService(
         provider_repository=mock_provider_repository,
@@ -100,6 +116,8 @@ def provider_service(
         provider_category_label_repository=mock_provider_category_label_repository,
         service_area_repository=mock_service_area_repository,
         role_assignment_service=mock_role_assignment_service,
+        provider_search_repository=mock_provider_search_repository,
+        portfolio_repository=mock_portfolio_repository,
     )
 
 

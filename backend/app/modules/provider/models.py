@@ -307,6 +307,17 @@ class ServiceArea(CommonColumnsMixin, Base):
     radius fields change (Decision, item 1, `Plan_S04_PRO-002.md`). No
     direct API exposes this table for editing or reading in this story;
     it exists for a future geospatial-matching story to query.
+
+    DIR-001 (`Plan_S06_DIR-001.md`, AC1/Decision 8) is that story: it
+    adds a GiST index over `ll_to_earth(center_latitude, center_
+    longitude)` here (`idx_service_areas_location`) via migration only
+    -- deliberately not modeled as an `Index()` in `__table_args__`
+    below, since the index is a functional expression over an
+    `earthdistance`-extension function (`ll_to_earth`) that must not be
+    created by `Base.metadata.create_all()` (used by the test suite's
+    `db_engine` fixture) before the `cube`/`earthdistance` extensions are
+    enabled; the real migration handles ordering this correctly.
+    `ProviderSearchRepository.search_nearby` is this index's query.
     """
 
     __tablename__ = "service_areas"

@@ -27,6 +27,9 @@ from app.modules.provider.repositories.provider_category_label_repository import
     ProviderCategoryLabelRepository,
 )
 from app.modules.provider.repositories.provider_repository import ProviderRepository
+from app.modules.provider.repositories.provider_search_repository import (
+    ProviderSearchRepository,
+)
 from app.modules.provider.repositories.service_area_repository import (
     ServiceAreaRepository,
 )
@@ -92,6 +95,14 @@ def get_service_area_repository(
     return ServiceAreaRepository(db)
 
 
+def get_provider_search_repository(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ProviderSearchRepository:
+    """Provides a `ProviderSearchRepository` bound to the request-scoped
+    DB session (DIR-001, Decision 4, `Plan_S06_DIR-001.md`)."""
+    return ProviderSearchRepository(db)
+
+
 def get_file_storage() -> FileStorage:
     """
     Provides the `FileStorage` implementation (PRO-002, Decision 2,
@@ -122,6 +133,12 @@ def get_provider_service(
     role_assignment_service: Annotated[
         RoleAssignmentService, Depends(get_role_assignment_service)
     ],
+    provider_search_repository: Annotated[
+        ProviderSearchRepository, Depends(get_provider_search_repository)
+    ],
+    portfolio_repository: Annotated[
+        PortfolioRepository, Depends(get_portfolio_repository)
+    ],
 ) -> ProviderService:
     """
     Provides a `ProviderService` bound to the request-scoped DB session.
@@ -139,6 +156,8 @@ def get_provider_service(
         provider_category_label_repository=provider_category_label_repository,
         service_area_repository=service_area_repository,
         role_assignment_service=role_assignment_service,
+        provider_search_repository=provider_search_repository,
+        portfolio_repository=portfolio_repository,
     )
 
 

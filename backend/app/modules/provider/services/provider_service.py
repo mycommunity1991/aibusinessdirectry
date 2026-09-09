@@ -51,10 +51,14 @@ from app.modules.provider.repositories.business_profile_repository import (
 from app.modules.provider.repositories.freelancer_profile_repository import (
     FreelancerProfileRepository,
 )
+from app.modules.provider.repositories.portfolio_repository import PortfolioRepository
 from app.modules.provider.repositories.provider_category_label_repository import (
     ProviderCategoryLabelRepository,
 )
 from app.modules.provider.repositories.provider_repository import ProviderRepository
+from app.modules.provider.repositories.provider_search_repository import (
+    ProviderSearchRepository,
+)
 from app.modules.provider.repositories.service_area_repository import (
     ServiceAreaRepository,
 )
@@ -92,6 +96,8 @@ class ProviderService:
         provider_category_label_repository: ProviderCategoryLabelRepository,
         service_area_repository: ServiceAreaRepository,
         role_assignment_service: RoleAssignmentService,
+        provider_search_repository: ProviderSearchRepository,
+        portfolio_repository: PortfolioRepository,
     ) -> None:
         self.provider_repository = provider_repository
         self.business_profile_repository = business_profile_repository
@@ -99,6 +105,8 @@ class ProviderService:
         self.provider_category_label_repository = provider_category_label_repository
         self.service_area_repository = service_area_repository
         self.role_assignment_service = role_assignment_service
+        self.provider_search_repository = provider_search_repository
+        self.portfolio_repository = portfolio_repository
 
     async def get_my_provider(self, user_id: uuid.UUID) -> Provider | None:
         """
@@ -149,6 +157,81 @@ class ProviderService:
         repository.
         """
         return await self.provider_repository.list_by_ids(ids)
+
+    async def search_nearby(
+        self,
+        *,
+        category: str | None,
+        origin_lat: float,
+        origin_lng: float,
+        radius_meters: float,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[Provider], dict[uuid.UUID, float], int]:
+        """
+        Thin pass-through to `ProviderSearchRepository.search_nearby`
+        (DIR-001, Decision 4, `Plan_S06_DIR-001.md`) -- `search`'s own
+        `SearchService` depends on this method, never on
+        `ProviderSearchRepository` directly, per `02_ARCHITECTURE.md`'s
+        "modules communicate through services only" rule.
+
+        Hydrates the repository's ordered provider ids into full
+        `Provider` rows via `list_by_ids` (VER-002 precedent), while
+        preserving the repository's own `distance_meters ASC, id ASC`
+        order -- `list_by_ids`'s own `WHERE id IN (...)` query makes no
+        row-order guarantee, so the ordering is reconstructed here from
+        the repository's already-ordered id list, not re-derived.
+        """
+        ordered_ids, distances_by_id, total_items = (
+            await self.provider_search_repository.search_nearby(
+                category=category,
+                origin_lat=origin_lat,
+                origin_lng=origin_lng,
+                radius_meters=radius_meters,
+                limit=limit,
+                offset=offset,
+            )
+        )
+        providers_by_id = {
+            provider.id: provider
+            for provider in await self.provider_repository.list_by_ids(ordered_ids)
+        }
+        ordered_providers = [
+            providers_by_id[provider_id]
+            for provider_id in ordered_ids
+            if provider_id in providers_by_id
+        ]
+        return ordered_providers, distances_by_id, total_items
+
+    async def list_distinct_category_labels(self) -> list[str]:
+        """
+        Thin pass-through to `ProviderCategoryLabelRepository.list_
+        distinct_labels_for_discoverable_providers` (DIR-001, Decision
+        1, `Plan_S06_DIR-001.md`) -- backs `GET /search/categories`.
+        """
+        repository = self.provider_category_label_repository
+        return await repository.list_distinct_labels_for_discoverable_providers()
+
+    async def get_primary_photo_urls(
+        self, provider_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, str | None]:
+        """
+        Batch-resolves each provider's primary (first by `sort_order`)
+        active portfolio photo URL, or `None` if it has none (DIR-001,
+        Backend Proposed Changes item 4, `Plan_S06_DIR-001.md`) --
+        `search`'s own `SearchService` depends on this method, never on
+        `PortfolioRepository` directly, keeping `search`'s only
+        cross-module edge the single `search -> provider` edge via
+        `ProviderService` (Decision 4).
+        """
+        photos = await self.portfolio_repository.list_active_for_provider_ids(
+            provider_ids
+        )
+        urls_by_provider_id: dict[uuid.UUID, str | None] = dict.fromkeys(provider_ids)
+        for photo in photos:
+            if urls_by_provider_id.get(photo.provider_id) is None:
+                urls_by_provider_id[photo.provider_id] = photo.media_url
+        return urls_by_provider_id
 
     async def apply_verification_outcome(
         self,

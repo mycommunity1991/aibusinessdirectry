@@ -102,6 +102,15 @@ class Settings(BaseSettings):
     VERIFICATION_UPLOAD_DIR: str = "uploads_private/verification"
     MAX_VERIFICATION_DOCUMENT_SIZE_BYTES: int = 10_485_760
 
+    # Structured search settings (DIR-001, Backend Proposed Changes item
+    # 10, `Plan_S06_DIR-001.md`) -- `SEARCH_MAX_PAGE_SIZE` is a tighter
+    # cap than `05_API_GUIDELINES.md`'s general default of 100, since a
+    # provider-photo-carrying search result card is heavier than a
+    # typical list row.
+    SEARCH_DEFAULT_RADIUS_KM: float = 10.0
+    SEARCH_MAX_RADIUS_KM: float = 100.0
+    SEARCH_MAX_PAGE_SIZE: int = 50
+
     # Business verification bar (VER-001, Decision 3,
     # `Plan_S04_PRO-001.md`'s successor `Plan_S05_VER-001.md`) --
     # config-driven per `04_DATABASE.md` Section 14's own stated intent,

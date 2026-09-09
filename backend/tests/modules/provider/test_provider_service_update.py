@@ -34,10 +34,16 @@ from app.modules.provider.repositories.business_profile_repository import (
 from app.modules.provider.repositories.freelancer_profile_repository import (
     FreelancerProfileRepository,
 )
+from app.modules.provider.repositories.portfolio_repository import (
+    PortfolioRepository,
+)
 from app.modules.provider.repositories.provider_category_label_repository import (
     ProviderCategoryLabelRepository,
 )
 from app.modules.provider.repositories.provider_repository import ProviderRepository
+from app.modules.provider.repositories.provider_search_repository import (
+    ProviderSearchRepository,
+)
 from app.modules.provider.repositories.service_area_repository import (
     ServiceAreaRepository,
 )
@@ -125,6 +131,8 @@ def _provider_service(db_session) -> ProviderService:
         provider_category_label_repository=ProviderCategoryLabelRepository(db_session),
         service_area_repository=ServiceAreaRepository(db_session),
         role_assignment_service=RoleAssignmentService(RoleRepository(db_session)),
+        provider_search_repository=ProviderSearchRepository(db_session),
+        portfolio_repository=PortfolioRepository(db_session),
     )
 
 

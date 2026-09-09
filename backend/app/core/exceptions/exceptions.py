@@ -433,3 +433,19 @@ class RateLimitExceededError(BusinessException):
         message: str = "Too many requests. Please wait a moment and try again.",
     ):
         super().__init__(message=message, status_code=429)
+
+
+class InvalidSearchRadiusError(BusinessException):
+    """
+    Raised by `GET /search/providers` (DIR-001, Backend Proposed Changes
+    item 13, `Plan_S06_DIR-001.md`) when the caller's `radius_km` query
+    parameter is outside the configured bounds (`0 < radius_km <=
+    settings.SEARCH_MAX_RADIUS_KM`) -- rejected before any repository
+    query runs.
+    """
+
+    def __init__(
+        self,
+        message: str = "The requested search radius is invalid.",
+    ):
+        super().__init__(message=message, status_code=422)

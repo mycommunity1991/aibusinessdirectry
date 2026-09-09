@@ -120,9 +120,20 @@ class SavedAddress(CommonColumnsMixin, Base):
     """
     A Customer's saved service location -- 1:N with `customer_profiles`
     (CUS-002). Column-for-column per `docs/AI/04_DATABASE.md` (Customer
-    Domain, "saved_addresses"). Never geospatially queried in this story
-    (`latitude`/`longitude` are plain columns, no `earthdistance`/`cube`
-    extension) -- see `Plan_S03_CUS-002.md`'s scope boundary.
+    Domain, "saved_addresses"). Never geospatially queried by CUS-002
+    itself (`latitude`/`longitude` were plain columns with no
+    `earthdistance`/`cube` extension involved) -- see
+    `Plan_S03_CUS-002.md`'s scope boundary.
+
+    DIR-001 (`Plan_S06_DIR-001.md`, AC1) later adds a GiST index over
+    `ll_to_earth(latitude, longitude)` here (`idx_saved_addresses_
+    location`, migration-only -- not modeled as an `Index()` below,
+    mirroring `ServiceArea`'s own precedent) -- a forward-looking parity
+    index for a future `saved_addresses`-centered geospatial query.
+    DIR-001's own query never reads through this table at all (its
+    Decision 5): the origin point for a search is always a raw
+    `latitude`/`longitude` pair supplied directly on the request, never
+    resolved via a `saved_addresses` foreign key.
 
     `uq_saved_addresses_customer_default` is a partial unique index
     (`customer_id` WHERE `is_default` AND `is_active`) added as
