@@ -3,9 +3,9 @@
 
 **Project:** AI Marketplace
 **Current Phase:** MVP Development
-**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (Complete — 2 of 2 stories done) → Sprint 4 (Complete — 2 of 2 stories done) → Sprint 5 (Complete — 2 of 2 stories done) → Sprint 6 (In Progress — 1 of 2 stories done: DIR-001 done, CLM-001 unblocked/not started) → Sprint 7 (Started — CTG-001 done, unblocking AI-001/AI-002; neither yet started)
-**Completed Story:** CTG-001 Build the Real Category Domain and Seed the v1 Launch Taxonomy
-**Status:** Identity & Access domain complete. Customer domain complete: profile/preferences auto-provisioning, `GET`/`PATCH /customers/me`, and saved service-location addresses (`GET`/`POST`/`PATCH`/`DELETE /customers/me/addresses`) have all shipped. Provider domain fully shipped for Sprint 4's scope: PRO-001 shipped the new `provider` module (`providers`/`business_profiles`/`freelancer_profiles`, immutable-type onboarding wizard, one-provider-per-account); PRO-002 shipped the ongoing Storefront (`provider_availability`, `portfolios`, `service_areas`, the new `provider_category_labels` interim table, this codebase's first file-upload capability, and the mobile Storefront screen). **Sprint 5 (Provider Verification) is now complete.** VER-001 shipped a new `verification` module (`verification_records`/`verification_documents`, an OCR-stub-assisted preview→confirm→submit flow, a private/public file-storage split for sensitive documents) and the mobile S-19/S-20 screens. VER-002 has since shipped the admin review side on top of it: an admin-only review queue and approve/reject endpoints, an atomic status+discoverability cache update (with a DB-level `CHECK` constraint as defense-in-depth), two new first-slice domain modules (`administration`, `notification`), and a new ops-only `grant_admin_role.py` script — backend-only, by deliberate design, since the admin dashboard is out of the mobile MVP's screen inventory. A genuine concurrency bug (two truly concurrent approve calls on the same record both succeeding) was found during review and fixed with an atomic conditional `UPDATE`; see `docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md` for the full account. Sprint 5's two stories together complete the Verification domain's trust gate: a Provider can now submit for verification, be reviewed by an Admin, and become discoverable once approved. **Sprint 6 (Directory & Listing Claims) is now in progress.** DIR-001 (browse nearby providers by category and location) has shipped: this codebase's first `search` domain module, the `cube`/`earthdistance` GiST geospatial indexes `04_DATABASE.md` Section 13 had only ever specified (now confirmed shipped), a category+radius+discoverability structured directory query (this codebase's first raw parameterized `sqlalchemy.text()` SQL, ADR-026), and the mobile Search Filters/Search Results screens (S-08). `CLM-001` ("claim my Google-seeded business listing"), Sprint 6's second story, is **unblocked, not yet started**: on 09 September 2026 the CTO made an explicit risk-acceptance decision to proceed with `CLM-001` in its original bulk-import scope for MVP despite `13_OPEN_DECISIONS.md` item 3 (Google Places Data Legal Review) remaining genuinely open at the legal level — see item 3's full record for the accepted risks, mitigation, and the planned later-stage owner-verification improvement. See `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md` for DIR-001's full account. **Sprint 7 (Category Domain / AI Intake foundation) has now started.** CTG-001 (build the real Category domain and seed the v1 launch taxonomy) has shipped: a new `category` domain module (`category.categories`/`category.category_question_templates`/`category.provider_categories`, all exactly per `04_DATABASE.md`'s pre-existing spec), seeded via this codebase's first data-seeding migration (ADR-028) with the full CTO-approved 14-category, 47-question v1 launch taxonomy (`docs/AI/17_CATEGORY_TAXONOMY.md`, now v1.1.0). `13_OPEN_DECISIONS.md` item 1 (Category Taxonomy) is now resolved and implemented — `AI-001`/`AI-002` (Sprint 7's Conversation/AI Intake stories) and everything cascading from them through Sprint 12 are genuinely unblocked at the code level, though neither has yet been planned or started. See `docs/implementation/walkthroughs/Walkthrough_S07_CTG-001.md` for CTG-001's full account.
+**Current Sprint:** Sprint 1 (Complete) → Sprint 2 (Complete — 4 of 4 stories done) → Sprint 3 (Complete — 2 of 2 stories done) → Sprint 4 (Complete — 2 of 2 stories done) → Sprint 5 (Complete — 2 of 2 stories done) → Sprint 6 (Complete — 2 of 2 stories done: DIR-001, CLM-001) → Sprint 7 (Started — CTG-001 done, unblocking AI-001/AI-002; neither yet started)
+**Completed Story:** CLM-001 Claim My Google-Seeded Business Listing
+**Status:** Identity & Access domain complete. Customer domain complete: profile/preferences auto-provisioning, `GET`/`PATCH /customers/me`, and saved service-location addresses (`GET`/`POST`/`PATCH`/`DELETE /customers/me/addresses`) have all shipped. Provider domain fully shipped for Sprint 4's scope: PRO-001 shipped the new `provider` module (`providers`/`business_profiles`/`freelancer_profiles`, immutable-type onboarding wizard, one-provider-per-account); PRO-002 shipped the ongoing Storefront (`provider_availability`, `portfolios`, `service_areas`, the new `provider_category_labels` interim table, this codebase's first file-upload capability, and the mobile Storefront screen). **Sprint 5 (Provider Verification) is now complete.** VER-001 shipped a new `verification` module (`verification_records`/`verification_documents`, an OCR-stub-assisted preview→confirm→submit flow, a private/public file-storage split for sensitive documents) and the mobile S-19/S-20 screens. VER-002 has since shipped the admin review side on top of it: an admin-only review queue and approve/reject endpoints, an atomic status+discoverability cache update (with a DB-level `CHECK` constraint as defense-in-depth), two new first-slice domain modules (`administration`, `notification`), and a new ops-only `grant_admin_role.py` script — backend-only, by deliberate design, since the admin dashboard is out of the mobile MVP's screen inventory. A genuine concurrency bug (two truly concurrent approve calls on the same record both succeeding) was found during review and fixed with an atomic conditional `UPDATE`; see `docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md` for the full account. Sprint 5's two stories together complete the Verification domain's trust gate: a Provider can now submit for verification, be reviewed by an Admin, and become discoverable once approved. **Sprint 6 (Directory & Listing Claims) is now complete.** DIR-001 (browse nearby providers by category and location) has shipped: this codebase's first `search` domain module, the `cube`/`earthdistance` GiST geospatial indexes `04_DATABASE.md` Section 13 had only ever specified (now confirmed shipped), a category+radius+discoverability structured directory query (this codebase's first raw parameterized `sqlalchemy.text()` SQL, ADR-026), and the mobile Search Filters/Search Results screens (S-08). `CLM-001` ("claim my Google-seeded business listing"), Sprint 6's second and final story, has since shipped and been signed off: an idempotent Google Places bulk-import script, a synthetic import-time verification approval structurally excluded from ever counting as a real verification cycle (ADR-029 — the review process found and fixed a genuine gap here, a claimed listing's first real verification submission was initially blocked by the stale synthetic record), an atomic-conditional-`UPDATE` claim-finalization race-fix and a new `administration.claim_review_requests` admin-fallback queue (ADR-030), and a third application of the swappable-Protocol pattern for the Google Places client (ADR-031). This executes exactly the bulk-import design the CTO's 09 September 2026 risk-acceptance decision (`13_OPEN_DECISIONS.md` item 3) approved — the underlying legal question stays genuinely open regardless. **Sprint 6 (Directory & Listing Claims) is now complete.** See `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md` and `docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md` for each story's full account. **Sprint 7 (Category Domain / AI Intake foundation) has now started.** CTG-001 (build the real Category domain and seed the v1 launch taxonomy) has shipped: a new `category` domain module (`category.categories`/`category.category_question_templates`/`category.provider_categories`, all exactly per `04_DATABASE.md`'s pre-existing spec), seeded via this codebase's first data-seeding migration (ADR-028) with the full CTO-approved 14-category, 47-question v1 launch taxonomy (`docs/AI/17_CATEGORY_TAXONOMY.md`, now v1.1.0). `13_OPEN_DECISIONS.md` item 1 (Category Taxonomy) is now resolved and implemented — `AI-001`/`AI-002` (Sprint 7's Conversation/AI Intake stories) and everything cascading from them through Sprint 12 are genuinely unblocked at the code level, though neither has yet been planned or started. See `docs/implementation/walkthroughs/Walkthrough_S07_CTG-001.md` for CTG-001's full account.
 **Last Updated:** 09 September 2026
 **Owner:** CTO
 
@@ -27,7 +27,7 @@ Sprint 5 (Provider Verification) is now complete. Its first story, VER-001 (subm
 
 Sprint 5's second and final story, VER-002 (review provider verification as an administrator), has since shipped the admin side of the trust gate VER-001 left open: a new, ownerless `require_role(ROLE_ADMIN)`-only authorization shape (a genuinely third endpoint category alongside ADR-015's existing two, recorded as ADR-023) backs a new admin-only review queue (this codebase's first real use of the previously-unused `CollectionResponse`/`PaginationMeta` pagination infrastructure) and approve/reject endpoints; approving atomically updates `providers.verification_status`/`is_discoverable` in the same transaction as the `verification_records` status change, for **both** Freelancer and Business Providers (Decision 5, explicitly confirmed by the user), backed by a new DB-level `chk_providers_discoverable_requires_approved` `CHECK` constraint as defense-in-depth. Two new, first-slice domain modules were built — `administration` (`admin_action_log`, recorded as ADR-021) and `notification` (`notifications`, recorded as ADR-022) — both honestly minimal, in-app-record-only capabilities, not full build-outs of their much larger future scope. A new ops-only `backend/scripts/grant_admin_role.py` CLI script (recorded as ADR-020, explicitly confirmed by the user before implementation) grants `ROLE_ADMIN` to an already-registered Account; no new admin login mechanism was built. This story's review found a genuine, empirically-reproduced concurrency bug — two truly concurrent approve calls on the same record could both succeed, each writing a duplicate `admin_action_log`/`notification` row — fixed with an atomic conditional `UPDATE` (`VerificationRecordRepository.try_claim_for_review`, recorded as ADR-024, this codebase's first use of this optimistic-concurrency-control pattern), independently re-verified by the architect (who reverted and re-applied the fix to confirm it) before returning APPROVED WITH RECOMMENDATIONS. **This story is backend-only, by deliberate design** — the admin operations dashboard is explicitly excluded from the mobile MVP's screen inventory. **Sprint 5 (Provider Verification) is now complete**: a Provider can submit for verification, be reviewed by an Admin, and become discoverable once approved — the full trust gate this domain exists to enforce. See `docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md` for full detail.
 
-Sprint 6 (Directory & Listing Claims) is in progress. Its first story, DIR-001 (browse nearby providers by category and location), shipped this codebase's first `search` domain module (no new tables of its own — the geospatial/category/discoverability query lives inside the `provider` module, ADR-025), confirmed the `cube`/`earthdistance` GiST indexes `04_DATABASE.md` Section 13 had only ever specified, and delivered the mobile Search Filters/Search Results (S-08) screens, searching only self-registered, `is_discoverable=true` providers via a free-text category exact-match against `provider_category_labels` (ADR-027). `CLM-001` ("claim my Google-seeded business listing"), Sprint 6's second story, is **unblocked, not yet started** — the CTO made an explicit risk-acceptance decision (09 September 2026) to proceed with it in its original bulk-import scope despite `13_OPEN_DECISIONS.md` item 3's Google Places legal/UAE-PDPL review remaining genuinely open. See `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md` for full detail.
+Sprint 6 (Directory & Listing Claims) is now complete. Its first story, DIR-001 (browse nearby providers by category and location), shipped this codebase's first `search` domain module (no new tables of its own — the geospatial/category/discoverability query lives inside the `provider` module, ADR-025), confirmed the `cube`/`earthdistance` GiST indexes `04_DATABASE.md` Section 13 had only ever specified, and delivered the mobile Search Filters/Search Results (S-08) screens, searching only self-registered, `is_discoverable=true` providers via a free-text category exact-match against `provider_category_labels` (ADR-027). Its second and final story, `CLM-001` ("claim my Google-seeded business listing"), has since shipped on top of it: an idempotent CLI import script bulk-seeding Business listings from the Google Places API (`GooglePlacesClient` swappable Protocol, ADR-031), a synthetic import-time `verification_status=approved`/`is_discoverable=true` state paired with a matching, never-human-reviewed `verification_records` row structurally excluded from ever counting as a real verification cycle (ADR-029), a claim flow (search → OTP-to-public-number → finalize) using an atomic conditional `UPDATE` race-fix and a shared finalization helper across both the OTP-success and admin-approval paths, plus a new `administration.claim_review_requests` admin-fallback queue (ADR-030), and one additive `is_claimed` field on DIR-001's existing search response rendering a full-width "Unclaimed" banner on mobile. This executes — does not re-litigate — the CTO's explicit risk-acceptance decision (09 September 2026, `13_OPEN_DECISIONS.md` item 3) to proceed with the original bulk-import scope despite the underlying Google Places legal/UAE-PDPL review remaining genuinely open. This story's review found and fixed one genuine gap: the synthetic import-time verification record was initially not excluded from a claimant's "latest verification cycle," blocking a freshly claimed listing's first real submission — fixed in `VerificationRecordRepository.get_latest_for_provider`. See `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md` and `docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md` for full detail.
 
 Sprint 7 (Category Domain / AI Intake foundation) has now started. Its first story, CTG-001 (build the real Category domain and seed the v1 launch taxonomy), shipped a new `category` domain module — `category.categories`, `category.category_question_templates`, and `category.provider_categories` (created empty), all exactly per `04_DATABASE.md`'s pre-existing spec — seeded via this codebase's first data-seeding migration (an idempotent `ON CONFLICT (slug) DO NOTHING ... RETURNING`-gated insert, recorded as ADR-028) with the full CTO-approved 14-category, 47-question v1 launch taxonomy (`docs/AI/17_CATEGORY_TAXONOMY.md`, now v1.1.0 after a genuine Arabic-content gap found during implementation was corrected). A new, real, read-only `CategoryService` (no HTTP route yet — no caller exists this story) exposes both tables for a future consumer. Backend-only; does not touch `provider_category_labels`, `provider_categories` reconciliation, or DIR-001's `search` module. `13_OPEN_DECISIONS.md` item 1 (Category Taxonomy) is now resolved *and implemented* — `AI-001`/`AI-002` (this same sprint's remaining stories) and everything cascading from them through Sprint 12 are genuinely unblocked at the code level, though neither has yet been planned or started. See `docs/implementation/walkthroughs/Walkthrough_S07_CTG-001.md` for full detail.
 
@@ -326,16 +326,16 @@ inventory).
 confirmed on 08 September 2026 — see Section 17 below. `DIR-001` depends only on already-done stories; `CLM-001`
 alone carries the dependency the earlier version of this caveat was worried about.
 
-## Sprint 6 — Directory & Listing Claims (In Progress — 1 of 2 stories done)
+## Sprint 6 — Directory & Listing Claims (Complete — 2 of 2 stories done)
 
 Scope covers the first non-AI, structured browse/discovery surface (`DIR-001`) and claiming a Google-seeded
-unclaimed listing (`CLM-001`), unblocked for planning per the CTO's 09 September 2026 risk-acceptance decision
+unclaimed listing (`CLM-001`), the latter built against the CTO's 09 September 2026 risk-acceptance decision
 (`13_OPEN_DECISIONS.md` item 3).
 
 | Story | Description | Status |
 |--------|-------------|--------|
 | DIR-001 | Browse nearby providers by category and location | ✅ Done |
-| CLM-001 | Claim my Google-seeded business listing | ⏳ Planned — unblocked (item 3 risk-accepted, not resolved) |
+| CLM-001 | Claim my Google-seeded business listing | ✅ Done |
 
 **DIR-001** has shipped and been signed off — see
 `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md`. It builds this codebase's first `search` domain
@@ -345,17 +345,21 @@ specified as now actually shipped, and delivers the mobile Search Filters + Sear
 Searches only self-registered, `is_discoverable=true` providers — it never touches Google-seeded/unclaimed
 listings or the `is_claimed`/`google_place_id` columns.
 
-**`CLM-001` is unblocked, not yet started.** `13_OPEN_DECISIONS.md` item 3 (Google Places Data Legal Review)
-remains genuinely open at the legal level — whether bulk-importing Google Places data as permanent, pre-claim
-`providers` rows is legally permissible (Google Maps Platform Terms of Service, UAE PDPL) has not been reviewed
-by legal counsel or a first-party reading of Google's current terms. On 09 September 2026 the CTO made an
-explicit, informed **risk-acceptance decision** to proceed with `CLM-001` in its original bulk-import scope for
-MVP anyway (unverified Google-seeded listings; owner verification deferred to a later story) rather than wait
-for that review — see item 3's full record for the accepted risks and mitigation. This unblocks planning and
-implementation; it does not resolve the underlying legal question, which stays open and could still require
-changes to whatever ships. Item 4 (Unclaimed Listing UX) is separately already resolved (a full-width
-Warning-color banner, `16_UX_GUIDELINES.md`), so `CLM-001` has no open design question left before planning
-starts.
+**`CLM-001` has shipped and been signed off** — see
+`docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md`. It executes exactly the design the CTO's 09
+September 2026 risk-acceptance decision (`13_OPEN_DECISIONS.md` item 3) approved for MVP: bulk-importing Google
+Places data as permanent, pre-claim `providers` rows without per-listing owner verification at seed time,
+mitigated by an OTP-to-public-number claim gate. This story does not resolve the underlying legal question
+(whether this is legally permissible under Google Maps Platform Terms of Service and UAE PDPL) — item 3 stays
+Open, now updated to reflect that the mechanism is live in the codebase against real, imported data. It shipped
+a new, idempotent bulk-import CLI script (`import_google_places.py`), a synthetic import-time verification
+approval structurally excluded from ever counting as a real verification cycle (ADR-029 — this story's review
+found and fixed a genuine gap here, see the Walkthrough for the full account), an atomic-conditional-`UPDATE`
+claim-finalization race-fix plus a shared finalization helper and a new `administration.claim_review_requests`
+admin-fallback queue (ADR-030), a third application of the swappable-Protocol pattern for the Google Places
+client (ADR-031), and the mobile claim search/OTP screens (S-21/S-22) plus the locked "Unclaimed" banner on the
+existing search results card (S-08). Item 4 (Unclaimed Listing UX)'s design was already resolved
+(`16_UX_GUIDELINES.md`) and is now built exactly as specified.
 
 ## Sprint 7 — Category Domain / AI Intake foundation (Started — 1 story done)
 
@@ -487,6 +491,31 @@ and creates `idx_service_areas_location`/`idx_saved_addresses_location` (both Gi
 Section 13's long-specified-but-unbuilt design), verified via a real `EXPLAIN (FORMAT JSON)` test at
 representative volume to confirm the planner genuinely chooses the index over a sequential scan.
 
+✓ Provider domain — claim my Google-seeded business listing (CLM-001): a new, idempotent, manually-invoked CLI
+script (`backend/scripts/import_google_places.py`) bulk-imports Business listings from the Google Places API,
+keyed on `google_place_id`, behind a new swappable `GooglePlacesClient` Protocol (`HttpxGooglePlacesClient`/
+`FakeGooglePlacesClient`, ADR-031 — the third application of the `FileStorage`/`DocumentOcrService`
+Protocol-swappability pattern). Imported rows are created `listing_source=google_seeded_unclaimed`,
+`is_claimed=false`, and — to satisfy `03_DOMAIN_MODEL.md`'s "starts as Unclaimed and is discoverable" rule
+alongside the `chk_providers_discoverable_requires_approved` DB constraint — a synthetic
+`verification_status=approved`/`is_discoverable=true` state paired with a matching, never-human-reviewed
+`verification_records` row (ADR-029). A new `ClaimService` (`GET /claims/search`, `POST
+/claims/{provider_id}/request-otp`/`verify-otp`/`request-admin-review`) sends an OTP only to the provider's own
+stored public phone number (never a client-supplied one — structurally, by omitting any phone-number parameter),
+and on success runs a shared `_finalize_claim` helper: an atomic conditional `UPDATE`
+(`ProviderRepository.try_claim_for_account`, mirroring ADR-024's `try_claim_for_review` race-fix) sets
+`is_claimed=true`/`user_id`/`claimed_at`, resets `verification_status=pending`/`is_discoverable=false` (the same
+gate a self-registered Business starts in), and grants `ROLE_PROVIDER`. A new `administration.claim_review_requests`
+table and `AdminClaimService` (`/admin/claims`, backend-API-only) back the AC6 fallback when OTP verification
+fails or no public number exists — the same shared `_finalize_claim` helper both success paths call (ADR-030).
+Post-claim re-syncs only backfill genuinely empty fields, never overwriting an owner's edits. **A genuine gap
+found during review and fixed**: the synthetic import-time `verification_records` row was initially not excluded
+from `VerificationRecordRepository.get_latest_for_provider`, silently blocking a freshly claimed listing's first
+real verification submission — fixed by excluding any record matching `status=approved AND reviewed_by IS NULL`
+(the exact, exclusive signature of a system-generated approval), recorded as part of ADR-029.
+`search.SearchResultProviderResponse` gains one additive `is_claimed: bool` field (Decision 8) so the mobile
+Search Results card can render the locked "Unclaimed" banner.
+
 ✓ Category domain — build the real Category domain and seed the v1 launch taxonomy (CTG-001): a new
 `category` schema with `categories`, `category_question_templates`, and `provider_categories` (created empty)
 tables, all exactly per `04_DATABASE.md`'s pre-existing spec, via this codebase's first data-seeding migration
@@ -498,7 +527,7 @@ no `api.py`/HTTP route in this story, since no real caller (`AI-001`) exists yet
 `provider.provider_category_labels`, does not populate `provider_categories`, and does not alter DIR-001's
 `search` module in any way.
 
-The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain is now fully shipped as well — profile/preferences (CUS-001) and saved addresses (CUS-002) — completing Sprint 3. The Provider domain is now fully shipped for its Sprint 4 scope — PRO-001 shipped the Provider aggregate root and onboarding wizard, and PRO-002 has since completed the aggregate (portfolio/availability/service-area/category-labels) and the ongoing Storefront screen — completing Sprint 4. **Sprint 5 (Provider Verification) is now complete**: VER-001 shipped the document-submission half of the Verification domain, and VER-002 has since shipped the admin review/approval half on top of it, including this codebase's first two `administration`/`notification` domain modules. **Sprint 6 (Directory & Listing Claims) is now in progress**: DIR-001 has shipped this codebase's first Search domain slice — a structured (non-AI) category+radius+discoverability directory query and its mobile Search Filters/Search Results screens; `CLM-001` is unblocked, not yet started — the CTO made an explicit risk-acceptance decision (09 September 2026) to proceed with it despite `13_OPEN_DECISIONS.md` item 3's still-open legal review. **Sprint 7 (Category Domain / AI Intake foundation) has now started**: CTG-001 has shipped the real Category domain and its seeded v1 launch taxonomy — `13_OPEN_DECISIONS.md` item 1 is now resolved and implemented, genuinely unblocking `AI-001`/`AI-002` at the code level, though neither has yet been planned or started.
+The first business module (Identity & Access) is now fully shipped — mobile OTP, Google/Apple sign-in, session/refresh-token management, and role-based authorization + audit logging (AUTH-001 through AUTH-004). Sprint 2 is complete. The Customer domain is now fully shipped as well — profile/preferences (CUS-001) and saved addresses (CUS-002) — completing Sprint 3. The Provider domain is now fully shipped for its Sprint 4 scope — PRO-001 shipped the Provider aggregate root and onboarding wizard, and PRO-002 has since completed the aggregate (portfolio/availability/service-area/category-labels) and the ongoing Storefront screen — completing Sprint 4. **Sprint 5 (Provider Verification) is now complete**: VER-001 shipped the document-submission half of the Verification domain, and VER-002 has since shipped the admin review/approval half on top of it, including this codebase's first two `administration`/`notification` domain modules. **Sprint 6 (Directory & Listing Claims) is now complete**: DIR-001 shipped this codebase's first Search domain slice — a structured (non-AI) category+radius+discoverability directory query and its mobile Search Filters/Search Results screens; CLM-001 has since shipped on top of it — the Google Places bulk-import script, the OTP-to-public-number claim flow, and the admin-review fallback, executing the CTO's 09 September 2026 risk-acceptance decision (`13_OPEN_DECISIONS.md` item 3, which stays open at the legal level). **Sprint 7 (Category Domain / AI Intake foundation) has now started**: CTG-001 has shipped the real Category domain and its seeded v1 launch taxonomy — `13_OPEN_DECISIONS.md` item 1 is now resolved and implemented, genuinely unblocking `AI-001`/`AI-002` at the code level, though neither has yet been planned or started.
 
 ---
 
@@ -642,7 +671,10 @@ Implemented layers include:
   `NotificationService`, ADR-022) — both first slices of domains that previously had zero code. `provider`
   gained one new write method (`ProviderService.apply_verification_outcome`) and one new `CHECK` constraint on
   `providers` (no column changes). A new ops-only `backend/scripts/grant_admin_role.py` (ADR-020) was added,
-  never exposed via HTTP. Touched no mobile code. This completes Sprint 5's scope.
+  never exposed via HTTP. Touched no mobile code. This completes Sprint 5's scope. `administration` gained a
+  second slice in Sprint 6 (CLM-001): `models.py`'s `ClaimReviewRequest`,
+  `repositories/claim_review_request_repository.py`, and `services/claim_review_request_service.py`
+  (`create`/`list_open`/`resolve`, mirroring `AdminActionLogService`'s explicit-methods convention) — see below.
 
 - Search module (`backend/app/modules/search/`) — browse nearby providers by category and location (DIR-001),
   the first module of the new Search domain: no `models.py` (no new tables — the actual query is owned by
@@ -653,6 +685,21 @@ Implemented layers include:
   reversible Alembic migration (`cube`/`earthdistance` extensions, `idx_service_areas_location`/
   `idx_saved_addresses_location` GiST indexes). Touched no other existing module. This shipped Sprint 6's first
   story.
+
+- Provider module, extended — claim my Google-seeded business listing (CLM-001): a new
+  `services/claim_service.py` (`ClaimService`, `_finalize_claim`), `services/admin_claim_service.py`
+  (`AdminClaimService`), `services/google_places_client.py` (`GooglePlacesClient` Protocol,
+  `HttpxGooglePlacesClient`, `FakeGooglePlacesClient`, ADR-031), and two new routers (`claim_api.py`,
+  `admin_claim_api.py`). `ProviderRepository` gained `get_by_google_place_id`, `search_unclaimed`, and
+  `try_claim_for_account` (the atomic conditional-`UPDATE` race-fix, ADR-030); `ProviderService` gained
+  `create_google_seeded_provider`, `backfill_google_seeded_provider`, and `search_unclaimed_listings`. A new,
+  first-time `provider → administration` cross-module edge (`ClaimReviewRequestService`) mirrors VER-002's
+  existing `verification → administration` shape. `search`'s `SearchResultProviderResponse` gained one additive
+  `is_claimed: bool` field. A new ops-only `backend/scripts/import_google_places.py` CLI script bulk-imports and
+  re-syncs listings, mirroring `seed_roles.py`/`grant_admin_role.py`'s shape. A genuine gap was found and fixed
+  during review: `verification`'s `VerificationRecordRepository.get_latest_for_provider` now excludes the
+  import-time synthetic `verification_records` row (ADR-029) — the one change this story made to an existing
+  `verification` file, isolated to a single query's `WHERE` clause. This completes Sprint 6's scope.
 
 - Category module (`backend/app/modules/category/`) — build the real Category domain and seed the v1 launch
   taxonomy (CTG-001): a new `category` schema with `models.py` (`Category`, `CategoryQuestionTemplate`,
@@ -668,7 +715,7 @@ Implemented layers include:
 
 Remaining business modules are deferred until their corresponding sprint stories.
 
-The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001), real Google/Apple sign-in buttons on the Phone Entry screen (AUTH-002), and secure cross-restart session persistence, a silent-refresh Dio interceptor, and a "Log out" action on the Home stub (AUTH-003), are implemented. A dedicated Manage Sessions UI was deliberately not built this story (see AUTH-003's Walkthrough). CUS-001 added a new `features/customer/` module and a Profile & Settings screen (reachable via a temporary entry point on the Home stub, not yet a bottom-nav tab) plus an `AcceptLanguageInterceptor` on `ApiClient`. CUS-002 extended `features/customer/` with a Saved Addresses management screen and a skippable first-address prompt wired into registration, plus a new shared, reusable `LocationPickerScreen` (`shared/widgets/location_picker/`) and three new Flutter dependencies (`google_maps_flutter`, `geolocator`, `geocoding`). PRO-001 added a new `features/provider/` module (a five-screen onboarding wizard reusing `LocationPickerScreen` for address/base-location capture) and this codebase's first shared `StepIndicator` widget, plus a "List Your Business" tile on Profile & Settings. PRO-002 extended `features/provider/` with the ongoing Storefront screen (S-25, four independently-saveable sections), a portfolio manager widget backed by a new `image_picker` dependency, and a new shared `WeeklyHoursEditor` widget (`shared/widgets/weekly_hours_editor.dart`) factored out of PRO-001's onboarding screen. VER-001 added a new, sibling `features/verification/` module (the S-19 upload, OCR-confirm, and S-20 status screens, using a new `file_picker` dependency since `image_picker` cannot browse an arbitrary PDF), wired into the end of the Provider onboarding wizard and a new status chip on the Storefront screen; two small shared additions (`shared/models/provider_type.dart`, moved from `features/provider/`, plus two new minimal accessor repositories — `CurrentProviderTypeRepository`, `VerificationStatusSummaryRepository`) keep `features/provider/` and `features/verification/` from importing each other's internals directly, per `02_ARCHITECTURE.md`'s "features must not depend directly on each other" rule (a real coupling violation the architect caught and this fix resolved — see VER-001's Walkthrough). DIR-001 added a new `features/search/` module (Search Filters and Search Results — S-08 — screens, a reusable `ProviderSearchCard` widget, Riverpod controllers) and rewired `HomePlaceholderScreen`'s "Find a Service" button to open it, replacing CUS-002's temporary "coming soon" snackbar. `features/search/` (and the pre-existing `features/home/`) import `features/customer/`'s `SavedAddressRepository` directly to pre-fill the search origin — a real, logged architecture-rule deviation, not fixed in this story (`13_OPEN_DECISIONS.md` item 12). The full S-06 Home screen (AI input box, mic icon), a bottom-navigation shell, and all other feature areas remain unbuilt.
+The Flutter mobile app has moved beyond the default scaffold: Riverpod/GoRouter/Dio/l10n infrastructure plus the Splash, Language Selection, Phone Entry, and OTP Entry screens (AUTH-001), real Google/Apple sign-in buttons on the Phone Entry screen (AUTH-002), and secure cross-restart session persistence, a silent-refresh Dio interceptor, and a "Log out" action on the Home stub (AUTH-003), are implemented. A dedicated Manage Sessions UI was deliberately not built this story (see AUTH-003's Walkthrough). CUS-001 added a new `features/customer/` module and a Profile & Settings screen (reachable via a temporary entry point on the Home stub, not yet a bottom-nav tab) plus an `AcceptLanguageInterceptor` on `ApiClient`. CUS-002 extended `features/customer/` with a Saved Addresses management screen and a skippable first-address prompt wired into registration, plus a new shared, reusable `LocationPickerScreen` (`shared/widgets/location_picker/`) and three new Flutter dependencies (`google_maps_flutter`, `geolocator`, `geocoding`). PRO-001 added a new `features/provider/` module (a five-screen onboarding wizard reusing `LocationPickerScreen` for address/base-location capture) and this codebase's first shared `StepIndicator` widget, plus a "List Your Business" tile on Profile & Settings. PRO-002 extended `features/provider/` with the ongoing Storefront screen (S-25, four independently-saveable sections), a portfolio manager widget backed by a new `image_picker` dependency, and a new shared `WeeklyHoursEditor` widget (`shared/widgets/weekly_hours_editor.dart`) factored out of PRO-001's onboarding screen. VER-001 added a new, sibling `features/verification/` module (the S-19 upload, OCR-confirm, and S-20 status screens, using a new `file_picker` dependency since `image_picker` cannot browse an arbitrary PDF), wired into the end of the Provider onboarding wizard and a new status chip on the Storefront screen; two small shared additions (`shared/models/provider_type.dart`, moved from `features/provider/`, plus two new minimal accessor repositories — `CurrentProviderTypeRepository`, `VerificationStatusSummaryRepository`) keep `features/provider/` and `features/verification/` from importing each other's internals directly, per `02_ARCHITECTURE.md`'s "features must not depend directly on each other" rule (a real coupling violation the architect caught and this fix resolved — see VER-001's Walkthrough). DIR-001 added a new `features/search/` module (Search Filters and Search Results — S-08 — screens, a reusable `ProviderSearchCard` widget, Riverpod controllers) and rewired `HomePlaceholderScreen`'s "Find a Service" button to open it, replacing CUS-002's temporary "coming soon" snackbar. `features/search/` (and the pre-existing `features/home/`) import `features/customer/`'s `SavedAddressRepository` directly to pre-fill the search origin — a real, logged architecture-rule deviation, not fixed in this story (`13_OPEN_DECISIONS.md` item 12). CLM-001 extended `features/search/` (the unclaimed "Warning"-color banner on the existing `ProviderSearchCard`, a new `onClaimTap` callback) and added a new, sibling `features/claim/` module — the Claim Search (S-21) and Claim OTP (S-22) screens, backed by `claim_repository.dart` and Riverpod controllers, reachable both from the search-card banner and a new secondary entry point on the Home placeholder screen. The full S-06 Home screen (AI input box, mic icon), a bottom-navigation shell, and all other feature areas remain unbuilt.
 
 ---
 
@@ -684,10 +731,10 @@ Not yet implemented:
   newly created Provider still starts with `is_discoverable=false`, but VER-002 has since shipped the admin
   approval path that flips it to `true` for an approved Provider of either subtype — the full submit-to-discoverable
   path now exists end to end, and DIR-001 has since shipped a structured way to actually browse those
-  discoverable providers. Claim-Your-Listing (`CLM-001`) remains unbuilt but is **unblocked** — the CTO made an
-  explicit risk-acceptance decision (09 September 2026) to proceed with it in its original bulk-import scope
-  despite `13_OPEN_DECISIONS.md` item 3's Google Places legal/PDPL review remaining genuinely open; it is
-  simply not yet scheduled/planned. The real
+  discoverable providers. Claim-Your-Listing (`CLM-001`) **has since shipped** — a Google Places bulk-import
+  script, the OTP-to-public-number claim flow, and an admin-review fallback for a failed claim attempt, executing
+  the CTO's 09 September 2026 risk-acceptance decision despite `13_OPEN_DECISIONS.md` item 3's Google Places
+  legal/PDPL review remaining genuinely open. The real
   Category domain **has since shipped (CTG-001, Sprint 7)** — `category.categories`/
   `category.category_question_templates`/`category.provider_categories` all now exist, seeded with the full v1
   launch taxonomy. `provider_category_labels` (PRO-002) remains in place, unchanged, as a free-text interim
@@ -728,10 +775,12 @@ Not yet implemented:
   channel (WhatsApp/SMS/Email), `notification_delivery`, `notification_preferences`, and any "read my
   notifications" inbox endpoint or UI — Sprint 12 ("Engagement & Trust") remains this domain's own dedicated
   future milestone.
-- Administration — partially shipped as of VER-002: `administration.admin_action_log` exists and records every
-  admin approve/reject action. **Not yet built:** any admin dashboard UI, Admin User as a first-class managed
-  entity, Manual Match Assignment, Unmatched Query Reports, feature flags, or system settings — all of ADM-002's
-  wider "operations dashboard" scope, explicitly out of VER-002's bounds.
+- Administration — partially shipped as of VER-002/CLM-001: `administration.admin_action_log` exists and records
+  every admin approve/reject action; `administration.claim_review_requests` (CLM-001) exists and backs the
+  claim-flow's admin-review fallback (`/admin/claims`, backend-API-only). **Not yet built:** any admin dashboard
+  UI, Admin User as a first-class managed entity, Manual Match Assignment, Unmatched Query Reports, feature flags,
+  or system settings — all of ADM-002's wider "operations dashboard" scope, explicitly out of both VER-002's and
+  CLM-001's bounds.
 - Flutter application (beyond the auth flow and the Profile & Settings screen — Home screen, a bottom-navigation shell, and all other feature areas)
 
 These will be implemented according to the approved sprint backlog, gated by the open decisions in `13_OPEN_DECISIONS.md`. Category taxonomy (item 1) no longer blocks the AI intake work at the code level as of CTG-001 — `AI-001`/`AI-002` are genuinely unblocked, though not yet planned or started. Item 3 (the Google Places legal review) no longer blocks `CLM-001` either, as of the CTO's 09 September 2026 risk-acceptance decision — but the underlying legal question itself remains open regardless of what it now gates.
@@ -759,9 +808,9 @@ Provider Profile — Complete (Sprint 4, 2 of 2 stories done: PRO-001, PRO-002)
 Provider Verification — Complete (Sprint 5, 2 of 2 stories done: VER-001, VER-002 — a Provider can now submit
 for verification, be reviewed by an Admin, and become discoverable once approved)
 
-Directory & Listing Claims — In Progress (Sprint 6, 1 of 2 stories done: DIR-001 shipped a structured,
-non-AI directory browse; CLM-001 unblocked per the CTO's 09 September 2026 risk-acceptance decision on
-`13_OPEN_DECISIONS.md` item 3, not yet planned or started)
+Directory & Listing Claims — Complete (Sprint 6, 2 of 2 stories done: DIR-001 shipped a structured,
+non-AI directory browse; CLM-001 shipped the Google Places bulk-import/claim flow, executing the CTO's 09
+September 2026 risk-acceptance decision on `13_OPEN_DECISIONS.md` item 3, which stays open at the legal level)
 
 Category Domain — Complete for Sprint 7's foundation scope (CTG-001 shipped the real `category` schema domain
 and seeded the v1 launch taxonomy; `13_OPEN_DECISIONS.md` item 1 resolved and implemented)
@@ -769,7 +818,7 @@ and seeded the v1 launch taxonomy; `13_OPEN_DECISIONS.md` item 1 resolved and im
 Conversation / AI Intake — Not Started (unblocked at the code level by CTG-001; `AI-001`/`AI-002` not yet
 planned)
 
-Flutter Application — In Progress (auth flow: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out; Profile & Settings screen with live language switching, CUS-001; Saved Addresses management, a shared Location Picker, and a skippable first-address-at-registration flow, CUS-002; Provider onboarding wizard — type selection, basic info, Business/Freelancer details, PRO-001; Storefront screen — portfolio, availability, category labels, PRO-002; Verification upload/confirm/status screens — S-19/S-20, VER-001; VER-002 is backend-only, no mobile changes; Search Filters/Search Results screens — S-08, DIR-001)
+Flutter Application — In Progress (auth flow: Splash with session recovery, Language Selection, Phone Entry with Google/Apple sign-in, OTP Entry, Home stub with Log out; Profile & Settings screen with live language switching, CUS-001; Saved Addresses management, a shared Location Picker, and a skippable first-address-at-registration flow, CUS-002; Provider onboarding wizard — type selection, basic info, Business/Freelancer details, PRO-001; Storefront screen — portfolio, availability, category labels, PRO-002; Verification upload/confirm/status screens — S-19/S-20, VER-001; VER-002 is backend-only, no mobile changes; Search Filters/Search Results screens — S-08, DIR-001; unclaimed-listing banner, Claim Search/Claim OTP screens — S-21/S-22, CLM-001)
 
 Deployment — Not Started
 
@@ -795,9 +844,20 @@ PRO-002 ("manage my provider storefront") have both shipped and been signed off;
 `docs/implementation/walkthroughs/Walkthrough_S05_VER-001.md` and
 `docs/implementation/walkthroughs/Walkthrough_S05_VER-002.md`.
 
-**Sprint 6 (Directory & Listing Claims) is in progress — DIR-001 is done, CLM-001 is unblocked but not started.**
+**Sprint 6 (Directory & Listing Claims) is complete — both DIR-001 and CLM-001 are done.**
 `DIR-001` ("browse nearby providers by category and location") shipped and was signed off on 09 September 2026;
-see `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md`.
+see `docs/implementation/walkthroughs/Walkthrough_S06_DIR-001.md`. `CLM-001` ("claim my Google-seeded business
+listing") has since shipped on top of it and was signed off on 09 September 2026; see
+`docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md`. `CLM-001` executes — does not resolve — the CTO's
+explicit risk-acceptance decision recorded in `docs/AI/13_OPEN_DECISIONS.md` item 3: the underlying legal
+question (whether bulk-importing Google Places data as permanent, pre-claim `providers` rows is permissible
+under Google's current Maps Platform Terms of Service and UAE PDPL) remains genuinely open — no legal counsel
+review or first-party reading of Google's current terms has happened, and item 3 stays **Open** even though the
+story it gated has shipped. This is a deliberate acceptance of known exposure, not a finding that the activity is
+compliant; the `listing_source`/`google_place_id` bulk-deletion mitigation item 3 describes is now operative
+against real, imported data rather than a theoretical schema affordance. This story's review found and fixed one
+genuine gap (the import-time synthetic verification approval was not initially excluded from a claimant's
+"latest verification cycle," blocking their first real submission) — see the Walkthrough for the full account.
 
 **Sprint 7 (Category Domain / AI Intake foundation) has started — `CTG-001` is done.**
 `CTG-001` ("build the real Category domain and seed the v1 launch taxonomy") shipped and was signed off on
@@ -807,30 +867,11 @@ remaining stories) and everything cascading from them through Sprint 12 at the c
 are not yet planned or started** — this closeout deliberately does not plan them; that is a separate future
 planning pass.
 
-**`CLM-001`** ("claim my Google-seeded business listing") **is unblocked for planning, per an explicit CTO
-risk-acceptance decision made 09 September 2026** — recorded in full in `docs/AI/13_OPEN_DECISIONS.md` item 3.
-The underlying legal question (whether bulk-importing Google Places data as permanent, pre-claim `providers`
-rows is permissible under Google's current Maps Platform Terms of Service and UAE PDPL) was **not** resolved —
-no legal counsel review or first-party reading of Google's current terms has happened, and none of that is
-something an engineering agent can perform or substitute for. Rather than wait for that review, the CTO
-reviewed several lower-risk alternative designs with engineering (live-query-only, a rolling short-term cache,
-fetch-then-verify-by-owner-then-store, human-sourced leads with no API use) and chose to proceed with `CLM-001`
-in its **original bulk-import scope** anyway — unverified Google-seeded listings at seed time, with an
-owner-verification mechanism explicitly planned as a later-stage improvement, not scoped or scheduled yet. This
-is a deliberate acceptance of known exposure (possible Google Maps Platform ToS breach/API suspension, possible
-UAE PDPL exposure from unverified personal data), not a finding that the activity is compliant — see item 3 for
-the full record, including the existing `listing_source`/`google_place_id` mitigation that allows bulk deletion
-of imported rows if a future legal review forces it. Item 4 (Unclaimed Listing UX)'s design question is
-separately already resolved (a full-width Warning-color banner, `16_UX_GUIDELINES.md`), so `CLM-001` has no open
-design question left before planning starts.
-
-A future session picking up Sprint 6/7 planning has two genuinely unblocked candidates at the code level:
-`CLM-001` (Sprint 6, risk-accepted per above) and `AI-001` (Conversation/AI Intake, Sprint 7, unblocked by
-`CTG-001`). Which to plan next — or whether to plan both in parallel — is a product/sequencing call for the CTO,
-not one this document makes on its own; no engineering agent should plan or start either without that explicit
-direction. When `CLM-001` is planned, its `tech-lead` Plan should build the original bulk-import design per the
-CTO's risk-acceptance decision (item 3), not silently substitute a lower-risk alternative the CTO already
-considered and declined for MVP.
+**With Sprint 6 now fully complete, the next genuinely unblocked candidate is `AI-001`** (Conversation/AI
+Intake, Sprint 7, unblocked at the code level by `CTG-001`'s real Category domain). Whether to plan `AI-001` next
+— or any other sequencing choice — is a product/sequencing call for the CTO, not one this document makes on its
+own; **no engineering agent should plan or start `AI-001` without that explicit direction**, matching this
+document's own established convention for every prior "genuinely unblocked but not yet planned" story.
 
 ---
 

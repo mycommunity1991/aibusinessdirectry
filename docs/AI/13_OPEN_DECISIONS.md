@@ -119,7 +119,8 @@ number.
 ## Item 3 — Google Places Data Legal Review
 
 **Status:** Open — CTO has made an explicit, informed risk-acceptance decision (09 September 2026) to proceed
-with `CLM-001` for MVP anyway; the underlying legal question itself remains genuinely unresolved
+with `CLM-001` for MVP anyway; the underlying legal question itself remains genuinely unresolved. **`CLM-001`
+has since shipped (09 September 2026) against this decision** — see "Implementation status" below.
 
 **Description:** The platform plans to seed initial Business listings from Google Places data
 (`listing_source = 'google_seeded_unclaimed'`) before a real owner claims them. Whether this is legally
@@ -172,12 +173,29 @@ record is honest about what was and wasn't decided:
   being answered, and a future legal review could still require changes (including deleting already-seeded
   data) to whatever `CLM-001` ships under this decision.
 
-**Blocks:** Nothing now — `CLM-001` is unblocked for planning and implementation under this risk-acceptance
-decision. The underlying legal question remains open and should still get an actual legal/first-party ToS
-review when practical; this is no longer treated as blocking, but it has not gone away.
+**Implementation status (09 September 2026, `CLM-001` shipped and signed off):** the design this decision
+describes is no longer a plan — it is live in the codebase. The bulk-import mechanism
+(`backend/scripts/import_google_places.py`, idempotent, keyed on `google_place_id`), the OTP-to-public-number
+claim flow (`ClaimService`, `POST /claims/{provider_id}/verify-otp`), and the admin-review fallback for a failed
+claim attempt (`administration.claim_review_requests`, `AdminClaimService`) are all built and tested — see
+`docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md` for the full account. This is a status update, not
+a resolution of the legal question above, which remains exactly as open as it was when this decision was made.
+One consequence worth stating plainly: the `listing_source`/`google_place_id` bulk-deletion mitigation this item
+already named is no longer a theoretical schema affordance — real, imported provider rows now exist (or will,
+once the import script is run against a live Google Places API key/target in a real environment) that this
+mitigation would actually need to act on if a future legal review forces deletion, not just a hypothetical case
+to reason about in the abstract.
 
-**Related:** `04_DATABASE.md` (`providers` table, Section 14), `14_USER_FLOWS.md` Flow 3 (Claim-Your-Listing),
-`docs/AI/Project_Tracker.xlsx` (`CLM-001` row, Sprint 6), `docs/AI/PROJECT_IMPLEMENTATION_STATE.md` Section 17.
+**Blocks:** Nothing now — `CLM-001` is unblocked for planning and implementation under this risk-acceptance
+decision, and has since shipped. The underlying legal question remains open and should still get an actual
+legal/first-party ToS review when practical; this is no longer treated as blocking, but it has not gone away, and
+now applies to real data rather than a future hypothetical.
+
+**Related:** `04_DATABASE.md` (`providers` table, Section 14; Administration Domain — `claim_review_requests`),
+`09_DECISIONS.md` (ADR-029, ADR-030, ADR-031 — `CLM-001`'s shipped design), `14_USER_FLOWS.md` Flow 3
+(Claim-Your-Listing), `docs/AI/Project_Tracker.xlsx` (`CLM-001` row, Sprint 6),
+`docs/AI/PROJECT_IMPLEMENTATION_STATE.md` Section 17,
+`docs/implementation/plans/Plan_S06_CLM-001.md`, `docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md`.
 
 ---
 
@@ -414,6 +432,13 @@ from VER-001's review).
   story — accepting the known Google ToS/UAE PDPL exposure this carries rather than resolving it first. This is a
   **risk-acceptance, not a resolution**: the item stays Open, `CLM-001` is no longer blocked, and the underlying
   legal question is unchanged. See item 3 above for the full record of what was and wasn't decided.
+- **09 September 2026 (Sprint 6, `CLM-001` shipped)** — Item 3 updated again: `CLM-001` has shipped and been
+  signed off, executing the risk-acceptance decision above — the bulk-import script, OTP claim flow, and
+  admin-review fallback are now live in the codebase (recorded as ADR-029/ADR-030/ADR-031). Item stays **Open**;
+  this update is about implementation status, not a change to the legal question, which remains unresolved. The
+  `listing_source`/`google_place_id` bulk-deletion mitigation is now operative against real, imported data rather
+  than a theoretical schema affordance. See item 3's "Implementation status" note and
+  `docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md` for the full account.
 
 ---
 

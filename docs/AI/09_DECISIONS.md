@@ -2031,6 +2031,298 @@ A reusable three-part pattern for any future reference-data-seeding migration in
 
 ---
 
+# ADR-029
+
+## Title
+
+Import-Time Synthetic Verification Approval for Google-Seeded Listings — `verification_status=approved` +
+`is_discoverable=true` + a Matching, Never-Human-Reviewed `verification_records` Row; Structurally Excluded from
+Ever Counting as a Real Verification Cycle
+
+**Date**
+
+2026-09-09
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story `CLM-001` needed to reconcile two authoritative statements that must both be true at once for a Google-
+seeded, unclaimed listing: `03_DOMAIN_MODEL.md` line 112 states a Provider seeded from Google "starts as Unclaimed
+and is discoverable," while the DB-level `chk_providers_discoverable_requires_approved` constraint requires
+`is_discoverable=false OR verification_status='approved'`. The only way both are true simultaneously is for the
+import job itself to set `verification_status=approved` directly — not through the admin review queue, since at
+import time there is no document, no submitter, and nothing for a human admin to review.
+
+During `tester`'s review, this synthetic approval was found to have a real, undocumented consequence: once a
+listing is claimed and `_finalize_claim` resets `providers.verification_status`/`is_discoverable` to
+`pending`/`false` (Decision 6), the import-time synthetic `verification_records` row was still the provider's
+"latest" record by `submitted_at`. `VerificationService.submit`'s resubmission-eligibility check and
+`GET /providers/me/verification`'s status display both read `VerificationRecordRepository.get_latest_for_provider`
+directly, not `providers.verification_status` — so a freshly claimed listing's first real verification submission
+was rejected with a 409 (only a `REJECTED` latest record permits a new submission), and its status screen would
+have shown a dishonest "Approved" despite the cached column already reading `pending`. This directly contradicted
+AC5's literal "routes through the same Verification gate a self-registered Business would go through" — a
+self-registered Business has no such stale record and submits cleanly on its first attempt.
+
+### Decision
+
+**Part 1 — creating the synthetic approval (import time):** the import job
+(`ProviderService.create_google_seeded_provider`) sets `providers.verification_status=APPROVED`,
+`is_discoverable=True` directly (this is a `create`, not an `update` through `apply_verification_outcome`, since
+there is no existing provider row yet), and creates a matching `verification.verification_records` row in the
+same operation: `status=APPROVED`, `verification_type=BUSINESS_LIGHTWEIGHT`, `reviewed_by=NULL` (no human admin
+ever reviewed it — `reviewed_by` is already nullable), `submitted_at`/`reviewed_at` both `now()`. This keeps
+`verification_records` — this codebase's documented source of truth for verification history — honestly in sync
+with the cached `providers` columns, rather than a `providers.verification_status=approved` with no corresponding
+audit row, which would be a silent, undocumented exception to that invariant.
+
+**Part 2 — the reset at claim (Decision 6):** immediately on a successful claim, `_finalize_claim` resets
+`providers.verification_status=PENDING`/`is_discoverable=False` via the existing
+`ProviderService.apply_verification_outcome` — the literal mechanism of AC5's "routes through the same
+Verification gate," leaving a claimed provider in the identical state a brand-new self-registered Business starts
+in.
+
+**Part 3 — the exclusion addendum (added during this story's review, closing the gap above):**
+`VerificationRecordRepository.get_latest_for_provider` excludes any record matching `status=APPROVED AND
+reviewed_by IS NULL` — the exact, exclusive signature of a system-generated, never-human-reviewed approval.
+Confirmed exclusive by grepping every `VerificationRecord(status=APPROVED)` construction site in the codebase:
+exactly two exist — `AdminVerificationService.approve` (always sets `reviewed_by=<the acting admin's id>`) and
+`ProviderService.create_google_seeded_provider`'s import-time write (always leaves `reviewed_by=NULL`) — so this
+`WHERE` clause can never misclassify a real, human-reviewed approval as synthetic. With this exclusion in place,
+`get_latest_for_provider` returns `None` for a freshly claimed listing until it actually submits, exactly matching
+a freshly self-registered Business's behavior for both the resubmission-eligibility check and the status display.
+
+**This is a reusable pattern, not a one-off fix:** any future story that introduces another kind of
+system-generated (non-human-reviewed) verification record should give it its own structurally-provable,
+exclusive, non-human signature (a specific column value or combination no genuine human-reviewed record can ever
+produce) and add it to this same exclusion clause, rather than inventing a parallel "latest record" query method.
+
+### Alternatives Considered
+
+- **Leave unclaimed listings at `verification_status=pending`, `is_discoverable=false` (hidden until claimed)** —
+  rejected: directly contradicts `03_DOMAIN_MODEL.md`'s explicit "is discoverable" business rule, and would make
+  AC2 ("visually distinct in search/directory results") untestable, since a non-discoverable provider never
+  appears in search results at all.
+- **Keep a claimed provider's `verification_status=approved` unchanged through claim (skip re-verification)** —
+  rejected outright: this is precisely the outcome the story's own description forbids ("must never be treated as
+  equivalent to a verified, self-registered provider").
+- **A dedicated `verification_status` value like `google_verified`, distinct from `approved`** — rejected: no
+  such value exists in the locked `verification_status` enum, and adding one is an unrequested schema change with
+  no AC basis.
+- **For the exclusion gap specifically — delete or mutate the synthetic `verification_records` row at claim time
+  inside `_finalize_claim`** — rejected: `verification_records` is this codebase's documented source-of-truth
+  audit trail; destroying or backdating a real historical row (even a synthetic one) to make a query behave
+  correctly would trade an honest audit trail for a query-shape convenience.
+- **A second, parallel "effective latest" query method used only by the claim path** — rejected as needless
+  duplication when a single, correctly-scoped `get_latest_for_provider` serves every caller identically and
+  correctly once the exclusion is added.
+
+### Consequences
+
+- A Google-seeded, unclaimed listing is honestly discoverable pre-claim (satisfying the domain model) while never
+  being treated as a genuinely verified, self-registered Provider — the moment it is claimed, it re-enters the
+  exact same trust gate a self-registered Business goes through.
+- `verification_records` remains a complete, honest audit trail: the synthetic pre-claim approval is never
+  deleted or rewritten, only excluded from "latest real cycle" queries by a structurally-provable signature.
+- Any future system-generated verification record (of any kind) must be given its own exclusive, non-human
+  signature and added to `get_latest_for_provider`'s exclusion clause — this is now the established pattern for
+  that shape of problem, not something to re-derive from scratch.
+
+### Related Documents
+
+- 03_DOMAIN_MODEL.md (Provider domain — "starts as Unclaimed and is discoverable")
+- 04_DATABASE.md (`providers` — `chk_providers_discoverable_requires_approved`; `verification_records` as source
+  of truth)
+- 09_DECISIONS.md (ADR-024 — `try_claim_for_review`'s optimistic-concurrency shape this story's `try_claim_for_
+  account`, ADR-030, mirrors)
+- docs/implementation/plans/Plan_S06_CLM-001.md (Decision 2)
+- docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md
+- backend/app/modules/verification/repositories/verification_record_repository.py
+  (`get_latest_for_provider`'s docstring records this reasoning directly in code)
+
+---
+
+# ADR-030
+
+## Title
+
+Claim Finalization Pattern — Atomic Conditional `UPDATE` Race-Fix (`try_claim_for_account`), a Shared
+`_finalize_claim` Helper Across Both Success Paths, and a New `administration.claim_review_requests`
+Admin-API-Only Queue
+
+**Date**
+
+2026-09-09
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story `CLM-001` needed a claim to finalize identically regardless of which of two paths triggered it — a
+customer's successful OTP verification, or an admin approving a manual review request raised after an OTP failure
+or an unusable public number (AC6). `Plan_S06_CLM-001.md`'s Decision 6 described finalization as "re-fetch the
+target provider fresh... re-check `is_claimed=false`" — a plain read-then-write. `VER-002`'s own review had
+already found and fixed an analogous "exactly one winner" concurrency bug for admin approve/reject actions
+(`VerificationRecordRepository.try_claim_for_review`, ADR-024): two truly concurrent callers could both pass a
+Python-level status check before either committed. The identical race shape exists here — two people could
+concurrently attempt to claim the same still-unclaimed listing (e.g. two family members, or the OTP-success path
+racing the admin-approval path for the same listing) — and a plain fetch-then-update would leave a window where
+the second caller's write could silently overwrite the first claimant's `user_id` with no error at all.
+
+### Decision
+
+**The atomic conditional `UPDATE` (strengthening Decision 6 beyond its literal Plan text):**
+`ProviderRepository.try_claim_for_account(provider_id, *, user_id, claimed_at)` issues a single `UPDATE providers
+SET is_claimed=true, user_id=..., claimed_at=... WHERE id=... AND is_claimed=false`, returning whether the row was
+actually affected. Postgres's row lock on the first matching writer, plus the `WHERE is_claimed=false` clause
+re-evaluated against the now-current row, guarantees at most one caller's `UPDATE` can ever match — directly
+mirroring `try_claim_for_review`'s already-proven shape (ADR-024) rather than inventing a second, different
+optimistic-concurrency mechanism for the same class of problem.
+
+**The shared `_finalize_claim` helper:** `ClaimService._finalize_claim(provider_id, user_id)` is the single,
+private method that (1) enforces the existing one-Provider-per-Account rule (PRO-001), (2) calls
+`try_claim_for_account`, raising `ClaimAlreadyClaimedError` if the row was no longer claimable, (3) resets
+`verification_status=PENDING`/`is_discoverable=False` via `ProviderService.apply_verification_outcome` (ADR-029),
+and (4) grants `ROLE_PROVIDER` via the existing `RoleAssignmentService`. Both `ClaimService.verify_otp` (the
+OTP-success path) and `AdminClaimService.approve_review_request` (the admin-approved fallback path) call this
+same method — it is the **only** place in the codebase that ever sets `is_claimed=True` — so the two success
+paths can never silently drift into two different definitions of "claimed."
+
+**The `administration.claim_review_requests` table (AC6's fallback, Decision 9):** a new, physical, writable
+table (full `CommonColumnsMixin`, matching `admin_action_log`'s precedent rather than the exempted `audit_logs`),
+mirroring `unmatched_query_reports`'s already-established shape for exactly this problem: "a physical table (not
+a DB view) because admin review status must be writable and durable." Columns: `provider_id`,
+`claimant_user_id`, `reason` (`otp_failed` | `no_public_number`), `status` (`open` | `resolved`, default `open`),
+`resolution` (`approved` | `rejected`, set only when resolved), `resolution_notes`, `reviewed_by`, `reviewed_at`.
+`ClaimReviewRequestService` (`administration` module) exposes exactly `create`/`list_open`/`resolve` — mirroring
+`AdminActionLogService`'s "one explicit method per action" convention, not a generic CRUD surface.
+`AdminClaimService` (`provider` module) depends on it the same way `AdminVerificationService` already depends on
+`AdminActionLogService` (a `provider → administration` edge). Exposed at `/admin/claims`
+(`require_role(ROLE_ADMIN)`-only, ADR-023's ownerless shape) — backend-API-only, no dashboard UI, per VER-002's
+already-established "admin does something, no UI yet" precedent.
+
+### Alternatives Considered
+
+- **A plain read-then-write for claim finalization (the Plan's original literal text)** — superseded during
+  implementation in favor of the atomic conditional `UPDATE`, once the same race shape ADR-024 already fixed for
+  verification-record review was recognized here; confirmed correct and consistent with existing precedent by
+  `architect` during this story's review.
+- **No persistent table for AC6 — just notify "an admin" generically** — rejected: no "the admin team" recipient
+  concept exists anywhere in this codebase (every notification precedent targets one specific user), and no
+  existing flow proactively pushes work to an admin; admins pull from a queue (`GET /admin/verification/records`
+  is the established precedent), which this story follows rather than inventing a push mechanism.
+- **Reuse `manual_match_assignments` for the claim-review queue** — rejected: that table's `assigned_admin_id` is
+  `NOT NULL` at creation, requiring a specific admin assigned up front, which doesn't fit "an unclaimed,
+  unassigned queue item any admin may pick up."
+- **Allow a claimant to already own another Provider (dual-listing account)** — rejected: no AC/domain text
+  relaxes the existing, hard one-Provider-per-Account rule for the claim path specifically.
+
+### Consequences
+
+- Any future "exactly one caller wins a state transition on a shared row" problem in this codebase should default
+  to the atomic conditional `UPDATE` pattern (`try_claim_for_review`, `try_claim_for_account`) rather than a plain
+  read-then-write, per this and ADR-024's shared precedent.
+- Any future customer-initiated success path that also has an admin-approved fallback path should extract one
+  shared, private finalization helper both paths call, rather than duplicating the finalization logic — the
+  `_finalize_claim` shape is now this codebase's precedent for that.
+- `administration` now has a second physical review-queue table (`admin_action_log`, `claim_review_requests`)
+  alongside the still-unbuilt `unmatched_query_reports`/`manual_match_assignments` — all following the same
+  physical-table-not-a-view convention for admin-writable review state.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md (Provider module's explicit "Claim flow" responsibility)
+- 04_DATABASE.md (Administration Domain — `claim_review_requests`, `unmatched_query_reports` precedent)
+- 09_DECISIONS.md (ADR-023 — ownerless `require_role(ROLE_ADMIN)` shape; ADR-024 — `try_claim_for_review`'s
+  atomic conditional `UPDATE` precedent this story's `try_claim_for_account` mirrors; ADR-029 — the
+  `apply_verification_outcome` reset this helper calls)
+- docs/implementation/plans/Plan_S06_CLM-001.md (Decision 6, Decision 9)
+- docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md
+- backend/app/modules/provider/services/claim_service.py (`_finalize_claim`'s docstring records this reasoning
+  directly in code)
+
+---
+
+# ADR-031
+
+## Title
+
+`GooglePlacesClient` Swappable Protocol — Third Application of the `FileStorage`/`DocumentOcrService`
+Protocol-Swappability Pattern (ADR-017, ADR-018)
+
+**Date**
+
+2026-09-09
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Story `CLM-001`'s import job needs to call the Google Places API, a paid third-party service with no existing
+client, SDK, or credential anywhere in this codebase. Automated tests (AC8, and the import job's own tests)
+cannot make real network calls to a billed external API. This is not a new problem for this codebase — ADR-017
+(`FileStorage`) and ADR-018 (`DocumentOcrService`) already established the same answer twice for the same shape
+of problem ("an external capability with no live-tested implementation available in CI"): a swappable Protocol
+plus a concrete real implementation, never a hardcoded direct call.
+
+### Decision
+
+This is the third, unmodified application of that same established pattern — not a new pattern requiring its own
+design discussion. `provider/services/google_places_client.py` defines a `GooglePlacesClient` Protocol
+(`search_places`, `get_place_details`), with `HttpxGooglePlacesClient` as the real implementation (using the
+already-approved `httpx` dependency, no new package — Places API is a plain REST/JSON API) and
+`FakeGooglePlacesClient` (test-only, returns canned fixture places). The import job's service layer depends on
+the Protocol, never the concrete class, exactly like `VerificationService` depends on `DocumentOcrService`. A new
+`GOOGLE_PLACES_API_KEY: str | None = None` setting is added as **optional** — deliberately unlike
+`GOOGLE_OAUTH_CLIENT_ID`'s required style — since it is consumed only by the standalone import script, not by the
+running API application every request depends on; the script fails fast with a clear, actionable error if invoked
+while unset, rather than the whole app refusing to boot in every environment that never runs the import job.
+
+### Alternatives Considered
+
+- **A third-party Google Maps/Places Python SDK dependency** — rejected: `httpx` direct REST calls are sufficient,
+  and adding a new SDK dependency needs explicit approval per `.agents/agents.md` that no AC requests.
+- **Make `GOOGLE_PLACES_API_KEY` required like `GOOGLE_OAUTH_CLIENT_ID`** — rejected: would force every
+  environment, including CI and every developer's local `.env`, to hold a real or dummy Places API key just to
+  boot the FastAPI app, for a capability only the standalone script ever touches.
+
+### Consequences
+
+- This is now this codebase's third confirmed application of the Protocol-swappability pattern for an
+  unconfirmed/untestable external capability (`FileStorage`, `DocumentOcrService`, `GooglePlacesClient`) — any
+  future story facing the same shape of problem should default to it without re-deriving the design from
+  scratch.
+- A future story adding real Places API credentials to a live environment changes zero application code — only
+  configuration (`GOOGLE_PLACES_API_KEY`) and which concrete class the import script constructs.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-017 — `FileStorage`, the pattern's origin; ADR-018 — `DocumentOcrService`, the pattern's
+  second application)
+- docs/implementation/plans/Plan_S06_CLM-001.md (Decision 10)
+- docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

@@ -849,9 +849,9 @@ with the full `CommonColumnsMixin` (versioned, soft-deletable), a deliberate, sp
 exempt it the way the immutable `audit.audit_logs` is exempted (see `09_DECISIONS.md` ADR-021 for the full
 reasoning). Written by `AdminActionLogService.record_verification_review` on every admin approve/reject action
 (AC6) — `metadata` carries `provider_id` and, for a rejection, `rejection_reason`, since `target_entity_id` is a
-single polymorphic reference and cannot itself hold a second id. Only this table exists so far;
-`manual_match_assignments`, `unmatched_query_reports`, `feature_flags`, and `system_settings` (below) remain
-unbuilt.
+single polymorphic reference and cannot itself hold a second id. `claim_review_requests` (below) has since shipped
+alongside it as the Administration domain's second slice (Story CLM-001, Sprint 6); `manual_match_assignments`,
+`unmatched_query_reports`, `feature_flags`, and `system_settings` (below) remain unbuilt.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
@@ -876,6 +876,32 @@ Wizard-of-Oz fallback for low-confidence Conversation Sessions.
 | completed_at | TIMESTAMPTZ | Yes | |
 
 **Indexes:** `idx_manual_match_assignments_status`
+
+## claim_review_requests
+
+Shipped by Story CLM-001 (Sprint 6) — the AC6 admin-fallback queue for a Google-seeded-unclaimed-listing claim
+attempt that failed OTP verification or found no usable public phone number. Genuinely new schema, not previously
+specified anywhere in this document prior to CLM-001; built directly by analogy to `unmatched_query_reports`'s
+already-established shape below (a physical, writable, durable admin-review-queue table, not a DB view or a
+fire-and-forget notification), with the full `CommonColumnsMixin` (versioned, soft-deletable), matching
+`admin_action_log`'s own precedent of using the full mixin rather than being exempted like `audit_logs`. Written
+by `ClaimReviewRequestService.create` (`ClaimService.request_admin_review`, AC6); resolved via
+`ClaimReviewRequestService.resolve`, called by `AdminClaimService.approve_review_request`/`reject_review_request`
+(admin-facing, `/admin/claims`, no dashboard UI — backend-API-only, per VER-002's established precedent). See
+`09_DECISIONS.md` ADR-030 for the full design reasoning.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| provider_id | UUID | No | FK → `provider.providers.id` |
+| claimant_user_id | UUID | No | FK → `identity.users.id` — who was attempting to claim |
+| reason | VARCHAR(30) | No | `otp_failed` \| `no_public_number` |
+| status | VARCHAR(20) | No | `open` \| `resolved`. Default `open`. |
+| resolution | VARCHAR(20) | Yes | `approved` \| `rejected`, set only when `status=resolved` |
+| resolution_notes | TEXT | Yes | |
+| reviewed_by | UUID | Yes | FK → `identity.users.id` (Admin) |
+| reviewed_at | TIMESTAMPTZ | Yes | |
+
+**Indexes:** `idx_claim_review_requests_provider_id`, `idx_claim_review_requests_status`
 
 ## unmatched_query_reports
 
@@ -955,6 +981,7 @@ users (identity)
 │     ├── portfolios (1:N)
 │     ├── service_areas (1:N)
 │     ├── verification_records (1:N) → verification_documents (1:N)
+│     ├── claim_review_requests (1:N, optional — a still-unclaimed Google-seeded listing's failed claim attempts)
 │     ├── contact_views (1:N, as target)
 │     ├── reviews (1:N, as target)
 │     └── provider_rating_summaries (1:1)

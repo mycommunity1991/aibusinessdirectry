@@ -11,6 +11,46 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Provider domain — claim my Google-seeded business listing (Story CLM-001): a new, idempotent, manually-invoked
+  CLI script (`backend/scripts/import_google_places.py`) bulk-imports Business listings from the Google Places
+  API, upserting on `google_place_id` so the same script run serves as both the first bulk seed and every later
+  re-sync, behind a new swappable `GooglePlacesClient` Protocol (`HttpxGooglePlacesClient` real implementation,
+  `FakeGooglePlacesClient` test-only — recorded as ADR-031, the third application of the `FileStorage`/
+  `DocumentOcrService` Protocol-swappability precedent). Imported rows are created
+  `listing_source=google_seeded_unclaimed`, `is_claimed=false`, with a populated `google_place_id` — never
+  `self_registered`. To satisfy `03_DOMAIN_MODEL.md`'s "starts as Unclaimed and is discoverable" rule alongside
+  the existing `chk_providers_discoverable_requires_approved` DB constraint, the import job also sets a synthetic
+  `verification_status=approved`/`is_discoverable=true` state paired with a matching, never-human-reviewed
+  `verification_records` row (`reviewed_by=NULL`) — recorded as **ADR-029**. A new customer-facing `ClaimService`
+  (`GET /api/v1/claims/search`, `POST /api/v1/claims/{provider_id}/request-otp`/`verify-otp`/`request-admin-review`)
+  finds an unclaimed listing by name/address substring match and sends an OTP only to the provider's own stored
+  public phone number — structurally, by never accepting a phone-number parameter of any kind, never a
+  client-supplied one. On success, a shared `_finalize_claim` helper (also called by the admin-approval fallback
+  path, so the two success paths can never drift apart) atomically claims the listing via a new conditional
+  `UPDATE ... WHERE is_claimed = false` (`ProviderRepository.try_claim_for_account`, mirroring VER-002's
+  `try_claim_for_review` race-fix, ADR-024), resets `verification_status=pending`/`is_discoverable=false` — the
+  same Verification gate a self-registered Business starts in — and grants `ROLE_PROVIDER`. A new
+  `administration.claim_review_requests` table and `AdminClaimService` (`/api/v1/admin/claims`, backend-API-only,
+  no dashboard UI, mirroring VER-002's precedent) back the fallback path when OTP verification fails or the
+  listing has no usable public number — recorded together with the finalization pattern as **ADR-030**. Once
+  claimed, subsequent re-syncs only backfill genuinely empty fields, never overwriting an owner's edits. A new,
+  additive `is_claimed: bool` field on `search.SearchResultProviderResponse` (DIR-001) lets the mobile Search
+  Results card render the locked "Unclaimed" banner. **Fixed during review (commit `0df2e48`):** the tester found
+  that the import-time synthetic `verification_records` row was not excluded from
+  `VerificationRecordRepository.get_latest_for_provider`, so it silently outlived the claim-time reset and
+  blocked a freshly claimed listing's first real verification submission with a 409, directly contradicting AC5's
+  "routes through the same Verification gate a self-registered Business would go through." Fixed by excluding any
+  record matching `status=approved AND reviewed_by IS NULL` — confirmed as the exact, exclusive signature of a
+  system-generated (never-human-reviewed) approval, since every real admin approval always sets `reviewed_by`.
+  This executes — does not resolve — the CTO's explicit risk-acceptance decision on the still-open Google Places
+  legal/UAE-PDPL question (`docs/AI/13_OPEN_DECISIONS.md` item 3).
+- Mobile claim-a-listing screens (Story CLM-001): a new, sibling `features/claim/` module — the Claim Search
+  screen (S-21, free-text search among unclaimed listings) and the Claim OTP screen (S-22, code entry with an
+  always-visible "This isn't working" admin-review-fallback link, never conditional on repeated failures), backed
+  by `claim_repository.dart` and Riverpod controllers. `features/search/`'s existing `ProviderSearchCard` (DIR-001)
+  now renders a full-width, solid Warning-color banner ("Unclaimed — Is this your business? Claim it") when a
+  result's `isClaimed` is `false`, navigating directly to the Claim OTP screen for that listing. A new secondary
+  entry point ("Already listed on Google? Claim your business") was added to the Home placeholder screen.
 - Category domain — build the real Category domain and seed the v1 launch taxonomy (Story CTG-001): a new
   `category` Postgres schema with `categories`, `category_question_templates`, and `provider_categories`
   (created empty) tables, all exactly per `04_DATABASE.md`'s pre-existing spec, via a new reversible Alembic
