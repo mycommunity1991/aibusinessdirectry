@@ -12,9 +12,11 @@ and AC6 (`search_event_log` written exactly once, regardless of origin).
 
 import uuid
 
+import pytest
 from sqlalchemy import select
 
 from app.core.exceptions import (
+    InvalidManualMatchProviderIdsError,
     ManualMatchAssignmentNotFoundError,
     SearchRequestNotFoundError,
 )
@@ -333,6 +335,57 @@ class TestResolveManualMatch:
             raise AssertionError("expected ManualMatchAssignmentNotFoundError")
         except ManualMatchAssignmentNotFoundError:
             pass
+
+    async def test_a_bogus_provider_id_raises_invalid_provider_ids_before_any_write(
+        self, db_session
+    ) -> None:
+        """A non-existent `provider_id` is rejected before any of
+        `_finalize_matches`'s mutations happen -- the assignment must
+        still be `pending` and no `search_event_log` row is written."""
+        user = await create_user(db_session, "920000024")
+        profile = await create_customer_profile(db_session, user)
+        category = await create_category(db_session, name="Plumbing")
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        search_request = await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="routed_to_admin",
+            category_id=category.id,
+            category_name="Plumbing",
+            structured_criteria=None,
+        )
+        await db_session.commit()
+
+        assignment_result = await db_session.execute(
+            select(ManualMatchAssignment).where(
+                ManualMatchAssignment.conversation_session_id == session.id
+            )
+        )
+        assignment = assignment_result.scalar_one()
+        admin = await create_user(db_session, "920000025")
+
+        with pytest.raises(InvalidManualMatchProviderIdsError):
+            await service.resolve_manual_match(
+                assignment.id,
+                admin_user_id=admin.id,
+                provider_ids=[uuid.uuid4()],
+            )
+
+        refreshed_assignment = await db_session.get(
+            ManualMatchAssignment, assignment.id
+        )
+        assert refreshed_assignment.status == "pending"
+
+        log_result = await db_session.execute(
+            select(SearchEventLog).where(
+                SearchEventLog.search_request_id == search_request.id
+            )
+        )
+        assert log_result.scalars().all() == []
 
 
 class TestGetResultForCustomer:

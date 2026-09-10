@@ -32,7 +32,6 @@ from app.modules.administration.repositories.manual_match_assignment_repository 
 )
 
 _STATUS_PENDING = "pending"
-_STATUS_COMPLETED = "completed"
 
 
 class ManualMatchAssignmentService:
@@ -89,18 +88,32 @@ class ManualMatchAssignmentService:
         rejected rather than silently double-finalizing the underlying
         `search_requests`/`provider_matches` state (AC4/AC6's "identical
         shape, exactly once" guarantee).
+
+        Looks the assignment up first (404 if it doesn't exist at all),
+        then atomically claims it via `ManualMatchAssignmentRepository.
+        try_resolve` -- a single conditional `UPDATE` that only succeeds
+        if the assignment is still `status=pending` at the moment it
+        executes, closing the read-then-write race window a plain
+        fetch-then-update would leave open between two admins
+        concurrently resolving the *same* queue item (mirrors
+        `AdminVerificationService.approve`/`reject`'s identical
+        `try_claim_for_review` pattern, VER-002). Raises 409 if the claim
+        is lost (already resolved by this call or a concurrent one), and
+        refreshes `assignment` in place so its Python attributes reflect
+        the just-applied transition before returning it.
         """
         assignment = await self.repository.get_by_id(assignment_id)
         if assignment is None:
             raise ManualMatchAssignmentNotFoundError()
-        if assignment.status != _STATUS_PENDING:
+
+        completed_at = datetime.now(UTC)
+        resolved = await self.repository.try_resolve(
+            assignment_id,
+            admin_user_id=admin_user_id,
+            completed_at=completed_at,
+        )
+        if not resolved:
             raise ManualMatchAssignmentAlreadyResolvedError()
 
-        return await self.repository.update(
-            assignment,
-            {
-                "status": _STATUS_COMPLETED,
-                "assigned_admin_id": admin_user_id,
-                "completed_at": datetime.now(UTC),
-            },
-        )
+        await self.repository.session.refresh(assignment)
+        return assignment

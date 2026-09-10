@@ -7,9 +7,12 @@ Integration tests for `ManualMatchAssignmentService`/
 the fourth application of the same passive-queue-row shape.
 """
 
+import asyncio
 import uuid
+from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import (
     ManualMatchAssignmentAlreadyResolvedError,
@@ -192,3 +195,101 @@ class TestResolve:
         result = await service.get_by_id(uuid.uuid4())
 
         assert result is None
+
+
+class TestTryResolveAtomicity:
+    """
+    Proves `ManualMatchAssignmentRepository.try_resolve`'s conditional
+    `UPDATE ... WHERE status = 'pending'` predicate genuinely closes the
+    read-then-write race a plain fetch-then-update left open (the
+    already-fixed sequential double-call bug, commit `9e92438`, does not
+    close this: two truly concurrent `resolve` calls on the *same*
+    assignment could still both pass a Python-level status check before
+    either committed).
+    """
+
+    async def test_second_sequential_try_resolve_call_returns_false(
+        self, db_session
+    ) -> None:
+        """The minimal, single-session proof the atomic predicate itself
+        works: once the first `UPDATE` has committed the row out of
+        `pending`, a second call's `WHERE status = 'pending'` predicate
+        matches zero rows."""
+        user = await _make_user(db_session, "910000009")
+        admin = await _make_user(db_session, "910000010")
+        profile = await _make_customer_profile(db_session, user)
+        session = await _make_conversation_session(db_session, profile.id)
+        service = _service(db_session)
+        assignment = await service.create(
+            conversation_session_id=session.id, search_request_id=None
+        )
+        await db_session.commit()
+
+        first = await service.repository.try_resolve(
+            assignment.id,
+            admin_user_id=admin.id,
+            completed_at=datetime.now(UTC),
+        )
+        await db_session.commit()
+
+        second = await service.repository.try_resolve(
+            assignment.id,
+            admin_user_id=admin.id,
+            completed_at=datetime.now(UTC),
+        )
+        await db_session.commit()
+
+        assert first is True
+        assert second is False
+
+    async def test_two_concurrent_resolve_calls_on_the_same_assignment_only_one_wins(
+        self, db_engine: AsyncEngine, db_session
+    ) -> None:
+        """
+        The genuine concurrency proof: two truly concurrent `resolve()`
+        calls on the *same* assignment, each via its own independent
+        `AsyncSession`/transaction, must result in exactly one winner and
+        one `ManualMatchAssignmentAlreadyResolvedError` -- never both
+        silently "succeeding" (which would append a second, duplicate
+        `provider_matches` batch and a second `search_event_log` row for
+        one `search_requests` row). Mirrors `test_admin_claim_service.
+        py`'s `TestConcurrentClaimRace` and `test_admin_verification_
+        service.py`'s `TestConcurrentApprovalRace`.
+        """
+        user = await _make_user(db_session, "910000011")
+        admin_a = await _make_user(db_session, "910000012")
+        admin_b = await _make_user(db_session, "910000013")
+        profile = await _make_customer_profile(db_session, user)
+        session = await _make_conversation_session(db_session, profile.id)
+        service = _service(db_session)
+        assignment = await service.create(
+            conversation_session_id=session.id, search_request_id=None
+        )
+        await db_session.commit()
+
+        session_factory = async_sessionmaker(bind=db_engine, expire_on_commit=False)
+
+        async def _attempt(admin_id: uuid.UUID) -> str:
+            async with session_factory() as attempt_session:
+                attempt_service = ManualMatchAssignmentService(
+                    ManualMatchAssignmentRepository(attempt_session)
+                )
+                try:
+                    await attempt_service.resolve(assignment.id, admin_user_id=admin_id)
+                    await attempt_session.commit()
+                    return "resolved"
+                except ManualMatchAssignmentAlreadyResolvedError:
+                    await attempt_session.rollback()
+                    return "conflict"
+
+        results = await asyncio.gather(_attempt(admin_a.id), _attempt(admin_b.id))
+
+        assert sorted(results) == ["conflict", "resolved"]
+
+        async with session_factory() as verify_session:
+            refreshed = await ManualMatchAssignmentRepository(verify_session).get_by_id(
+                assignment.id
+            )
+        assert refreshed is not None
+        assert refreshed.status == "completed"
+        assert refreshed.assigned_admin_id in {admin_a.id, admin_b.id}

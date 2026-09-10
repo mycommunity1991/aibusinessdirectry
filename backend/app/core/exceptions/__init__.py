@@ -16,6 +16,7 @@ from app.core.exceptions.exceptions import (
     InsufficientRoleError,
     InvalidCategoryLabelsError,
     InvalidIdentityTokenError,
+    InvalidManualMatchProviderIdsError,
     InvalidOtpError,
     InvalidPortfolioReorderError,
     InvalidPortfolioUploadError,
@@ -84,4 +85,5 @@ __all__ = [
     "ManualMatchAssignmentNotFoundError",
     "ManualMatchAssignmentAlreadyResolvedError",
     "SearchRequestNotFoundError",
+    "InvalidManualMatchProviderIdsError",
 ]

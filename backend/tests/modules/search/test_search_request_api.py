@@ -433,3 +433,35 @@ class TestAdminResolveManualMatch:
         )
 
         assert response.status_code == 404
+
+    async def test_a_bogus_provider_id_returns_422_not_500(
+        self, client: TestClient, db_session
+    ) -> None:
+        """
+        `08_CODING_STANDARDS.md`'s "validate every endpoint's input"
+        rule: a non-existent `provider_id` in the admin-supplied
+        `provider_ids` list must be rejected as an actionable 422
+        *before* `ProviderMatchRepository.bulk_create`'s FK constraint
+        would otherwise surface it as an opaque 500.
+        """
+        user = await create_user(db_session, "930000047")
+        admin = await create_user(db_session, "930000048")
+        _search_request, assignment = await _create_pending_manual_match(
+            db_session, user
+        )
+        bogus_provider_id = uuid.uuid4()
+
+        response = client.post(
+            f"/api/v1/admin/search/manual-matches/{assignment.id}/resolve",
+            headers=_headers(admin.id, [ROLE_ADMIN]),
+            json={"provider_ids": [str(bogus_provider_id)]},
+        )
+
+        assert response.status_code == 422
+
+        # The assignment must still be `pending` -- a rejected (422)
+        # payload must not have resolved it or written anything.
+        from app.modules.administration.models import ManualMatchAssignment
+
+        refreshed = await db_session.get(ManualMatchAssignment, assignment.id)
+        assert refreshed.status == "pending"

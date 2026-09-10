@@ -1,7 +1,45 @@
 # Checkpoint — Sprint 07, Story AI-002 (Receive Matches Even When AI Confidence Is Low)
 
-**Written by:** `frontend` agent
-**Status:** Mobile (frontend) implementation complete. Backend already merged (`eb34f38`). Next: `tester`, then `architect`, then pause for user sign-off before `tech-lead` writes the Walkthrough / updates the tracker.
+**Written by:** `frontend` agent (mobile section below); addendum by `backend` agent (this section)
+**Status:** Mobile (frontend) implementation complete. `architect`'s backend review flagged two findings
+(concurrency race in `ManualMatchAssignmentService.resolve`, missing `provider_ids` validation on the manual
+resolve endpoint) — both fixed by `backend` (see addendum immediately below). Next: re-run `tester`/`architect`
+on the backend diff, then pause for user sign-off before `tech-lead` writes the Walkthrough / updates the tracker.
+
+---
+
+## Backend addendum (`backend` agent) — architect review findings fixed
+
+**Finding 1 (concurrency race, Medium):** `ManualMatchAssignmentService.resolve()` previously did a
+read-then-write (`get_by_id` -> Python status check -> `repository.update`), leaving a genuine TOCTOU race for
+two concurrent admins resolving the same assignment. Fixed by adding
+`ManualMatchAssignmentRepository.try_resolve()` — a single atomic conditional `UPDATE ... WHERE status =
+'pending'`, checking `rowcount == 1` — mirroring `ProviderRepository.try_claim_for_account` (CLM-001) and
+`VerificationRecordRepository.try_claim_for_review` (VER-002) exactly. `resolve()` now calls this atomic method
+and raises `ManualMatchAssignmentAlreadyResolvedError` on `False`.
+
+**Finding 2 (missing input validation, Low):** `SearchRequestService.resolve_manual_match` never validated
+admin-supplied `provider_ids` before writing `provider_matches`, so a bogus id surfaced as a 500 (FK violation)
+instead of a 400/422. Fixed by validating every id against `ProviderService.list_by_ids` (existing method,
+reused unchanged) before any mutation, raising the new `InvalidManualMatchProviderIdsError` (422) otherwise.
+
+**Files touched:**
+- `backend/app/modules/administration/repositories/manual_match_assignment_repository.py` — added `try_resolve`.
+- `backend/app/modules/administration/services/manual_match_assignment_service.py` — `resolve()` now uses
+  `try_resolve` instead of read-then-write.
+- `backend/app/modules/search/services/search_request_service.py` — `resolve_manual_match` validates
+  `provider_ids` up front via `ProviderService.list_by_ids`.
+- `backend/app/core/exceptions/exceptions.py` / `backend/app/core/exceptions/__init__.py` — new
+  `InvalidManualMatchProviderIdsError` (422).
+- Tests: `backend/tests/modules/administration/test_manual_match_assignment_service.py` (new
+  `TestTryResolveAtomicity` — sequential + true two-independent-session concurrency proof),
+  `backend/tests/modules/search/test_search_request_service.py` (new bogus-provider-id test),
+  `backend/tests/modules/search/test_search_request_api.py` (new bogus-provider-id 422 HTTP test).
+
+**Verification:** 658/658 backend tests pass (654 baseline + 4 new), `ruff check`/`ruff format --check` clean on
+all touched files. Neither fix changes the valid-input resolve path's behavior or response shape.
+
+---
 
 ---
 

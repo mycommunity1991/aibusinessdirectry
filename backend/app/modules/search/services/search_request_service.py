@@ -31,6 +31,7 @@ from typing import Any
 from app.core.authorization import ensure_owner_or_not_found
 from app.core.config import settings
 from app.core.exceptions import (
+    InvalidManualMatchProviderIdsError,
     ManualMatchAssignmentNotFoundError,
     SearchRequestNotFoundError,
 )
@@ -275,7 +276,22 @@ class SearchRequestService:
         double-finalizing: a rejected (409) second attempt must not
         write a second `search_event_log` row or append a second set of
         `provider_matches` rows.
+
+        Validates every id in `provider_ids` against a real `providers`
+        row **before** any of the above mutations happen (`08_CODING_
+        STANDARDS.md`'s "validate every endpoint's input" rule) --
+        raises `InvalidManualMatchProviderIdsError` (422) for a bogus id
+        rather than letting `ProviderMatchRepository.bulk_create`'s FK
+        constraint surface it as an opaque 500. Reuses `ProviderService.
+        list_by_ids` (the same batch-existence lookup `get_matched_
+        providers` and VER-002 already use) rather than a new query.
         """
+        if provider_ids:
+            existing_providers = await self.provider_service.list_by_ids(provider_ids)
+            existing_ids = {provider.id for provider in existing_providers}
+            if any(provider_id not in existing_ids for provider_id in provider_ids):
+                raise InvalidManualMatchProviderIdsError()
+
         assignment = await self.manual_match_assignment_service.get_by_id(assignment_id)
         if assignment is None:
             raise ManualMatchAssignmentNotFoundError()

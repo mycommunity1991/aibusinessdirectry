@@ -608,6 +608,25 @@ class SearchRequestNotFoundError(BusinessException):
         super().__init__(message=message, status_code=404)
 
 
+class InvalidManualMatchProviderIdsError(BusinessException):
+    """
+    Raised by `SearchRequestService.resolve_manual_match` (AI-002) when
+    the admin-supplied `provider_ids` list contains one or more ids that
+    don't correspond to a real `providers` row -- validated **before**
+    `_finalize_matches`/`ProviderMatchRepository.bulk_create` ever runs,
+    so a bogus id is rejected as an actionable 422 rather than
+    surfacing as an opaque 500 from the underlying FK constraint
+    violation (`08_CODING_STANDARDS.md`'s "validate every endpoint's
+    input" rule).
+    """
+
+    def __init__(
+        self,
+        message: str = ("One or more of the submitted provider ids does not exist."),
+    ):
+        super().__init__(message=message, status_code=422)
+
+
 class InvalidSearchRadiusError(BusinessException):
     """
     Raised by `GET /search/providers` (DIR-001, Backend Proposed Changes
