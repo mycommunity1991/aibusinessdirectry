@@ -22,6 +22,8 @@ from app.modules.conversation.services.conversation_ai_client import (
 from app.modules.conversation.services.conversation_service import ConversationService
 from app.modules.customer.dependencies import get_customer_service
 from app.modules.customer.services.customer_service import CustomerService
+from app.modules.search.dependencies import get_search_request_service
+from app.modules.search.services.search_request_service import SearchRequestService
 
 
 def get_conversation_session_repository(
@@ -73,10 +75,14 @@ def get_conversation_service(
     ],
     customer_service: Annotated[CustomerService, Depends(get_customer_service)],
     category_service: Annotated[CategoryService, Depends(get_category_service)],
+    search_request_service: Annotated[
+        SearchRequestService, Depends(get_search_request_service)
+    ],
 ) -> ConversationService:
     """Provides a `ConversationService` bound to the request-scoped DB
-    session, with `CustomerService`/`CategoryService` (Decision 3) wired
-    as cross-module, constructor-injected dependencies."""
+    session, with `CustomerService`/`CategoryService` (Decision 3,
+    AI-001) and `SearchRequestService` (`search`, Decision 1, AI-002)
+    wired as cross-module, constructor-injected dependencies."""
     return ConversationService(
         conversation_session_repository=conversation_session_repository,
         message_repository=message_repository,
@@ -84,4 +90,5 @@ def get_conversation_service(
         conversation_ai_client=conversation_ai_client,
         customer_service=customer_service,
         category_service=category_service,
+        search_request_service=search_request_service,
     )

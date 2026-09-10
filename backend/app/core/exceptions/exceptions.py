@@ -568,6 +568,46 @@ class InvalidStructuredCriteriaError(BusinessException):
         super().__init__(message=message, status_code=500)
 
 
+class ManualMatchAssignmentNotFoundError(BusinessException):
+    """
+    Raised by `ManualMatchAssignmentService`/`SearchRequestService`
+    (AI-002, Decision 3, `Plan_S07_AI-002.md`) when a
+    `manual_match_assignments` row does not exist for the given id.
+    """
+
+    def __init__(self, message: str = "Manual match assignment not found."):
+        super().__init__(message=message, status_code=404)
+
+
+class ManualMatchAssignmentAlreadyResolvedError(BusinessException):
+    """
+    Raised by `ManualMatchAssignmentService.resolve` (AI-002, Decision 3)
+    when an assignment whose `status` is already `completed` is resolved
+    again -- rejected rather than silently double-finalizing the
+    underlying `search_requests`/`provider_matches` state (AC4/AC6's
+    "identical shape, exactly once" guarantee).
+    """
+
+    def __init__(
+        self,
+        message: str = "This manual match assignment has already been resolved.",
+    ):
+        super().__init__(message=message, status_code=409)
+
+
+class SearchRequestNotFoundError(BusinessException):
+    """
+    Raised by `SearchRequestService` (AI-002, Decision 6, ADR-015) when a
+    `search_requests` row either doesn't exist at all, or exists but is
+    not owned by the requesting customer -- collapses both cases into
+    the same 404, mirroring `ConversationSessionNotFoundError`'s
+    non-revealing design exactly.
+    """
+
+    def __init__(self, message: str = "Search request not found."):
+        super().__init__(message=message, status_code=404)
+
+
 class InvalidSearchRadiusError(BusinessException):
     """
     Raised by `GET /search/providers` (DIR-001, Backend Proposed Changes

@@ -144,6 +144,14 @@ class Settings(BaseSettings):
     CONVERSATION_CONFIDENCE_THRESHOLD: float = 1.0
     CONVERSATION_MAX_TURNS: int = 12
 
+    # Automated matching cap (AI-002, Decision 5, `Plan_S07_AI-002.md`)
+    # -- bounds how many nearest-first `SearchService` results become
+    # `provider_matches` rows for a single `search_requests` row. No
+    # merit-ranking algorithm exists yet (the Review domain hasn't
+    # shipped), so this is a plain result-count cap, not a quality
+    # threshold.
+    AI_MATCH_MAX_RESULTS: int = 10
+
     # Config dict to support loading from parent .env or current .env
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

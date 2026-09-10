@@ -38,6 +38,23 @@ class SavedAddressService:
         profile, _preferences = await self.customer_service.get_my_profile(user_id)
         return list(await self.saved_address_repository.list_for_customer(profile.id))
 
+    async def list_for_customer(self, customer_id: uuid.UUID) -> list[SavedAddress]:
+        """
+        Lists a customer's active addresses given its `customer_profiles.
+        id` directly (AI-002, Decision 1's `search -> customer` edge,
+        `Plan_S07_AI-002.md`) -- distinct from `list_my_addresses`, which
+        takes the raw `identity.users.id` and resolves it via
+        `CustomerService.get_my_profile`. `SearchRequestService` only
+        ever has the already-resolved `customer_id` in hand (from
+        `conversation_sessions.customer_id`, itself already a
+        `customer_profiles.id`), never the original `user_id`, so this
+        thin, direct read avoids an unnecessary/impossible-to-satisfy
+        `get_my_profile` round trip. `SearchRequestService` filters the
+        result for `is_default=true` itself (Decision 2c) -- this method
+        makes no assumption about which address the caller wants.
+        """
+        return list(await self.saved_address_repository.list_for_customer(customer_id))
+
     async def create_address(
         self, user_id: uuid.UUID, *, fields: dict[str, Any]
     ) -> SavedAddress:

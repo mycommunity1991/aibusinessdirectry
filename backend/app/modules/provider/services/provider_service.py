@@ -505,6 +505,32 @@ class ProviderService:
         )
         return {profile.provider_id: profile for profile in profiles}
 
+    async def get_locations_by_provider_id(
+        self, provider_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, tuple[float, float]]:
+        """
+        Batch-resolves each provider's `(latitude, longitude)` in one
+        query, from `service_areas.center_latitude/center_longitude`
+        (AI-002, `Plan_S07_AI-002.md`, Decision 6) -- deliberately not
+        `business_profiles`/`freelancer_profiles`: `service_areas` is the
+        exact location `ProviderSearchRepository.search_nearby`'s
+        geospatial query itself matches/ranks against, so recomputing
+        `distance_meters` against it (for `GET /search-requests/{id}`)
+        stays consistent with what the automated matcher actually used,
+        for both automated- and manually-matched providers alike. A
+        provider with no `service_areas` row yet (should not occur for a
+        real, discoverable provider) is simply absent from the returned
+        mapping -- an honest "location unknown", never a fabricated
+        `(0, 0)`.
+        """
+        service_areas = await self.service_area_repository.list_by_provider_ids(
+            provider_ids
+        )
+        return {
+            area.provider_id: (area.center_latitude, area.center_longitude)
+            for area in service_areas
+        }
+
     async def create_provider(
         self, user_id: uuid.UUID, *, payload: CreateProviderRequest
     ) -> Provider:

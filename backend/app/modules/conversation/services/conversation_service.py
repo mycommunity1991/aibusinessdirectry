@@ -1,16 +1,23 @@
 """
-`ConversationService` (AI-001) -- orchestrates a guided AI-intake
+`ConversationService` (AI-001/AI-002) -- orchestrates a guided AI-intake
 conversation end to end: starting a session, submitting turns, revising
 a previous answer, and reading a session back.
 
 Depends on the `ConversationAiClient` Protocol only (Decision 2) --
 never a concrete client -- and on `CustomerService`/`CategoryService`
 (Decision 3, cross-module, constructor-injected, same-session, mirroring
-ADR-014/ADR-016 exactly). Never writes to `search.search_requests` or
-`administration.manual_match_assignments` (Decision 1's scope boundary):
-this story's entire output is `conversation_sessions.status ∈
-{completed, routed_to_admin}` and, for a `completed` session, its
-validated `structured_criteria` payload (Decision 1b, AC9).
+ADR-014/ADR-016 exactly).
+
+**AI-002 (`Plan_S07_AI-002.md`, Decision 1) extends this service with
+one new cross-module dependency, `SearchRequestService` (`search`)** --
+the single call site is inside `_apply_completion_policy`, immediately
+after a session transitions to `completed` **or** `routed_to_admin`;
+both branches call the same `search_request_service.
+handle_session_completed(...)`, passing only plain primitives (never a
+`ConversationSession` ORM object) so `search` has zero imports from
+`conversation`. This is what makes AC2 ("never left in limbo") and AC4/
+AC6 (the automated and manual paths sharing one finalization mechanism)
+true from the conversation side.
 """
 
 import uuid
@@ -52,6 +59,7 @@ from app.modules.conversation.services.structured_criteria import (
 )
 from app.modules.customer.services.customer_service import CustomerService
 from app.modules.identity.models import LanguageCode
+from app.modules.search.services.search_request_service import SearchRequestService
 
 TemplatesByCategory = dict[uuid.UUID, list[CategoryQuestionTemplate]]
 
@@ -69,11 +77,18 @@ class ConversationTurnView:
     history -- side-effect-free and deterministic for this story's
     rule-based client, so it reproduces the exact same result without
     creating a new message or confidence row.
+
+    `search_request_id` (AI-002, Decision 6) is similarly not a
+    persisted column on `ConversationSession` -- it is looked up from
+    `search.search_requests.conversation_session_id` (the reverse FK)
+    via `SearchRequestService.get_search_request_id_for_session` every
+    time a view is built, `None` while the session is still `active`.
     """
 
     session: ConversationSession
     messages: list[Message]
     quick_reply_options: list[str] | None
+    search_request_id: uuid.UUID | None
 
 
 class ConversationService:
@@ -87,6 +102,7 @@ class ConversationService:
         conversation_ai_client: ConversationAiClient,
         customer_service: CustomerService,
         category_service: CategoryService,
+        search_request_service: SearchRequestService,
     ) -> None:
         self.conversation_session_repository = conversation_session_repository
         self.message_repository = message_repository
@@ -94,6 +110,7 @@ class ConversationService:
         self.conversation_ai_client = conversation_ai_client
         self.customer_service = customer_service
         self.category_service = category_service
+        self.search_request_service = search_request_service
 
     async def start_conversation(
         self, user_id: uuid.UUID, *, message: str
@@ -348,8 +365,16 @@ class ConversationService:
         self, session: ConversationSession, *, quick_reply_options: list[str] | None
     ) -> ConversationTurnView:
         messages = list(await self.message_repository.list_for_session(session.id))
+        search_request_id = (
+            await self.search_request_service.get_search_request_id_for_session(
+                session.id
+            )
+        )
         return ConversationTurnView(
-            session=session, messages=messages, quick_reply_options=quick_reply_options
+            session=session,
+            messages=messages,
+            quick_reply_options=quick_reply_options,
+            search_request_id=search_request_id,
         )
 
     async def _process_turn(
@@ -402,10 +427,20 @@ class ConversationService:
         templates_by_category: TemplatesByCategory,
     ) -> ConversationSession:
         """
-        Decision 4: confidence-threshold completion first, then the hard
-        turn cap. Both are one-way transitions out of `active` -- this
-        never re-fires on a session that is already
+        Decision 4 (`AI-001`): confidence-threshold completion first,
+        then the hard turn cap. Both are one-way transitions out of
+        `active` -- this never re-fires on a session that is already
         `completed`/`routed_to_admin`.
+
+        **AI-002, Decision 1:** immediately after either transition, calls
+        `search_request_service.handle_session_completed(...)` -- the
+        single call site wiring `conversation -> search`. Both branches
+        call the same method, passing only plain primitives (never the
+        `ConversationSession` ORM object itself), so a `search_requests`
+        row (and, for the low-confidence path, a
+        `manual_match_assignments` row) always exists the moment a
+        session leaves `active` -- AC2's "never left in limbo with no
+        next step."
         """
         if session.status != ConversationStatus.ACTIVE:
             return session
@@ -416,17 +451,46 @@ class ConversationService:
             and session.final_confidence_score
             >= settings.CONVERSATION_CONFIDENCE_THRESHOLD
         ):
-            return await self._complete_session(
+            completed = await self._complete_session(
                 session, categories, templates_by_category
             )
+            await self._handoff_to_search(completed, categories)
+            return completed
 
         turn_count = await self._count_customer_turns(session.id)
         if turn_count >= settings.CONVERSATION_MAX_TURNS:
-            return await self.conversation_session_repository.update_status(
+            routed = await self.conversation_session_repository.update_status(
                 session, ConversationStatus.ROUTED_TO_ADMIN
             )
+            await self._handoff_to_search(routed, categories)
+            return routed
 
         return session
+
+    async def _handoff_to_search(
+        self, session: ConversationSession, categories: list[Category]
+    ) -> None:
+        """
+        AI-002, Decision 1's single `conversation -> search` call site.
+        `search` receives plain primitives only (`session.id`, `session.
+        customer_id`, `category_id`, `category_name`, `structured_
+        criteria`, and `session.status.value`, a plain string) -- never a
+        `ConversationSession` ORM object -- so `search` has zero imports
+        from `conversation`. `category_name` is `None` for the rare
+        `routed_to_admin` session that hit `AI-001`'s hard turn cap
+        without ever resolving a category at all.
+        """
+        category_name = next(
+            (c.name for c in categories if c.id == session.category_id), None
+        )
+        await self.search_request_service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=session.customer_id,
+            status=session.status.value,
+            category_id=session.category_id,
+            category_name=category_name,
+            structured_criteria=session.structured_criteria,
+        )
 
     async def _complete_session(
         self,

@@ -54,6 +54,8 @@ from app.modules.customer.repositories.customer_profile_repository import (
 from app.modules.customer.services.customer_service import CustomerService
 from app.modules.identity.models import AuthProvider, User
 
+from ._search_request_service_helper import make_search_request_service
+
 PHONE_COUNTRY_CODE = "+971"
 
 
@@ -110,6 +112,7 @@ def _make_service(db_session) -> ConversationService:
             CategoryRepository(db_session),
             CategoryQuestionTemplateRepository(db_session),
         ),
+        search_request_service=make_search_request_service(db_session),
     )
 
 
@@ -339,9 +342,7 @@ class TestReviseAnswer:
             user.id, after_first_answer.session.id, content="Very urgent"
         )
         assert completed.session.status == ConversationStatus.COMPLETED
-        truncated_ids = {
-            m.id for m in completed.messages if m.sequence_number > 3
-        }
+        truncated_ids = {m.id for m in completed.messages if m.sequence_number > 3}
         assert truncated_ids  # sanity: there is something to truncate
 
         answer_to_q0 = next(

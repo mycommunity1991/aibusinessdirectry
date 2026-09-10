@@ -89,6 +89,14 @@ class ConversationSessionResponse(BaseModel):
     user-facing states -- satisfying AC6's "never shows a raw confidence
     score to the user" at the API-contract level, not merely by the
     mobile UI choosing not to render a field it could otherwise see.
+
+    `search_request_id` (AI-002, `Plan_S07_AI-002.md`, Decision 6) is the
+    only field this story adds -- **never** a confidence value, so AC6
+    (`AI-001`) and this story's own AC3 remain intact. Populated once
+    `status` reaches `completed`/`routed_to_admin`, `None` while
+    `active`/`abandoned` -- lets the mobile client fetch `GET
+    /search-requests/{id}` for the ranked-results screen, identical
+    whether the eventual match was automated or manual (AC4).
     """
 
     id: uuid.UUID = Field(..., description="The session's unique identifier.")
@@ -105,5 +113,13 @@ class ConversationSessionResponse(BaseModel):
             "Chip choices for the current turn, if the AI expects a "
             "selection rather than free text. `None` when free text is "
             "expected, or when the session is no longer `active`."
+        ),
+    )
+    search_request_id: uuid.UUID | None = Field(
+        None,
+        description=(
+            "The `search.search_requests` row created for this session "
+            "once it leaves `active` (AI-002, Decision 6). `None` while "
+            "`active`/`abandoned`."
         ),
     )

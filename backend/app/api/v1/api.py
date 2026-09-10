@@ -7,7 +7,11 @@ from app.modules.identity.api import router as auth_router
 from app.modules.provider.admin_claim_api import router as admin_claim_router
 from app.modules.provider.api import router as provider_router
 from app.modules.provider.claim_api import router as claim_router
+from app.modules.search.admin_manual_match_api import (
+    router as admin_manual_match_router,
+)
 from app.modules.search.api import router as search_router
+from app.modules.search.search_request_api import router as search_request_router
 from app.modules.verification.admin_api import router as admin_verification_router
 from app.modules.verification.api import router as verification_router
 
@@ -24,3 +28,7 @@ v1_router.include_router(search_router, prefix="/search")
 v1_router.include_router(claim_router, prefix="/claims")
 v1_router.include_router(admin_claim_router, prefix="/admin/claims")
 v1_router.include_router(conversation_router, prefix="/conversations")
+v1_router.include_router(search_request_router, prefix="/search-requests")
+v1_router.include_router(
+    admin_manual_match_router, prefix="/admin/search/manual-matches"
+)

@@ -47,6 +47,8 @@ from app.modules.customer.repositories.customer_profile_repository import (
 from app.modules.customer.services.customer_service import CustomerService
 from app.modules.identity.models import AuthProvider, User
 
+from ._search_request_service_helper import make_search_request_service
+
 
 class TestStructuredCriteriaValidation:
     def test_accepts_a_well_formed_payload(self) -> None:
@@ -163,6 +165,7 @@ def _make_service(db_session) -> ConversationService:
             CategoryRepository(db_session),
             CategoryQuestionTemplateRepository(db_session),
         ),
+        search_request_service=make_search_request_service(db_session),
     )
 
 

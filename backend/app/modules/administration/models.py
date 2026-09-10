@@ -27,6 +27,8 @@ from app.database.mixins import CommonColumnsMixin
 SCHEMA = "administration"
 _IDENTITY_SCHEMA = "identity"
 _PROVIDER_SCHEMA = "provider"
+_CONVERSATION_SCHEMA = "conversation"
+_SEARCH_SCHEMA = "search"
 
 
 class AdminActionLog(CommonColumnsMixin, Base):
@@ -122,5 +124,54 @@ class ClaimReviewRequest(CommonColumnsMixin, Base):
         nullable=True,
     )
     reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class ManualMatchAssignment(CommonColumnsMixin, Base):
+    """
+    Wizard-of-Oz fallback queue row for a low-confidence
+    `ConversationSession` (AI-002, Decision 3, `Plan_S07_AI-002.md`) --
+    a pull-based admin queue mirroring `ClaimReviewRequest`'s exact
+    shape (full `CommonColumnsMixin`, four explicit service methods, no
+    generic CRUD, `GET /admin/search/manual-matches` the "notify"
+    mechanism per `ADR-030`'s already-established "no push-notification
+    recipient concept exists" finding).
+
+    **`assigned_admin_id` is nullable -- a flagged deviation from
+    `04_DATABASE.md`'s current literal `NOT NULL` text (Decision 2a).**
+    `ADR-030` already found, in `CLM-001`'s context, that `NOT NULL`
+    here "doesn't fit 'an unassigned queue, any admin may pick up.'"
+    This story is the one that actually builds this table: the column
+    is populated only at resolution (the admin who resolved it), `NULL`
+    while `status = pending`, mirroring `claim_review_requests.
+    reviewed_by`'s exact nullable-until-resolved shape.
+    """
+
+    __tablename__ = "manual_match_assignments"
+    __table_args__ = (
+        Index("idx_manual_match_assignments_status", "status"),
+        {"schema": SCHEMA},
+    )
+
+    conversation_session_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{_CONVERSATION_SCHEMA}.conversation_sessions.id"),
+        nullable=False,
+    )
+    search_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{_SEARCH_SCHEMA}.search_requests.id"),
+        nullable=True,
+    )
+    assigned_admin_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{_IDENTITY_SCHEMA}.users.id"),
+        nullable=True,
+    )
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'pending'")
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

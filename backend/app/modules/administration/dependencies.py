@@ -12,11 +12,17 @@ from app.modules.administration.repositories.admin_action_log_repository import 
 from app.modules.administration.repositories.claim_review_request_repository import (
     ClaimReviewRequestRepository,
 )
+from app.modules.administration.repositories.manual_match_assignment_repository import (
+    ManualMatchAssignmentRepository,
+)
 from app.modules.administration.services.admin_action_log_service import (
     AdminActionLogService,
 )
 from app.modules.administration.services.claim_review_request_service import (
     ClaimReviewRequestService,
+)
+from app.modules.administration.services.manual_match_assignment_service import (
+    ManualMatchAssignmentService,
 )
 
 
@@ -57,3 +63,25 @@ def get_claim_review_request_service(
     `get_admin_action_log_service` is already imported by
     `verification/dependencies.py`."""
     return ClaimReviewRequestService(claim_review_request_repository)
+
+
+def get_manual_match_assignment_repository(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> ManualMatchAssignmentRepository:
+    """Provides a `ManualMatchAssignmentRepository` bound to the
+    request-scoped DB session (AI-002, Decision 3,
+    `Plan_S07_AI-002.md`)."""
+    return ManualMatchAssignmentRepository(db)
+
+
+def get_manual_match_assignment_service(
+    manual_match_assignment_repository: Annotated[
+        ManualMatchAssignmentRepository,
+        Depends(get_manual_match_assignment_repository),
+    ],
+) -> ManualMatchAssignmentService:
+    """Provides a `ManualMatchAssignmentService` bound to the
+    request-scoped DB session -- imported into `search/dependencies.py`
+    the same way `get_claim_review_request_service` is already imported
+    by `provider/dependencies.py`."""
+    return ManualMatchAssignmentService(manual_match_assignment_repository)

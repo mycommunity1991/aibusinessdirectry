@@ -30,6 +30,7 @@ def _to_response(view: ConversationTurnView) -> ConversationSessionResponse:
         category_id=view.session.category_id,
         messages=[message_to_response(m) for m in view.messages],
         quick_reply_options=view.quick_reply_options,
+        search_request_id=view.search_request_id,
     )
 
 

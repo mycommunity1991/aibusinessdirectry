@@ -90,31 +90,47 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
     schema/table this migration's foreign keys point at
     (`identity.users`, `provider.providers`) is created normally.
 
-    Also excludes `conversation` schema tables (AI-001): unrelated to
-    this migration under test, but `conversation.conversation_sessions`
-    has its own real FK into `category.categories` (Decision 3,
-    `Plan_S07_AI-001.md`) -- since `Base.metadata` is a single process-
-    global object, importing `app.modules.conversation.models` anywhere
-    else in the test session (e.g. `tests/modules/conversation/`)
-    registers that table here too; creating it before `category.
-    categories` exists would fail on that FK, exactly the same reason
-    `category` itself is excluded.
+    Also excludes `conversation` and `search` schema tables (AI-001/
+    AI-002): unrelated to this migration under test, but `conversation.
+    conversation_sessions` has its own real FK into `category.categories`
+    (Decision 3, `Plan_S07_AI-001.md`), and `search.search_requests` has
+    its own real FK into both `category.categories` and `conversation.
+    conversation_sessions` (Decision 2, `Plan_S07_AI-002.md`) -- since
+    `Base.metadata` is a single process-global object, importing
+    `app.modules.conversation.models`/`app.modules.search.models`
+    anywhere else in the test session (e.g. `tests/modules/conversation/`,
+    `tests/modules/search/`) registers those tables here too; creating
+    them before `category.categories` exists would fail on those FKs,
+    exactly the same reason `category` itself is excluded.
 
-    The `conversation` schema *namespace* (but none of its tables) is
-    still created here, though -- `conversation_sessions.status`/
-    `messages.sender` are native Postgres ENUM columns declared without
-    an explicit `metadata=` (matching every other domain's own enum
-    columns, e.g. `customer._notification_channel_enum()`), which makes
-    SQLAlchemy register their `CREATE`/`DROP TYPE` DDL as a
-    `Base.metadata`-wide `before_create`/`after_drop` event -- fired on
-    *every* `Base.metadata.create_all()`/`drop_all()` call for the whole
-    process, regardless of the `tables=` filter passed to it. Once any
-    other test file imports `app.modules.conversation.models`, this
+    The `conversation`/`search` schema *namespaces* (but none of their
+    tables) are still created here, though -- `conversation_sessions.
+    status`/`messages.sender`/`search_requests.status` are native
+    Postgres ENUM columns declared without an explicit `metadata=`
+    (matching every other domain's own enum columns, e.g.
+    `customer._notification_channel_enum()`), which makes SQLAlchemy
+    register their `CREATE`/`DROP TYPE` DDL as a `Base.metadata`-wide
+    `before_create`/`after_drop` event -- fired on *every* `Base.metadata.
+    create_all()`/`drop_all()` call for the whole process, regardless of
+    the `tables=` filter passed to it. Once any other test file imports
+    `app.modules.conversation.models`/`app.modules.search.models`, this
     fixture's own `create_all(tables=non_category_tables)` call
-    (excluding the `conversation` schema's tables) still attempts
-    `CREATE TYPE conversation.conversation_status`/`message_sender` --
-    which fails unless the schema namespace itself already exists, even
-    though none of its tables are created here.
+    (excluding the `conversation`/`search` schemas' tables) still
+    attempts `CREATE TYPE conversation.conversation_status`/
+    `message_sender`/`search.search_request_status` -- which fails
+    unless the schema namespace itself already exists, even though none
+    of its tables are created here.
+
+    One further, table-level (not schema-level) exclusion is needed:
+    `administration.manual_match_assignments` (AI-002) lives in the
+    *included* `administration` schema, but has its own real FKs into
+    both excluded schemas (`conversation.conversation_sessions`,
+    `search.search_requests`) -- creating it here would fail on those
+    FKs the same way `category`/`conversation`/`search`'s own tables
+    would. Excluded by fully-qualified name rather than dropping all of
+    `administration`, since `admin_action_log`/`claim_review_requests`
+    (the schema's other two tables) have no such cross-schema FK and are
+    still needed, unmodified, by tests elsewhere in this fixture's scope.
     """
     import app.modules.administration.models  # noqa: F401
     import app.modules.audit.models  # noqa: F401
@@ -125,9 +141,12 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
     import app.modules.verification.models  # noqa: F401
     from app.database.base import Base
 
-    _excluded_schemas = {"category", "conversation"}
+    _excluded_schemas = {"category", "conversation", "search"}
+    _excluded_table_names = {"administration.manual_match_assignments"}
     non_category_tables = [
-        t for t in Base.metadata.sorted_tables if t.schema not in _excluded_schemas
+        t
+        for t in Base.metadata.sorted_tables
+        if t.schema not in _excluded_schemas and t.fullname not in _excluded_table_names
     ]
 
     engine = create_async_engine(TEST_DATABASE_URL, future=True)
@@ -141,9 +160,10 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS administration"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS notification"))
         # Namespace only (no tables) -- see this fixture's own docstring
-        # for why `conversation`'s native ENUM columns need this even
-        # though none of its tables are created here.
+        # for why `conversation`/`search`'s native ENUM columns need this
+        # even though none of their tables are created here.
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS conversation"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS search"))
         await conn.run_sync(
             lambda sync_conn: Base.metadata.create_all(
                 sync_conn, tables=non_category_tables
@@ -163,6 +183,7 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
             )
         )
         await conn.execute(text("DROP SCHEMA IF EXISTS conversation CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS search CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS identity CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS audit CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS customer CASCADE"))
@@ -252,8 +273,7 @@ def _inspect_after_upgrade(sync_conn: Connection) -> dict[str, Any]:
     inspector = inspect(sync_conn)
     return {
         "categories_columns": {
-            c["name"]: c
-            for c in inspector.get_columns("categories", schema="category")
+            c["name"]: c for c in inspector.get_columns("categories", schema="category")
         },
         "categories_unique_constraints": inspector.get_unique_constraints(
             "categories", schema="category"
@@ -327,9 +347,7 @@ class TestSchemaMatchesDatabaseDoc:
         ):
             assert common_column in columns
 
-        unique_names = {
-            uc["name"] for uc in info["categories_unique_constraints"]
-        }
+        unique_names = {uc["name"] for uc in info["categories_unique_constraints"]}
         assert "uq_categories_slug" in unique_names
 
         self_fk_columns = [
