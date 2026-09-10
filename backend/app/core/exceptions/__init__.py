@@ -3,12 +3,15 @@ Exceptions package providing centralized error handling.
 """
 
 from app.core.exceptions.exceptions import (
+    AnswerNotRevisableError,
     AuthenticationRequiredError,
     BusinessException,
     ClaimAlreadyClaimedError,
     ClaimPublicNumberUnavailableError,
     ClaimReviewRequestNotFoundError,
     ClaimTargetNotFoundError,
+    ConversationSessionNotActiveError,
+    ConversationSessionNotFoundError,
     ExpiredTokenError,
     InsufficientRoleError,
     InvalidCategoryLabelsError,
@@ -18,6 +21,7 @@ from app.core.exceptions.exceptions import (
     InvalidPortfolioUploadError,
     InvalidRefreshTokenError,
     InvalidSearchRadiusError,
+    InvalidStructuredCriteriaError,
     InvalidTokenError,
     OtpLockedError,
     PortfolioLimitExceededError,
@@ -70,4 +74,8 @@ __all__ = [
     "ClaimPublicNumberUnavailableError",
     "ClaimAlreadyClaimedError",
     "ClaimReviewRequestNotFoundError",
+    "ConversationSessionNotFoundError",
+    "ConversationSessionNotActiveError",
+    "AnswerNotRevisableError",
+    "InvalidStructuredCriteriaError",
 ]

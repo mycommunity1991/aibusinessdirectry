@@ -93,6 +93,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
     import app.modules.administration.models  # noqa: F401 - registers admin_action_log
     import app.modules.audit.models  # noqa: F401 - registers the audit_logs table
     import app.modules.category.models  # noqa: F401 - registers category tables
+    import app.modules.conversation.models  # noqa: F401 - registers conversation tables
     import app.modules.customer.models  # noqa: F401 - registers customer tables
     import app.modules.identity.models  # noqa: F401 - registers identity tables
     import app.modules.notification.models  # noqa: F401 - registers notification tables
@@ -106,6 +107,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS identity"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS audit"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS category"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS conversation"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS customer"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS provider"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS verification"))
@@ -120,6 +122,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("DROP SCHEMA IF EXISTS identity CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS audit CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS category CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS conversation CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS customer CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS provider CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS verification CASCADE"))
@@ -141,6 +144,11 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         Category,
         CategoryQuestionTemplate,
         ProviderCategory,
+    )
+    from app.modules.conversation.models import (
+        ConfidenceScore,
+        ConversationSession,
+        Message,
     )
     from app.modules.customer.models import (
         CustomerPreferences,
@@ -184,6 +192,9 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             AdminActionLog,
             ClaimReviewRequest,
             Notification,
+            ConfidenceScore,
+            Message,
+            ConversationSession,
             SavedAddress,
             CustomerPreferences,
             CustomerProfile,

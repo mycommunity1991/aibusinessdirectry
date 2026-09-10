@@ -132,6 +132,18 @@ class Settings(BaseSettings):
     # small, hence a tighter cap than `SEARCH_MAX_PAGE_SIZE`.
     CLAIM_SEARCH_MAX_PAGE_SIZE: int = 20
 
+    # AI Conversation intake (AI-001, Decision 4, `Plan_S07_AI-001.md`)
+    # -- config-driven, not code, mirroring VER-001's "business
+    # verification type is an app-config decision" precedent
+    # (`13_OPEN_DECISIONS.md` item 5), since item 10's "degree of manual
+    # matching" question remains genuinely open. `RuleBasedConversation
+    # AiClient` only ever produces `0.0`/`1.0`, so any threshold `<1.0`
+    # behaves identically to `1.0` today -- this setting exists now so a
+    # future real LLM's genuinely fractional confidence has something to
+    # compare against without a code change.
+    CONVERSATION_CONFIDENCE_THRESHOLD: float = 1.0
+    CONVERSATION_MAX_TURNS: int = 12
+
     # Config dict to support loading from parent .env or current .env
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

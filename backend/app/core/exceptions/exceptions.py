@@ -501,6 +501,73 @@ class ClaimReviewRequestNotFoundError(BusinessException):
         super().__init__(message=message, status_code=404)
 
 
+class ConversationSessionNotFoundError(BusinessException):
+    """
+    Raised by `ConversationService` (AI-001, ADR-015) when a
+    `conversation_sessions` row either doesn't exist at all, or exists
+    but is not owned by the requesting customer.
+
+    Deliberately collapses both cases into the same 404 rather than a
+    403 for the ownership case -- mirrors `SavedAddressNotFoundError`'s
+    non-revealing design exactly.
+    """
+
+    def __init__(self, message: str = "Conversation session not found."):
+        super().__init__(message=message, status_code=404)
+
+
+class ConversationSessionNotActiveError(BusinessException):
+    """
+    Raised by `ConversationService.submit_turn` (AI-001, Decision 4) when
+    a turn is submitted to a session whose `status` is anything other
+    than `active` (`completed`/`routed_to_admin`/`abandoned`) -- a
+    finished or superseded conversation cannot silently accept a new
+    turn.
+    """
+
+    def __init__(
+        self,
+        message: str = "This conversation is no longer active.",
+    ):
+        super().__init__(message=message, status_code=409)
+
+
+class AnswerNotRevisableError(BusinessException):
+    """
+    Raised by `ConversationService.revise_answer` (AI-001, Decision 5,
+    AC8) when the targeted `message_id` either doesn't exist in the
+    session at all, doesn't belong to `sender=customer`, or the session
+    itself is `abandoned` (superseded by a newer session -- "Start over"
+    is the intended path for a superseded conversation, not reviving it,
+    which would otherwise let a customer have two `active` sessions at
+    once).
+    """
+
+    def __init__(
+        self,
+        message: str = "That answer cannot be revised.",
+    ):
+        super().__init__(message=message, status_code=422)
+
+
+class InvalidStructuredCriteriaError(BusinessException):
+    """
+    Raised by `ConversationService` (AI-001, Decision 1b, AC9) when the
+    `StructuredCriteria` payload it built at session-completion time
+    fails Pydantic validation. Should never occur in correct code --
+    `ConversationService` constructs the payload itself from data it
+    already trusts -- but the validation gate is real, not decorative,
+    and this is surfaced as a distinct, loggable 500 rather than a raw
+    `pydantic.ValidationError` leaking out of the service layer.
+    """
+
+    def __init__(
+        self,
+        message: str = "Could not finalize this conversation's summary.",
+    ):
+        super().__init__(message=message, status_code=500)
+
+
 class InvalidSearchRadiusError(BusinessException):
     """
     Raised by `GET /search/providers` (DIR-001, Backend Proposed Changes
