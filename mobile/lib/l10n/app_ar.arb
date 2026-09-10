@@ -262,6 +262,7 @@
   "aiConversationSessionNotFoundMessage": "تعذر العثور على هذه المحادثة.",
   "aiConversationSessionNotActiveMessage": "انتهت هذه المحادثة بالفعل. ابدأ محادثة جديدة للمتابعة.",
   "aiConversationAnswerNotRevisableMessage": "لم يعد بالإمكان تعديل هذه الإجابة.",
+  "aiConversationValidationFailedMessage": "هذه الرسالة طويلة جدًا. يرجى اختصارها والمحاولة مرة أخرى.",
   "aiConversationTypingIndicatorLabel": "الذكاء الاصطناعي يكتب",
   "aiConversationTapToEditTooltip": "اضغط للتعديل"
 }

@@ -20,6 +20,8 @@ String conversationErrorMessage(
       l10n.aiConversationSessionNotActiveMessage,
     ConversationErrorType.answerNotRevisable =>
       l10n.aiConversationAnswerNotRevisableMessage,
+    ConversationErrorType.validationFailed =>
+      l10n.aiConversationValidationFailedMessage,
     ConversationErrorType.unknown => l10n.genericErrorMessage,
   };
 }

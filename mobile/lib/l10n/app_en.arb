@@ -985,6 +985,10 @@
   "@aiConversationAnswerNotRevisableMessage": {
     "description": "Plain-language message for the backend's 422 AnswerNotRevisableError (AI-001, AC8)."
   },
+  "aiConversationValidationFailedMessage": "That message is too long. Please shorten it and try again.",
+  "@aiConversationValidationFailedMessage": {
+    "description": "Plain-language message for a 422 RequestValidationError from POST /conversations, POST /conversations/{id}/messages, or GET /conversations/{id} -- a request-body validation failure (e.g. the 2000-character limit), unrelated to answer revision (AI-001)."
+  },
   "aiConversationTypingIndicatorLabel": "AI is typing",
   "@aiConversationTypingIndicatorLabel": {
     "description": "Screen-reader label for the 0-500ms/500ms-3s typing-indicator bubble (AI-001, AC6)."

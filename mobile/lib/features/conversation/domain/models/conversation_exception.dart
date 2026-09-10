@@ -18,13 +18,22 @@ enum ConversationErrorType {
   sessionNotActive,
 
   /// `message_id` does not reference an existing customer message in this
-  /// session, or the session can no longer be revised -- backend 422
-  /// (AC8, Decision 5).
+  /// session, or the session can no longer be revised -- backend 422 from
+  /// `PATCH /conversations/{id}/answers/{messageId}` specifically (AC8,
+  /// Decision 5). Never inferred from status code alone -- only that call
+  /// site maps its 422s here (see `ConversationRepository.reviseAnswer`).
   answerNotRevisable,
 
-  /// Anything else (validation, 401/403 the screen shouldn't normally hit
-  /// since it's only reachable while authenticated, 5xx, or an
-  /// unrecognized shape).
+  /// The request body failed backend field validation (a plain FastAPI
+  /// `RequestValidationError`, e.g. the 2000-character limit on
+  /// `StartConversationRequest.message`/`SubmitTurnRequest.content`) --
+  /// backend 422 from any endpoint *other than* the revise-answer one.
+  /// Semantically unrelated to [answerNotRevisable] even though both
+  /// arrive as HTTP 422.
+  validationFailed,
+
+  /// Anything else (401/403 the screen shouldn't normally hit since it's
+  /// only reachable while authenticated, 5xx, or an unrecognized shape).
   unknown,
 }
 

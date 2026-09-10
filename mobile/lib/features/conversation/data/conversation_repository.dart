@@ -30,7 +30,7 @@ class ConversationRepository {
       );
       return _sessionFromResponse(response);
     } on DioException catch (error) {
-      throw _mapError(error);
+      throw _mapError(error, isReviseCall: false);
     }
   }
 
@@ -54,7 +54,7 @@ class ConversationRepository {
       );
       return _sessionFromResponse(response);
     } on DioException catch (error) {
-      throw _mapError(error);
+      throw _mapError(error, isReviseCall: false);
     }
   }
 
@@ -75,7 +75,7 @@ class ConversationRepository {
       );
       return _sessionFromResponse(response);
     } on DioException catch (error) {
-      throw _mapError(error);
+      throw _mapError(error, isReviseCall: true);
     }
   }
 
@@ -88,7 +88,7 @@ class ConversationRepository {
       );
       return _sessionFromResponse(response);
     } on DioException catch (error) {
-      throw _mapError(error);
+      throw _mapError(error, isReviseCall: false);
     }
   }
 
@@ -102,7 +102,19 @@ class ConversationRepository {
     return ConversationSession.fromJson(data);
   }
 
-  ConversationException _mapError(DioException error) {
+  /// Maps a failed call's [DioException] to a plain-language
+  /// [ConversationException]. [isReviseCall] must be `true` only for
+  /// [reviseAnswer] -- it is the sole endpoint that can raise the backend's
+  /// `AnswerNotRevisableError`, so a 422 only means
+  /// [ConversationErrorType.answerNotRevisable] there. Every other call
+  /// site's 422 is a plain request-body validation failure
+  /// (`RequestValidationError`, e.g. a 2000-character limit) and must map
+  /// to [ConversationErrorType.validationFailed] instead -- the two share
+  /// an HTTP status code but mean unrelated things.
+  ConversationException _mapError(
+    DioException error, {
+    required bool isReviseCall,
+  }) {
     if (error.response == null) {
       return const ConversationException(type: ConversationErrorType.network);
     }
@@ -113,8 +125,10 @@ class ConversationRepository {
       409 => const ConversationException(
         type: ConversationErrorType.sessionNotActive,
       ),
-      422 => const ConversationException(
-        type: ConversationErrorType.answerNotRevisable,
+      422 => ConversationException(
+        type: isReviseCall
+            ? ConversationErrorType.answerNotRevisable
+            : ConversationErrorType.validationFailed,
       ),
       _ => const ConversationException(type: ConversationErrorType.unknown),
     };
