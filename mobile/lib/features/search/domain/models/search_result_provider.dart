@@ -59,7 +59,7 @@ class SearchResultProvider {
 
   /// `null` for essentially every provider today (no Review domain exists
   /// yet, Decision 2) -- rendering must show "No reviews yet" in that case,
-  /// never a synthesized `0.0`. See `provider_search_card.dart`.
+  /// never a synthesized `0.0`. See `provider_result_card.dart`.
   final double? averageRating;
   final int reviewCount;
 

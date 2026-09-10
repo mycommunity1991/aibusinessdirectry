@@ -107,7 +107,7 @@ class AppRoutes {
   /// deep link, mirroring [otpEntry]/[addressForm]'s `extra`-required
   /// pattern. Reachable two ways: from [claimSearch]'s "Select listing"
   /// action, or directly from the unclaimed banner on a search result
-  /// card (`ProviderSearchCard`, Decision 8) -- skipping [claimSearch]
+  /// card (`ProviderResultCard`, Decision 8) -- skipping [claimSearch]
   /// entirely, since the user already found that exact listing.
   static const String claimOtp = '/claim-otp';
 
