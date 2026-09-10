@@ -258,18 +258,23 @@ class SearchRequestService:
     ) -> SearchRequest:
         """
         The manual-resolution path (Decision 4): fetches the assignment,
-        finalizes its `search_requests` row via the **same**
-        `_finalize_matches` helper the automated path uses (an empty
-        `provider_ids` list is valid -- "no viable match found",
-        resolves to `unmatched`, not an error), then closes out the
-        assignment. `rank` is simply the admin's own supplied order --
-        never re-derived.
+        closes it out via `ManualMatchAssignmentService.resolve` **first**
+        -- so its already-resolved guard (`ManualMatchAssignmentAlready
+        ResolvedError`, 409) is the first thing that can fail, before any
+        `search_requests`/`provider_matches`/`search_event_log` mutation
+        happens -- then finalizes the `search_requests` row via the
+        **same** `_finalize_matches` helper the automated path uses (an
+        empty `provider_ids` list is valid -- "no viable match found",
+        resolves to `unmatched`, not an error). `rank` is simply the
+        admin's own supplied order -- never re-derived.
 
         Raises `ManualMatchAssignmentNotFoundError` (404) for an unknown
         id, or `ManualMatchAssignmentAlreadyResolvedError` (409, raised
         by `ManualMatchAssignmentService.resolve` itself) if the
         assignment was already resolved -- never silently
-        double-finalizing.
+        double-finalizing: a rejected (409) second attempt must not
+        write a second `search_event_log` row or append a second set of
+        `provider_matches` rows.
         """
         assignment = await self.manual_match_assignment_service.get_by_id(assignment_id)
         if assignment is None:
@@ -281,11 +286,10 @@ class SearchRequestService:
         if search_request is None:
             raise SearchRequestNotFoundError()
 
-        finalized = await self._finalize_matches(search_request, provider_ids)
         await self.manual_match_assignment_service.resolve(
             assignment_id, admin_user_id=admin_user_id
         )
-        return finalized
+        return await self._finalize_matches(search_request, provider_ids)
 
     # -- internal helpers -----------------------------------------------
 
