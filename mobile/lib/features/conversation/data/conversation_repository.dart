@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/models/conversation_exception.dart';
 import '../domain/models/conversation_session.dart';
+import '../domain/models/search_request_result.dart';
 
 /// Wraps the customer-facing AI-conversation endpoints (AI-001,
 /// `backend/app/modules/conversation/api.py`, mounted at `/conversations`).
@@ -87,6 +88,30 @@ class ConversationRepository {
         '/conversations/$sessionId',
       );
       return _sessionFromResponse(response);
+    } on DioException catch (error) {
+      throw _mapError(error, isReviseCall: false);
+    }
+  }
+
+  /// `GET /search-requests/{searchRequestId}` (AI-002, Decision 6) -- the
+  /// ranked-results screen once a session reaches `completed`/
+  /// `routed_to_admin` (`ConversationSessionResponse.search_request_id`).
+  /// Callers (the poll loop in `ConversationController`) treat any failure
+  /// here as transient and simply retry on the next poll tick -- this call
+  /// never surfaces a new customer-facing error state of its own, and the
+  /// screen keeps showing whatever it was already showing.
+  Future<SearchRequestResult> getSearchRequestResults(
+    String searchRequestId,
+  ) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/search-requests/$searchRequestId',
+      );
+      final data = response.data?['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw const ConversationException(type: ConversationErrorType.unknown);
+      }
+      return SearchRequestResult.fromJson(data);
     } on DioException catch (error) {
       throw _mapError(error, isReviseCall: false);
     }

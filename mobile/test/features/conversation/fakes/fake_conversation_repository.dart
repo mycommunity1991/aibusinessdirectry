@@ -2,6 +2,7 @@ import 'package:ai_marketplace_app/features/conversation/data/conversation_repos
 import 'package:ai_marketplace_app/features/conversation/domain/models/conversation_exception.dart';
 import 'package:ai_marketplace_app/features/conversation/domain/models/conversation_message.dart';
 import 'package:ai_marketplace_app/features/conversation/domain/models/conversation_session.dart';
+import 'package:ai_marketplace_app/features/conversation/domain/models/search_request_result.dart';
 import 'package:dio/dio.dart';
 
 /// A hermetic test double for [ConversationRepository] -- no real
@@ -17,6 +18,9 @@ class FakeConversationRepository extends ConversationRepository {
     this.reviseAnswerError,
     this.getSessionResult,
     this.getSessionError,
+    this.getSearchRequestResultsResult,
+    this.getSearchRequestResultsSequence,
+    this.getSearchRequestResultsError,
     this.gate,
   }) : super(Dio());
 
@@ -44,6 +48,23 @@ class FakeConversationRepository extends ConversationRepository {
   /// The failure `getSession` throws, if any.
   ConversationException? getSessionError;
 
+  /// The [SearchRequestResult] a successful `getSearchRequestResults` call
+  /// returns once [getSearchRequestResultsSequence] is unset or exhausted
+  /// (AI-002, Mobile item 30). Defaults to a `pending_manual_match` result
+  /// -- a test must opt in to `matched`/`unmatched` explicitly, mirroring
+  /// how a real session never resolves before an admin/the automated
+  /// matcher actually finishes.
+  SearchRequestResult? getSearchRequestResultsResult;
+
+  /// If set, each successive `getSearchRequestResults` call returns the
+  /// next entry in order (lets a test simulate a `pending_manual_match`
+  /// poll resolving on a later tick, e.g. `[pending, pending, matched]`) --
+  /// once exhausted, further calls repeat the sequence's last entry.
+  List<SearchRequestResult>? getSearchRequestResultsSequence;
+
+  /// The failure `getSearchRequestResults` throws, if any.
+  ConversationException? getSearchRequestResultsError;
+
   /// If set, every call awaits this future before resolving -- lets tests
   /// hold a turn "in flight" indefinitely to exercise the >3s/>8s latency
   /// tiers deterministically (AC6/AC7), independent of the interim
@@ -54,12 +75,14 @@ class FakeConversationRepository extends ConversationRepository {
   int submitTurnCallCount = 0;
   int reviseAnswerCallCount = 0;
   int getSessionCallCount = 0;
+  int getSearchRequestResultsCallCount = 0;
 
   String? lastStartMessage;
   ({String sessionId, String? content, String? selectedOption})?
   lastSubmitTurnArgs;
   ({String sessionId, String messageId, String content})? lastReviseAnswerArgs;
   String? lastGetSessionId;
+  String? lastGetSearchRequestResultsId;
 
   static final _defaultSession = ConversationSession(
     id: 'session-1',
@@ -125,5 +148,26 @@ class FakeConversationRepository extends ConversationRepository {
     if (gate != null) await gate;
     if (getSessionError != null) throw getSessionError!;
     return getSessionResult ?? _defaultSession;
+  }
+
+  static const _defaultSearchRequestResult = SearchRequestResult(
+    status: SearchRequestResultStatus.pendingManualMatch,
+  );
+
+  @override
+  Future<SearchRequestResult> getSearchRequestResults(
+    String searchRequestId,
+  ) async {
+    getSearchRequestResultsCallCount++;
+    lastGetSearchRequestResultsId = searchRequestId;
+    if (getSearchRequestResultsError != null) {
+      throw getSearchRequestResultsError!;
+    }
+    final sequence = getSearchRequestResultsSequence;
+    if (sequence != null && sequence.isNotEmpty) {
+      final index = getSearchRequestResultsCallCount - 1;
+      return sequence[index < sequence.length ? index : sequence.length - 1];
+    }
+    return getSearchRequestResultsResult ?? _defaultSearchRequestResult;
   }
 }

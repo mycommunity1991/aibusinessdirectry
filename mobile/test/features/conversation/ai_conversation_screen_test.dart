@@ -3,7 +3,11 @@ import 'dart:async';
 import 'package:ai_marketplace_app/features/conversation/data/conversation_repository.dart';
 import 'package:ai_marketplace_app/features/conversation/domain/models/conversation_message.dart';
 import 'package:ai_marketplace_app/features/conversation/domain/models/conversation_session.dart';
+import 'package:ai_marketplace_app/features/conversation/domain/models/search_request_result.dart';
 import 'package:ai_marketplace_app/features/conversation/presentation/screens/ai_conversation_screen.dart';
+import 'package:ai_marketplace_app/features/conversation/state/conversation_controller.dart';
+import 'package:ai_marketplace_app/shared/models/provider_type.dart';
+import 'package:ai_marketplace_app/shared/models/ranked_provider_result.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -366,5 +370,186 @@ void main() {
     final customerX = tester.getTopLeft(find.text('رسالة العميل')).dx;
     final aiX = tester.getTopLeft(find.text('رسالة الذكاء الاصطناعي')).dx;
     expect(customerX, lessThan(aiX));
+  });
+
+  group('AI-002 -- ranked-results completion states (Decision 6/AC3/AC4)', () {
+    const matchedProvider = RankedProviderResult(
+      id: 'provider-1',
+      displayName: 'Al Noor Plumbing Services LLC',
+      slug: 'al-noor-plumbing',
+      providerType: ProviderType.business,
+      categoryLabels: ['Plumbing'],
+      reviewCount: 2,
+      // Deliberately a whole number of meters under 1km (never a decimal
+      // km value like "1.2") -- a decimal would coincidentally match
+      // `expectNoConfidenceValueRendered`'s `\b[01]\.\d{1,3}\b` pattern,
+      // which is meant to catch a raw confidence score, not a distance.
+      distanceMeters: 500,
+      isClaimed: true,
+    );
+
+    testWidgets(
+      'a `matched` search request renders the shared ranked-results widget '
+      '(AC4)',
+      (tester) async {
+        final fakeRepository = FakeConversationRepository(
+          startResult: const ConversationSession(
+            id: 'session-1',
+            status: ConversationSessionStatus.completed,
+            messages: [],
+            searchRequestId: 'search-request-1',
+          ),
+          getSearchRequestResultsResult: const SearchRequestResult(
+            status: SearchRequestResultStatus.matched,
+            matchedProviders: [matchedProvider],
+          ),
+        );
+
+        await pumpConversationScreen(
+          tester,
+          child: const AiConversationScreen(),
+          overrides: [
+            conversationRepositoryProvider.overrideWithValue(fakeRepository),
+          ],
+        );
+        await startSession(tester);
+
+        expect(
+          find.byKey(const ValueKey('ai-conversation-results-heading')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('ranked-provider-results-list')),
+          findsOneWidget,
+        );
+        expect(find.text('Al Noor Plumbing Services LLC'), findsOneWidget);
+        expect(
+          find.byKey(const ValueKey('ai-conversation-completion-title')),
+          findsNothing,
+        );
+        expectNoConfidenceValueRendered(tester);
+        expectNoForbiddenWordsRendered(tester);
+      },
+    );
+
+    testWidgets(
+      'an `unmatched` search request (zero matched providers) shows a '
+      'distinct empty state, never the plain completion banner nor a '
+      "forbidden term (AC3)",
+      (tester) async {
+        final fakeRepository = FakeConversationRepository(
+          startResult: const ConversationSession(
+            id: 'session-1',
+            status: ConversationSessionStatus.completed,
+            messages: [],
+            searchRequestId: 'search-request-1',
+          ),
+          getSearchRequestResultsResult: const SearchRequestResult(
+            status: SearchRequestResultStatus.unmatched,
+          ),
+        );
+
+        await pumpConversationScreen(
+          tester,
+          child: const AiConversationScreen(),
+          overrides: [
+            conversationRepositoryProvider.overrideWithValue(fakeRepository),
+          ],
+        );
+        await startSession(tester);
+
+        expect(
+          find.byKey(const ValueKey('ai-conversation-no-matches-message')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('ai-conversation-completion-title')),
+          findsNothing,
+        );
+        expectNoConfidenceValueRendered(tester);
+        expectNoForbiddenWordsRendered(tester);
+      },
+    );
+
+    testWidgets(
+      'a `pending_manual_match` session keeps showing the existing waiting '
+      "copy verbatim, polls, and transitions once the result resolves "
+      '(AC2/AC3/AC4)',
+      (tester) async {
+        final fakeRepository = FakeConversationRepository(
+          startResult: const ConversationSession(
+            id: 'session-1',
+            status: ConversationSessionStatus.routedToAdmin,
+            messages: [],
+            searchRequestId: 'search-request-1',
+          ),
+          getSearchRequestResultsSequence: const [
+            SearchRequestResult(
+              status: SearchRequestResultStatus.pendingManualMatch,
+            ),
+            SearchRequestResult(
+              status: SearchRequestResultStatus.matched,
+              matchedProviders: [matchedProvider],
+            ),
+          ],
+        );
+
+        await pumpConversationScreen(
+          tester,
+          child: const AiConversationScreen(),
+          overrides: [
+            conversationRepositoryProvider.overrideWithValue(fakeRepository),
+            conversationResultsPollIntervalProvider.overrideWithValue(
+              const Duration(milliseconds: 50),
+            ),
+          ],
+        );
+
+        // Deliberately zero-duration `pump()` calls here, never
+        // `pumpAndSettle()` -- with a 50ms poll interval,
+        // `pumpAndSettle()`'s own ~100ms-per-step advance would fire the
+        // poll timer itself and race straight past the "still pending"
+        // state this checkpoint means to observe.
+        await tester.enterText(
+          find.byKey(const ValueKey('ai-conversation-compose-field')),
+          'My kitchen sink is leaking',
+        );
+        await tester.pump();
+        await tester.tap(
+          find.byKey(const ValueKey('ai-conversation-start-button')),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        // Still pending -- the exact same honest waiting copy AI-001
+        // already ships, never a new "waiting" string.
+        expect(
+          find.byKey(const ValueKey('ai-conversation-completion-title')),
+          findsOneWidget,
+        );
+        expect(
+          find.text("Thanks -- we're finding matches for you"),
+          findsOneWidget,
+        );
+        expect(fakeRepository.getSearchRequestResultsCallCount, 1);
+        expectNoForbiddenWordsRendered(tester);
+
+        // The next poll tick resolves to `matched`.
+        await tester.pump(const Duration(milliseconds: 60));
+        await tester.pumpAndSettle();
+
+        expect(fakeRepository.getSearchRequestResultsCallCount, 2);
+        expect(
+          find.byKey(const ValueKey('ai-conversation-results-heading')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const ValueKey('ai-conversation-completion-title')),
+          findsNothing,
+        );
+        expectNoConfidenceValueRendered(tester);
+        expectNoForbiddenWordsRendered(tester);
+      },
+    );
   });
 }

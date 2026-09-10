@@ -1,4 +1,5 @@
 import '../../../../shared/models/provider_type.dart';
+import '../../../../shared/models/ranked_provider_result.dart';
 
 /// Mirrors the backend's `SearchResultProviderResponse`
 /// (`backend/app/modules/search/schemas.py`, DIR-001) -- one row of
@@ -67,8 +68,31 @@ class SearchResultProvider {
 
   /// `false` for a still-unclaimed Google-seeded listing
   /// (`listing_source=google_seeded_unclaimed`, CLM-001, Decision 8) --
-  /// drives `provider_search_card.dart`'s full-width Warning-color banner.
-  /// Server-driven off this one boolean; never inferred client-side from
-  /// any other field.
+  /// drives `shared/widgets/provider_result_card.dart`'s full-width
+  /// Warning-color banner. Server-driven off this one boolean; never
+  /// inferred client-side from any other field.
   final bool isClaimed;
+}
+
+/// Maps DIR-001's own response shape onto the shared, nullable-superset
+/// `RankedProviderResult` (`Plan_S07_AI-002.md`, Mobile item 25) so
+/// `search_results_screen.dart` can render through the shared
+/// `RankedProviderResultsList` widget -- [distanceMeters] is always
+/// non-null here (DIR-001's search origin is always known), so the mapping
+/// is a trivial widening, never a loss of information.
+extension SearchResultProviderRanking on SearchResultProvider {
+  RankedProviderResult toRankedProviderResult() {
+    return RankedProviderResult(
+      id: id,
+      displayName: displayName,
+      slug: slug,
+      providerType: providerType,
+      categoryLabels: categoryLabels,
+      primaryPhotoUrl: primaryPhotoUrl,
+      averageRating: averageRating,
+      reviewCount: reviewCount,
+      distanceMeters: distanceMeters,
+      isClaimed: isClaimed,
+    );
+  }
 }

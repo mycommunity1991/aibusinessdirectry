@@ -1,39 +1,41 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/network/api_config.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_spacing.dart';
-import '../../../../l10n/generated/app_localizations.dart';
-import '../../domain/models/search_result_provider.dart';
+import '../../core/network/api_config.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_spacing.dart';
+import '../../l10n/generated/app_localizations.dart';
+import '../models/ranked_provider_result.dart';
 
-/// The reusable, single result-card widget for `GET /search/providers`
-/// (`Plan_S06_DIR-001.md`, Mobile item 21) -- photo, name, category labels,
-/// rating+count (Decision 2's rendering rule), and distance (AC3).
+/// The reusable, single result-card widget for any ranked-provider list
+/// (`shared/widgets/ranked_provider_results_list.dart`, `Plan_S07_AI-002.md`
+/// Mobile item 25) -- photo, name, category labels, rating+count, and
+/// distance. Originally `features/search`'s `ProviderSearchCard` (DIR-001);
+/// moved here so both `features/search` (S-08) and `features/conversation`
+/// (S-07's ranked-results state, AI-002) render provider results through the
+/// same widget, rather than one feature importing the other's widget file
+/// directly (`13_OPEN_DECISIONS.md` item 12).
 ///
 /// Deliberately generic over how the underlying list was ordered/produced:
-/// it renders exactly [SearchResultProvider]'s fields and nothing else, so
-/// a future AI-ranked response (MAT-001) can reuse this widget unchanged --
+/// it renders exactly [RankedProviderResult]'s fields and nothing else --
 /// no ranking-specific UI (e.g. a "match score") exists here, since no
-/// ranking exists yet (AC5).
+/// merit-ranking algorithm exists yet (DIR-001 AC5, AI-002 Decision 5).
 ///
-/// CLM-001, Decision 8: when [SearchResultProvider.isClaimed] is `false`,
+/// CLM-001, Decision 8: when [RankedProviderResult.isClaimed] is `false`,
 /// renders a full-width Warning-color banner above the card's normal
 /// content (the exact locked copy/color from `16_UX_GUIDELINES.md`'s
 /// "Trust & Verification UX Patterns") -- server-driven off that one
 /// boolean, never inferred client-side. Tapping the banner calls
-/// [onClaimTap] (navigating straight to the Claim OTP screen for this
-/// specific listing, skipping the claim-search step, since the user
-/// already found this exact card); tapping anywhere else on the card still
-/// calls [onTap] unchanged.
-class ProviderSearchCard extends StatelessWidget {
-  const ProviderSearchCard({
+/// [onClaimTap]; tapping anywhere else on the card still calls [onTap]
+/// unchanged.
+class ProviderResultCard extends StatelessWidget {
+  const ProviderResultCard({
     super.key,
     required this.provider,
     this.onTap,
     this.onClaimTap,
   });
 
-  final SearchResultProvider provider;
+  final RankedProviderResult provider;
   final VoidCallback? onTap;
 
   /// Called when the unclaimed banner's inline CTA is tapped. Only ever
@@ -88,13 +90,19 @@ class ProviderSearchCard extends StatelessWidget {
                           _ratingLabel(l10n, provider),
                           style: textTheme.bodySmall,
                         ),
-                        const SizedBox(height: AppSpacing.xs),
-                        Text(
-                          _distanceLabel(l10n, provider.distanceMeters),
-                          style: textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
+                        // AI-002, Decision 2c: `distanceMeters` is `null`
+                        // only when no origin/provider location could be
+                        // resolved -- the row is simply omitted rather than
+                        // rendering a guessed or zeroed distance.
+                        if (provider.distanceMeters != null) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          Text(
+                            _distanceLabel(l10n, provider.distanceMeters!),
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -107,11 +115,11 @@ class ProviderSearchCard extends StatelessWidget {
     );
   }
 
-  /// Decision 2 (`Plan_S06_DIR-001.md`): `averageRating == null` always
-  /// renders "No reviews yet" -- never a synthesized `"0.0 (0 reviews)"`.
+  /// `averageRating == null` always renders "No reviews yet" -- never a
+  /// synthesized `"0.0 (0 reviews)"`.
   static String _ratingLabel(
     AppLocalizations l10n,
-    SearchResultProvider provider,
+    RankedProviderResult provider,
   ) {
     final rating = provider.averageRating;
     if (rating == null) return l10n.noReviewsYetLabel;
@@ -180,15 +188,9 @@ class _Placeholder extends StatelessWidget {
 /// "Trust & Verification UX Patterns", Decision 8): solid Warning-color
 /// (`AppColors.warning`, `#F59E0B`) with `AppColors.onWarning` text/icon for
 /// contrast -- deliberately the *solid* warning pair, not `DESIGN.md`'s
-/// softer `badge-unclaimed` (`warning-container`/`on-warning-container`)
-/// component, since `16_UX_GUIDELINES.md`'s own resolved pattern for this
-/// exact banner explicitly specifies the full, solid Warning color, and
-/// that document governs behavior/interaction design (of which "how
-/// visually distinct must an unclaimed listing be" is a part) while
-/// `DESIGN.md`'s `badge-unclaimed` remains available for any future,
-/// smaller unclaimed indicator elsewhere. Occupies the card's full width by
-/// construction -- it is the first child of the card's outer [Column], not
-/// a small inline badge -- satisfying "visually distinct at a glance."
+/// softer `badge-unclaimed` component, since `16_UX_GUIDELINES.md`'s own
+/// resolved pattern for this exact banner explicitly specifies the full,
+/// solid Warning color. Occupies the card's full width by construction.
 class _UnclaimedBanner extends StatelessWidget {
   const _UnclaimedBanner({required this.onTap});
 

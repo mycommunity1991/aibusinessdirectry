@@ -47,3 +47,21 @@ void expectNoConfidenceValueRendered(WidgetTester tester) {
     );
   }
 }
+
+/// Fails if any [Text] widget currently in the tree contains "manual",
+/// "fallback", or "admin" (case-insensitive) -- AI-002 AC3/AC7's forbidden-
+/// word discipline, asserted at the widget-tree level for a live
+/// `pending_manual_match`/`routed_to_admin` render, mirrored from the
+/// backend's own `test_no_forbidden_customer_copy.py`.
+void expectNoForbiddenWordsRendered(WidgetTester tester) {
+  final texts = tester.widgetList<Text>(find.byType(Text));
+  final forbidden = RegExp(r'manual|fallback|admin', caseSensitive: false);
+  for (final text in texts) {
+    final data = text.data ?? '';
+    expect(
+      forbidden.hasMatch(data),
+      isFalse,
+      reason: 'Found a forbidden internal-routing term in "$data"',
+    );
+  }
+}

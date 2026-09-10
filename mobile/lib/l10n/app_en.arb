@@ -996,5 +996,13 @@
   "aiConversationTapToEditTooltip": "Tap to edit",
   "@aiConversationTapToEditTooltip": {
     "description": "Screen-reader tooltip on a past customer bubble that can be revised (AI-001, AC8)."
+  },
+  "aiConversationResultsHeading": "Here are your matches",
+  "@aiConversationResultsHeading": {
+    "description": "Heading shown once a session's search request resolves to matched/unmatched (AI-002, Decision 6) and at least one provider was matched -- replaces the plain completion banner with the shared ranked-results widget."
+  },
+  "aiConversationNoMatchesMessage": "We couldn't find a match for this request. Start a new request to try again.",
+  "@aiConversationNoMatchesMessage": {
+    "description": "Empty-state copy shown once a session's search request resolves to `unmatched` with zero matched providers (AI-002, Decision 6) -- deliberately distinct from the pending-state copy (aiConversationCompletionMessage) and from search's own zero-results copy (searchZeroResultsMessage), and never names 'manual matching'/'Wizard-of-Oz' per 16_UX_GUIDELINES.md's invisibility rule (AC3)."
   }
 }

@@ -8,11 +8,12 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/app_error_message.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
+import '../../../../shared/widgets/ranked_provider_results_list.dart';
 import '../../domain/models/search_exception.dart';
 import '../../domain/models/search_filters_args.dart';
+import '../../domain/models/search_result_provider.dart';
 import '../../state/search_results_controller.dart';
 import '../utils/search_error_copy.dart';
-import '../widgets/provider_search_card.dart';
 
 /// S-08 -- Search Results (`Plan_S06_DIR-001.md`, AC3/AC4/AC5). Renders
 /// provider cards (photo, name, category labels, rating+count, distance),
@@ -103,18 +104,14 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                     message: l10n.searchZeroResultsMessage,
                     onRefresh: _onRefresh,
                   )
-                : RefreshIndicator(
+                : RankedProviderResultsList(
+                    results: state.results
+                        .map((provider) => provider.toRankedProviderResult())
+                        .toList(),
+                    onTap: (_) => _onCardTap(context),
+                    onClaimTap: (providerId) =>
+                        _onClaimTap(context, providerId),
                     onRefresh: _onRefresh,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(AppSpacing.lg),
-                      itemCount: state.results.length,
-                      itemBuilder: (context, index) => ProviderSearchCard(
-                        provider: state.results[index],
-                        onTap: () => _onCardTap(context),
-                        onClaimTap: () =>
-                            _onClaimTap(context, state.results[index].id),
-                      ),
-                    ),
                   ),
         },
       ),

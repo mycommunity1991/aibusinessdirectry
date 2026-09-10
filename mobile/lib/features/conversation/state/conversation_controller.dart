@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/conversation_repository.dart';
 import '../domain/models/conversation_exception.dart';
 import '../domain/models/conversation_session.dart';
+import '../domain/models/search_request_result.dart';
 
 /// The AI Conversation screen's (S-07) perceived-latency tier for the turn
 /// currently in flight -- `16_UX_GUIDELINES.md`'s exact staged-feedback
@@ -25,6 +26,14 @@ const kConversationContextualLabelDelay = Duration(seconds: 3);
 /// 8s default per `16_UX_GUIDELINES.md`/AC7.
 const kConversationHandoffDelay = Duration(seconds: 8);
 
+/// Overridable via [conversationResultsPollIntervalProvider] for tests --
+/// the real interval a `pending_manual_match` result is re-checked at
+/// (AI-002, `Plan_S07_AI-002.md` Mobile item 27/28). No push-notification
+/// delivery channel exists yet (Explicitly Out of Scope), so light polling
+/// is this story's only mechanism for the customer to ever learn a manual
+/// resolution landed.
+const kConversationResultsPollInterval = Duration(seconds: 5);
+
 final conversationContextualLabelDelayProvider = Provider<Duration>(
   (ref) => kConversationContextualLabelDelay,
 );
@@ -33,12 +42,17 @@ final conversationHandoffDelayProvider = Provider<Duration>(
   (ref) => kConversationHandoffDelay,
 );
 
+final conversationResultsPollIntervalProvider = Provider<Duration>(
+  (ref) => kConversationResultsPollInterval,
+);
+
 class ConversationState {
   const ConversationState({
     this.session,
     this.turnPhase = ConversationTurnPhase.idle,
     this.revisingMessageId,
     this.error,
+    this.searchResults,
   });
 
   /// `null` until the first `start()` call succeeds -- the screen renders
@@ -58,6 +72,15 @@ class ConversationState {
   /// call fails.
   final ConversationException? error;
 
+  /// The most recent `GET /search-requests/{id}` result once [session]
+  /// reaches a terminal state with a non-`null` `searchRequestId` (AI-002,
+  /// Decision 6) -- `null` until the first fetch succeeds. While its
+  /// `status` is `pending_manual_match`, the screen keeps rendering the
+  /// same honest waiting copy `AI-001` already ships and this value is
+  /// re-polled (`ConversationController`'s poll timer); once `matched`/
+  /// `unmatched`, the screen renders the shared ranked-results widget.
+  final SearchRequestResult? searchResults;
+
   bool get isComposing => session == null;
 
   bool get isBusy => turnPhase != ConversationTurnPhase.idle;
@@ -69,6 +92,7 @@ class ConversationState {
     bool clearRevisingMessageId = false,
     ConversationException? error,
     bool clearError = false,
+    SearchRequestResult? searchResults,
   }) {
     return ConversationState(
       session: session ?? this.session,
@@ -77,6 +101,7 @@ class ConversationState {
           ? null
           : (revisingMessageId ?? this.revisingMessageId),
       error: clearError ? null : (error ?? this.error),
+      searchResults: searchResults ?? this.searchResults,
     );
   }
 }
@@ -102,20 +127,32 @@ class ConversationController extends StateNotifier<ConversationState> {
     this._repository, {
     required Duration contextualLabelDelay,
     required Duration handoffDelay,
+    required Duration resultsPollInterval,
   }) : super(const ConversationState()) {
     _contextualLabelDelay = contextualLabelDelay;
     _handoffDelay = handoffDelay;
+    _resultsPollInterval = resultsPollInterval;
   }
 
   final ConversationRepository _repository;
   late final Duration _contextualLabelDelay;
   late final Duration _handoffDelay;
+  late final Duration _resultsPollInterval;
 
   bool _turnInFlight = false;
   final List<Future<ConversationSession> Function()> _queue = [];
 
   Timer? _contextualTimer;
   Timer? _handoffTimer;
+
+  /// The `search_request_id` currently being polled, if any -- set once a
+  /// session reaches a terminal state with a non-`null` id (AI-002), and
+  /// cleared on [startOver]/[dispose]. Kept independently of
+  /// [ConversationState.searchResults] so [pausePolling]/[resumePolling]
+  /// know which id to resume against without re-deriving it from
+  /// [ConversationState.session].
+  String? _pollingSearchRequestId;
+  Timer? _resultsPollTimer;
 
   /// `POST /conversations` (AC1) -- starts a brand-new session from the
   /// customer's free-text opening message. Only meaningful while
@@ -186,6 +223,7 @@ class ConversationController extends StateNotifier<ConversationState> {
   /// contract) -- this client never deletes or otherwise touches it.
   void startOver() {
     _cancelTimers();
+    _stopResultsPolling();
     _turnInFlight = false;
     _queue.clear();
     state = const ConversationState();
@@ -215,6 +253,7 @@ class ConversationController extends StateNotifier<ConversationState> {
         session: session,
         turnPhase: ConversationTurnPhase.idle,
       );
+      _syncResultsPolling(session);
     } on ConversationException catch (error) {
       _cancelTimers();
       state = state.copyWith(
@@ -253,9 +292,84 @@ class ConversationController extends StateNotifier<ConversationState> {
     _handoffTimer = null;
   }
 
+  /// Starts or stops the `pending_manual_match` poll loop (AI-002, Mobile
+  /// item 27/28) to match [session]'s freshly-received state -- called
+  /// after every successful turn/session fetch, since a session can reach
+  /// its terminal state (and gain a non-`null` `searchRequestId`) on any
+  /// turn, not just a specific one.
+  void _syncResultsPolling(ConversationSession session) {
+    final searchRequestId = session.searchRequestId;
+    if (!session.isTerminal || searchRequestId == null) {
+      _stopResultsPolling();
+      return;
+    }
+    if (_pollingSearchRequestId == searchRequestId &&
+        _resultsPollTimer != null) {
+      return;
+    }
+    _pollingSearchRequestId = searchRequestId;
+    unawaited(_pollResultsOnce());
+    _resultsPollTimer?.cancel();
+    _resultsPollTimer = Timer.periodic(
+      _resultsPollInterval,
+      (_) => unawaited(_pollResultsOnce()),
+    );
+  }
+
+  Future<void> _pollResultsOnce() async {
+    final searchRequestId = _pollingSearchRequestId;
+    if (searchRequestId == null) return;
+    try {
+      final result = await _repository.getSearchRequestResults(searchRequestId);
+      // A stale in-flight fetch (e.g. `startOver` ran while this call was
+      // pending) must never resurrect polling for an abandoned session.
+      if (_pollingSearchRequestId != searchRequestId) return;
+      state = state.copyWith(searchResults: result);
+      if (result.isResolved) {
+        _stopResultsPolling();
+      }
+    } on ConversationException {
+      // Transient (network blip, momentary 5xx) -- the screen keeps
+      // showing whatever it was already showing (AI-001's existing waiting
+      // copy), and the next scheduled tick simply retries. Never surfaces
+      // a new customer-facing error state for a background poll.
+    }
+  }
+
+  void _stopResultsPolling() {
+    _resultsPollTimer?.cancel();
+    _resultsPollTimer = null;
+    _pollingSearchRequestId = null;
+  }
+
+  /// Pauses the poll loop while the app is backgrounded (screen-lifecycle-
+  /// aware, `Plan_S07_AI-002.md` Mobile item 27) -- keeps
+  /// [_pollingSearchRequestId] intact so [resumePolling] can restart
+  /// cleanly, rather than fully tearing down polling state.
+  void pausePolling() {
+    _resultsPollTimer?.cancel();
+    _resultsPollTimer = null;
+  }
+
+  /// Resumes the poll loop after the app returns to the foreground, if a
+  /// session is still waiting on a result. A no-op if no session is
+  /// currently pending, or if the result already resolved while paused.
+  void resumePolling() {
+    final searchRequestId = _pollingSearchRequestId;
+    if (searchRequestId == null) return;
+    if (state.searchResults?.isResolved ?? false) return;
+    if (_resultsPollTimer != null) return;
+    unawaited(_pollResultsOnce());
+    _resultsPollTimer = Timer.periodic(
+      _resultsPollInterval,
+      (_) => unawaited(_pollResultsOnce()),
+    );
+  }
+
   @override
   void dispose() {
     _cancelTimers();
+    _stopResultsPolling();
     super.dispose();
   }
 }
@@ -271,5 +385,6 @@ final conversationControllerProvider =
           conversationContextualLabelDelayProvider,
         ),
         handoffDelay: ref.watch(conversationHandoffDelayProvider),
+        resultsPollInterval: ref.watch(conversationResultsPollIntervalProvider),
       ),
     );

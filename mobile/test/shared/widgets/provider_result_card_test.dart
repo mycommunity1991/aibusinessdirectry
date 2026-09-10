@@ -1,16 +1,18 @@
-import 'package:ai_marketplace_app/features/search/domain/models/search_result_provider.dart';
-import 'package:ai_marketplace_app/features/search/presentation/widgets/provider_search_card.dart';
 import 'package:ai_marketplace_app/l10n/generated/app_localizations.dart';
 import 'package:ai_marketplace_app/shared/models/provider_type.dart';
+import 'package:ai_marketplace_app/shared/models/ranked_provider_result.dart';
+import 'package:ai_marketplace_app/shared/widgets/provider_result_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// `ProviderSearchCard` (S-08, CLM-001 Decision 8, Mobile item 32) -- the
-/// unclaimed banner's exact locked copy/visibility.
+/// `ProviderResultCard` (S-08, CLM-001 Decision 8, moved from
+/// `features/search` to `shared/widgets/` by `Plan_S07_AI-002.md` Mobile
+/// item 25) -- the unclaimed banner's exact locked copy/visibility, plus
+/// AI-002's own `distanceMeters == null` rendering rule (Decision 2c).
 void main() {
   const unclaimedBannerText = 'Unclaimed — Is this your business? Claim it';
 
-  const unclaimedProvider = SearchResultProvider(
+  const unclaimedProvider = RankedProviderResult(
     id: 'provider-unclaimed',
     displayName: 'Al Noor Plumbing Services LLC',
     slug: 'al-noor-plumbing',
@@ -20,7 +22,7 @@ void main() {
     isClaimed: false,
   );
 
-  const claimedProvider = SearchResultProvider(
+  const claimedProvider = RankedProviderResult(
     id: 'provider-claimed',
     displayName: 'Speedy Plumbing',
     slug: 'speedy-plumbing',
@@ -32,7 +34,7 @@ void main() {
 
   Future<void> pumpCard(
     WidgetTester tester, {
-    required SearchResultProvider provider,
+    required RankedProviderResult provider,
     VoidCallback? onTap,
     VoidCallback? onClaimTap,
   }) async {
@@ -41,7 +43,7 @@ void main() {
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
-          body: ProviderSearchCard(
+          body: ProviderResultCard(
             provider: provider,
             onTap: onTap,
             onClaimTap: onClaimTap,
@@ -103,4 +105,23 @@ void main() {
 
     expect(cardTapCount, 1);
   });
+
+  testWidgets(
+    'omits the distance line entirely when distanceMeters is null, never a '
+    'guessed or zeroed value (AI-002, Decision 2c)',
+    (tester) async {
+      const noLocationProvider = RankedProviderResult(
+        id: 'provider-no-location',
+        displayName: 'Gulf Home Repairs',
+        slug: 'gulf-home-repairs',
+        providerType: ProviderType.business,
+        reviewCount: 0,
+        isClaimed: true,
+      );
+
+      await pumpCard(tester, provider: noLocationProvider);
+
+      expect(find.textContaining('away'), findsNothing);
+    },
+  );
 }

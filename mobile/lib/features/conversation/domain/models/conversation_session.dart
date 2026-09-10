@@ -34,6 +34,7 @@ class ConversationSession {
     required this.messages,
     this.categoryId,
     this.quickReplyOptions,
+    this.searchRequestId,
   });
 
   factory ConversationSession.fromJson(Map<String, dynamic> json) {
@@ -48,6 +49,7 @@ class ConversationSession {
           .map(ConversationMessage.fromJson)
           .toList(),
       quickReplyOptions: quickReplyOptionsJson?.cast<String>(),
+      searchRequestId: json['search_request_id'] as String?,
     );
   }
 
@@ -60,6 +62,14 @@ class ConversationSession {
   /// rather than free text. `null` when free text is expected, or when
   /// [status] is no longer [ConversationSessionStatus.active].
   final List<String>? quickReplyOptions;
+
+  /// The `search.search_requests` row created for this session once it
+  /// leaves `active` (AI-002, `ConversationSessionResponse.search_request_id`,
+  /// Decision 6). `null` while [ConversationSessionStatus.active]/
+  /// [ConversationSessionStatus.abandoned] -- always populated once
+  /// [status] reaches [ConversationSessionStatus.completed]/
+  /// [ConversationSessionStatus.routedToAdmin].
+  final String? searchRequestId;
 
   bool get isActive => status == ConversationSessionStatus.active;
 

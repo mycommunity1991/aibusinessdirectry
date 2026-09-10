@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/app_error_message.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../shared/widgets/primary_button.dart';
+import '../../../../shared/widgets/ranked_provider_results_list.dart';
 import '../../domain/models/conversation_message.dart';
 import '../../domain/models/conversation_session.dart';
+import '../../domain/models/search_request_result.dart';
 import '../../state/conversation_controller.dart';
 import '../utils/conversation_error_copy.dart';
 import '../widgets/chat_bubble.dart';
@@ -35,19 +39,41 @@ class AiConversationScreen extends ConsumerStatefulWidget {
       _AiConversationScreenState();
 }
 
-class _AiConversationScreenState extends ConsumerState<AiConversationScreen> {
+class _AiConversationScreenState extends ConsumerState<AiConversationScreen>
+    with WidgetsBindingObserver {
   final _composeController = TextEditingController();
   final _answerController = TextEditingController();
   final _reviseController = TextEditingController();
   final _transcriptScrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _composeController.dispose();
     _answerController.dispose();
     _reviseController.dispose();
     _transcriptScrollController.dispose();
     super.dispose();
+  }
+
+  /// Pauses/resumes the `pending_manual_match` poll loop with the app's
+  /// foreground/background lifecycle (AI-002, Mobile item 27) -- no
+  /// push-notification delivery channel exists yet, so polling only ever
+  /// runs while the app is actually in the foreground.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final controller = ref.read(conversationControllerProvider.notifier);
+    if (state == AppLifecycleState.resumed) {
+      controller.resumePolling();
+    } else {
+      controller.pausePolling();
+    }
   }
 
   void _scrollToBottomSoon() {
@@ -199,6 +225,21 @@ class _ActiveView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = state.session!;
+    final searchResults = state.searchResults;
+
+    // AI-002, Decision 6: once the session's search request resolves
+    // (`matched`/`unmatched`), the shared ranked-results widget takes over
+    // the screen's whole body -- the customer's experience from here is
+    // identical to `SearchResultsScreen` (S-08), regardless of whether the
+    // result came from the automated matcher or an admin (AC4). While
+    // still `pending_manual_match` (or before the first poll response
+    // arrives), the transcript + honest waiting banner below stay exactly
+    // as `AI-001` already shipped them.
+    if (session.isTerminal &&
+        searchResults != null &&
+        searchResults.isResolved) {
+      return _ResolvedResultsView(searchResults: searchResults);
+    }
 
     return Column(
       children: [
@@ -477,6 +518,107 @@ class _CompletionBanner extends StatelessWidget {
           style: Theme.of(context).textTheme.bodyMedium,
         ),
       ],
+    );
+  }
+}
+
+/// AI-002, Decision 6 -- once the session's search request resolves
+/// (`matched`/`unmatched`), takes over the whole screen body, rendering the
+/// same shared `RankedProviderResultsList` widget `SearchResultsScreen`
+/// (S-08) uses, so the customer's experience is identical whether the
+/// result came from the automated matcher or an admin (AC4). Never renders
+/// anything that distinguishes the two origins.
+class _ResolvedResultsView extends StatelessWidget {
+  const _ResolvedResultsView({required this.searchResults});
+
+  final SearchRequestResult searchResults;
+
+  void _onResultTap(BuildContext context) {
+    // S-09 (the real Provider Profile screen) doesn't exist yet -- the
+    // same "coming soon" acknowledgment `SearchResultsScreen` (S-08) uses
+    // for this identical not-yet-built downstream screen.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AppLocalizations.of(context).providerProfileComingSoonMessage,
+        ),
+      ),
+    );
+  }
+
+  void _onClaimTap(BuildContext context, String providerId) {
+    context.push(AppRoutes.claimOtp, extra: providerId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final matches = searchResults.matchedProviders;
+
+    if (matches.isEmpty) {
+      return _NoMatchesState(message: l10n.aiConversationNoMatchesMessage);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.sm,
+          ),
+          child: Text(
+            l10n.aiConversationResultsHeading,
+            key: const ValueKey('ai-conversation-results-heading'),
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+        ),
+        Expanded(
+          child: RankedProviderResultsList(
+            results: matches,
+            onTap: (_) => _onResultTap(context),
+            onClaimTap: (providerId) => _onClaimTap(context, providerId),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// AI-002, Decision 6 -- the `unmatched` empty state (a resolved search
+/// request with zero matched providers), textually distinct from both the
+/// still-pending completion banner and from `SearchResultsScreen`'s own
+/// zero-results copy (Decision 7's "textually distinct empty states" rule).
+class _NoMatchesState extends StatelessWidget {
+  const _NoMatchesState({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.search_off_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              message,
+              key: const ValueKey('ai-conversation-no-matches-message'),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

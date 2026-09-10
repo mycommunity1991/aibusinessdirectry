@@ -264,5 +264,7 @@
   "aiConversationAnswerNotRevisableMessage": "لم يعد بالإمكان تعديل هذه الإجابة.",
   "aiConversationValidationFailedMessage": "هذه الرسالة طويلة جدًا. يرجى اختصارها والمحاولة مرة أخرى.",
   "aiConversationTypingIndicatorLabel": "الذكاء الاصطناعي يكتب",
-  "aiConversationTapToEditTooltip": "اضغط للتعديل"
+  "aiConversationTapToEditTooltip": "اضغط للتعديل",
+  "aiConversationResultsHeading": "إليك مطابقاتك",
+  "aiConversationNoMatchesMessage": "لم نتمكن من إيجاد مطابقة لهذا الطلب. ابدأ طلبًا جديدًا للمحاولة مرة أخرى."
 }
