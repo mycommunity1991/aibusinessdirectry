@@ -186,7 +186,7 @@ class ConversationService:
         if session.status == ConversationStatus.ABANDONED:
             raise AnswerNotRevisableError()
 
-        target = await self.message_repository.get_by_id(message_id)
+        target = await self.message_repository.get_active_by_id(message_id)
         if (
             target is None
             or target.conversation_session_id != session.id

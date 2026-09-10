@@ -30,7 +30,6 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
-    UniqueConstraint,
     text,
 )
 from sqlalchemy import Enum as SqlEnum
@@ -132,15 +131,29 @@ class Message(CommonColumnsMixin, Base):
     One turn in a `ConversationSession` -- the AI-intake chat only, not
     customer-provider messaging (`04_DATABASE.md`'s own note, no such
     domain exists here). Ordered by `sequence_number`, enforced unique
-    per session (AC1).
+    per session among currently-active rows (AC1).
+
+    `uq_messages_session_sequence` is a **partial** unique index --
+    `(conversation_session_id, sequence_number)` scoped `WHERE
+    is_active = true` -- not a plain `UniqueConstraint`, mirroring
+    `SavedAddress.uq_saved_addresses_customer_default`'s precedent. A
+    revised answer soft-deletes every later message in the session
+    (`MessageRepository.delete_after_sequence`, Decision 5,
+    `Plan_S07_AI-001.md`) rather than hard-deleting it, per
+    `04_DATABASE.md`'s "Common Columns" soft-delete rule; the
+    regenerated turn that follows is free to reuse a soft-deleted row's
+    old `sequence_number` because the uniqueness constraint only ever
+    considers still-active rows.
     """
 
     __tablename__ = "messages"
     __table_args__ = (
-        UniqueConstraint(
+        Index(
+            "uq_messages_session_sequence",
             "conversation_session_id",
             "sequence_number",
-            name="uq_messages_session_sequence",
+            unique=True,
+            postgresql_where=text("is_active = true"),
         ),
         Index("idx_messages_conversation_session_id", "conversation_session_id"),
         {"schema": SCHEMA},

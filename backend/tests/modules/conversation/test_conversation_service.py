@@ -31,6 +31,7 @@ from app.modules.category.services.category_service import CategoryService
 from app.modules.conversation.models import (
     ConfidenceScore,
     ConversationStatus,
+    Message,
     MessageSender,
 )
 from app.modules.conversation.repositories.confidence_score_repository import (
@@ -308,6 +309,71 @@ class TestReviseAnswer:
             "It's a blockage",
             "Still urgent",
         ]
+
+    async def test_revise_soft_deletes_truncated_messages_not_hard_deletes(
+        self, db_session
+    ) -> None:
+        """
+        AC8/Decision 5, corrected: a revise's truncated messages are
+        soft-deleted (`deleted_at`/`is_active=False`), matching
+        `04_DATABASE.md`'s "permanent deletion is an administrative
+        operation" rule -- never a hard `DELETE`. This asserts the
+        persistence mechanism directly, bypassing
+        `MessageRepository.list_for_session`'s normal `is_active` filter
+        with a raw query, so a regression back to hard-delete (rows
+        physically gone) would be caught here even though every
+        customer-visible assertion above (transcript, sequence numbers)
+        would still pass either way.
+        """
+        user = await _create_user(db_session, "701000025")
+        await _seed_category(db_session)
+        service = _make_service(db_session)
+
+        started = await service.start_conversation(
+            user.id, message="My Plumbing needs fixing"
+        )
+        after_first_answer = await service.submit_turn(
+            user.id, started.session.id, content="It's a leak"
+        )
+        completed = await service.submit_turn(
+            user.id, after_first_answer.session.id, content="Very urgent"
+        )
+        assert completed.session.status == ConversationStatus.COMPLETED
+        truncated_ids = {
+            m.id for m in completed.messages if m.sequence_number > 3
+        }
+        assert truncated_ids  # sanity: there is something to truncate
+
+        answer_to_q0 = next(
+            m
+            for m in completed.messages
+            if m.sender == MessageSender.CUSTOMER and m.content == "It's a leak"
+        )
+        await service.revise_answer(
+            user.id,
+            completed.session.id,
+            answer_to_q0.id,
+            content="It's a blockage",
+        )
+
+        # Bypass the repository's normal `is_active` filter entirely --
+        # query every row for the session directly.
+        result = await db_session.execute(
+            select(Message).where(
+                Message.conversation_session_id == completed.session.id
+            )
+        )
+        all_rows_including_soft_deleted = result.scalars().all()
+        truncated_rows = [
+            m for m in all_rows_including_soft_deleted if m.id in truncated_ids
+        ]
+        assert len(truncated_rows) == len(truncated_ids), (
+            "truncated messages must still physically exist (soft-deleted), "
+            "not be hard-deleted"
+        )
+        for row in truncated_rows:
+            assert row.is_active is False
+            assert row.deleted_at is not None
 
     async def test_revising_the_original_description_re_resolves_category(
         self, db_session

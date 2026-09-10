@@ -397,17 +397,35 @@ previous answer without restarting the whole conversation. Editing an early answ
 question that came after it (e.g. revising which appliance is broken invalidates appliance-specific follow-ups
 already asked).
 
-**Chosen:** `PATCH /conversations/{session_id}/answers/{message_id}` — `message_id` must reference an existing
-`sender=customer` message in that session. The service (a) updates that message's `content`, (b) hard-deletes
-every `messages` row (customer and AI alike) with a strictly greater `sequence_number` in the same session, (c)
-re-invokes `ConversationAiClient.process_turn` with the now-shorter history to generate the next turn fresh,
-appended at the next available `sequence_number`. If the truncated history no longer has a complete answer set
-for `structured_criteria` (Decision 1b), any previously computed `structured_criteria` on that session is cleared
-(`NULL`) until the session re-completes — it must never be left stale/inconsistent with the actual answer
-history. From the mobile client's perspective this reads as "the chat continues from the edited point," never a
-restart. **"Start over"** is deliberately simpler and separate: a new `POST /conversations` call starts a fresh
-session; the previous session is left exactly as it was (marked `abandoned` — see below) rather than deleted,
-preserving it as an honest historical record.
+**Chosen:** `PATCH /conversations/{session_id}/answers/{message_id}` — `message_id` must reference an existing,
+still-active `sender=customer` message in that session. The service (a) updates that message's `content`, (b)
+**soft-deletes** every `messages` row (customer and AI alike) with a strictly greater `sequence_number` in the
+same session — `deleted_at`/`is_active=False`, never a hard `DELETE` (see the corrected note below), (c)
+re-invokes `ConversationAiClient.process_turn` with the now-shorter, active-only history to generate the next turn
+fresh, appended at the next available `sequence_number` (computed over active rows only). If the truncated
+history no longer has a complete answer set for `structured_criteria` (Decision 1b), any previously computed
+`structured_criteria` on that session is cleared (`NULL`) until the session re-completes — it must never be left
+stale/inconsistent with the actual answer history. From the mobile client's perspective this reads as "the chat
+continues from the edited point," never a restart. **"Start over"** is deliberately simpler and separate: a new
+`POST /conversations` call starts a fresh session; the previous session is left exactly as it was (marked
+`abandoned` — see below) rather than deleted, preserving it as an honest historical record.
+
+**Correction (post-implementation, `architect` review):** this Plan originally specified a hard `DELETE` for step
+(b), reasoned (incorrectly) below under "Alternatives considered and rejected" as necessary because "`messages`
+has no `deleted_at`/soft-delete column... unlike `CommonColumnsMixin`-based tables." That premise is factually
+wrong: `Message(CommonColumnsMixin, Base)` (`backend/app/modules/conversation/models.py`) *is*
+`CommonColumnsMixin`-based and *does* have `deleted_at`/`is_active` (`backend/app/database/mixins.py`). A hard
+`DELETE` of customer conversation transcript data, triggered by a customer-initiated revise (not an
+administrative action), violated `04_DATABASE.md`'s "Common Columns" rule ("permanent deletion is an
+administrative operation") — `audit.audit_logs`/`search.search_event_log` are the only stated exemptions, and
+`messages` is neither. `MessageRepository.delete_after_sequence` now sets `deleted_at`/`is_active` instead,
+mirroring `SavedAddressRepository.soft_delete`'s exact convention; `list_for_session` and
+`get_next_sequence_number` filter `is_active.is_(True)` so a soft-deleted message is invisible to the transcript
+and never double-counted when assigning the next `sequence_number` — the customer-visible behavior (truncated
+messages disappear, sequence numbers continue correctly) is unchanged, only the persistence mechanism is. This
+also required promoting `uq_messages_session_sequence` from a plain `UniqueConstraint` to a **partial** unique
+index (`WHERE is_active = true`, mirroring `uq_saved_addresses_customer_default`'s precedent) so a regenerated
+turn can reuse a soft-deleted row's old `sequence_number` without a constraint conflict.
 
 **A small, additive enum value:** `conversation_status` gains `abandoned` (alongside `active`/`completed`/
 `routed_to_admin`, the three values Flow 4's prose names directly) — set when a customer starts a new session
@@ -419,10 +437,14 @@ explicitly enumerates, flagged here (mirroring `CLM-001`'s handling of its own g
 - **In-place edit only, leave subsequent AI messages stale** — rejected: would show the customer AI questions
   that no longer make sense for their revised answer (e.g. an "AC" follow-up question after they changed their
   category to "Plumbing"), directly undermining trust.
-- **Soft-delete truncated messages instead of hard-delete** — rejected: `messages` has no `deleted_at`/soft-delete
-  column in `04_DATABASE.md`'s spec (unlike `CommonColumnsMixin`-based tables), and inventing one purely for this
-  mechanism is unrequested schema scope; a truncated, superseded AI question has no audit value worth preserving
-  the way a verification record does.
+- ~~**Soft-delete truncated messages instead of hard-delete** — rejected: `messages` has no `deleted_at`/
+  soft-delete column in `04_DATABASE.md`'s spec (unlike `CommonColumnsMixin`-based tables), and inventing one
+  purely for this mechanism is unrequested schema scope; a truncated, superseded AI question has no audit value
+  worth preserving the way a verification record does.~~ **Superseded (see "Correction" above): this reasoning
+  was factually wrong.** `messages` *is* `CommonColumnsMixin`-based and already has `deleted_at`/`is_active` —
+  no new column was ever needed. Soft-delete is in fact this codebase's standing convention for exactly this
+  shape of problem (`04_DATABASE.md`'s "Common Columns" rule), and hard-delete was the actual violation, now
+  corrected: `delete_after_sequence` soft-deletes.
 - **Silently leave `active` sessions abandoned with no status change when a new one starts** — rejected: makes
   "how many conversations did a customer actually finish vs. give up on" ungoverned and unqueryable, undermining
   the same admin-analytics spirit `search_event_log`/`unmatched_query_reports` exist for elsewhere in this domain.

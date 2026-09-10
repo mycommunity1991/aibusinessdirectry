@@ -20,6 +20,23 @@ in `Plan_S07_AI-001.md` for a `04_DATABASE.md` update at story close:
   written to by any `search` schema; this story does not create or
   touch `search.search_requests` at all (Decision 1's scope boundary).
 
+`uq_messages_session_sequence` is a **partial** unique index on
+`(conversation_session_id, sequence_number)` scoped `WHERE is_active =
+true` -- not a plain table-level `UniqueConstraint` -- mirroring this
+project's existing partial-unique-active precedent
+(`uq_saved_addresses_customer_default`). This is required, not
+cosmetic: `messages` is soft-deleted (Decision 5's revise/truncate
+mechanism sets `deleted_at`/`is_active=false` rather than hard-deleting,
+per `04_DATABASE.md`'s "Common Columns" soft-delete rule), and
+`MessageRepository.get_next_sequence_number` reassigns a regenerated
+turn's `sequence_number` starting right after the last still-*active*
+message -- a value a now-soft-deleted row in the same session may
+already occupy. A plain, unscoped unique constraint would reject that
+insert; scoping the index to `is_active = true` lets a soft-deleted
+row's old `sequence_number` be reused by the row that replaces it,
+while still fully enforcing uniqueness among every message the
+customer can currently see.
+
 `conversation_sessions.customer_id` -> `customer.customer_profiles.id`
 and `conversation_sessions.category_id` -> `category.categories.id`
 are this story's first genuine cross-schema FKs into those two already-
@@ -179,11 +196,6 @@ def upgrade() -> None:
         ),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("sequence_number", sa.Integer(), nullable=False),
-        sa.UniqueConstraint(
-            "conversation_session_id",
-            "sequence_number",
-            name="uq_messages_session_sequence",
-        ),
         sa.ForeignKeyConstraint(
             ["conversation_session_id"],
             [f"{SCHEMA}.conversation_sessions.id"],
@@ -206,6 +218,14 @@ def upgrade() -> None:
         "messages",
         ["conversation_session_id"],
         schema=SCHEMA,
+    )
+    op.create_index(
+        "uq_messages_session_sequence",
+        "messages",
+        ["conversation_session_id", "sequence_number"],
+        unique=True,
+        schema=SCHEMA,
+        postgresql_where=sa.text("is_active = true"),
     )
 
     op.create_table(
