@@ -903,5 +903,94 @@
   "claimPublicNumberUnavailableMessage": "This listing has no public phone number on file.",
   "@claimPublicNumberUnavailableMessage": {
     "description": "Plain-language message for the backend's 409 ClaimPublicNumberUnavailableError (CLM-001, AC6) -- defensive only: the controller normally handles this case invisibly by auto-submitting the admin-review fallback rather than ever displaying this string."
+  },
+
+  "aiConversationEntryPointLabel": "Describe what you need",
+  "@aiConversationEntryPointLabel": {
+    "description": "Home placeholder's entry point into the AI Conversation screen (S-06/S-07, AI-001, Decision 7) -- mirrors claimEntryPointLabel's precedent for a second/third entry point button."
+  },
+  "aiConversationTitle": "Describe what you need",
+  "@aiConversationTitle": {
+    "description": "App-bar title on the AI Conversation screen (S-07, AI-001)."
+  },
+  "aiConversationComposeHeading": "What do you need help with?",
+  "@aiConversationComposeHeading": {
+    "description": "Heading on the AI Conversation screen's initial compose step, before any session exists (S-06's own screen-inventory copy)."
+  },
+  "aiConversationComposeSubtitle": "Describe your problem in your own words -- we'll ask a few quick questions to find the right match.",
+  "@aiConversationComposeSubtitle": {
+    "description": "Subtitle explaining the guided-conversation flow on the initial compose step (AI-001)."
+  },
+  "aiConversationComposeFieldLabel": "Describe what you need",
+  "@aiConversationComposeFieldLabel": {
+    "description": "Field label for the free-text opening-message input (AI-001, AC1)."
+  },
+  "aiConversationComposeHint": "e.g. My kitchen sink is leaking and I need someone today",
+  "@aiConversationComposeHint": {
+    "description": "Placeholder example text for the opening-message input (AI-001)."
+  },
+  "aiConversationStartButtonLabel": "Start",
+  "@aiConversationStartButtonLabel": {
+    "description": "Primary action label that submits the opening message and starts a session (AI-001, AC1)."
+  },
+  "aiConversationFreeTextFieldLabel": "Your answer",
+  "@aiConversationFreeTextFieldLabel": {
+    "description": "Field label for a free-text turn answer once a session is active (AI-001, AC4)."
+  },
+  "aiConversationSendTooltip": "Send",
+  "@aiConversationSendTooltip": {
+    "description": "Screen-reader tooltip for the send-answer icon button (AI-001)."
+  },
+  "aiConversationContextualLabel": "Finding matches near you",
+  "@aiConversationContextualLabel": {
+    "description": "The >3s contextual latency label, verbatim per docs/AI/16_UX_GUIDELINES.md's Perceived Performance & Latency section (AC6) -- never a generic 'Loading.'"
+  },
+  "aiConversationHandoffMessage": "This is taking a moment -- we'll notify you as soon as we have matches.",
+  "@aiConversationHandoffMessage": {
+    "description": "The >8s/timeout graceful hand-off message, verbatim per docs/AI/16_UX_GUIDELINES.md (AC7) -- replaces an indefinite spinner."
+  },
+  "aiConversationCompletionTitle": "Thanks -- we're finding matches for you",
+  "@aiConversationCompletionTitle": {
+    "description": "Honest, plain completion confirmation shown once the session reaches completed/routed_to_admin (Plan_S07_AI-001.md Decision 1) -- never a fake results list, since no results exist at the code level yet (AI-002's job)."
+  },
+  "aiConversationCompletionMessage": "We're matching you with the right provider now -- you'll be notified as soon as we have an update.",
+  "@aiConversationCompletionMessage": {
+    "description": "Secondary line for the completion confirmation state (Decision 1) -- never names 'manual matching'/'Wizard-of-Oz' per 16_UX_GUIDELINES.md's invisibility rule."
+  },
+  "aiConversationStartOverLabel": "Start over",
+  "@aiConversationStartOverLabel": {
+    "description": "Always-visible action that starts a fresh session, never the only way back (16_UX_GUIDELINES.md UX Principle 3, AI-001 Decision 5)."
+  },
+  "aiConversationReviseSheetTitle": "Edit your answer",
+  "@aiConversationReviseSheetTitle": {
+    "description": "Heading for the inline revise-a-past-answer editor (AI-001, AC8, Decision 5)."
+  },
+  "aiConversationReviseCancelLabel": "Cancel",
+  "@aiConversationReviseCancelLabel": {
+    "description": "Cancels the inline revise editor without submitting a change (AI-001, AC8)."
+  },
+  "aiConversationReviseFieldLabel": "Your answer",
+  "@aiConversationReviseFieldLabel": {
+    "description": "Field label for the inline revise editor, pre-filled with the original answer (AI-001, AC8)."
+  },
+  "aiConversationSessionNotFoundMessage": "This conversation could not be found.",
+  "@aiConversationSessionNotFoundMessage": {
+    "description": "Plain-language message for the backend's 404 (session doesn't exist or isn't the caller's own, AI-001)."
+  },
+  "aiConversationSessionNotActiveMessage": "This conversation has already ended. Start a new one to continue.",
+  "@aiConversationSessionNotActiveMessage": {
+    "description": "Plain-language message for the backend's 409 ConversationSessionNotActiveError (AI-001)."
+  },
+  "aiConversationAnswerNotRevisableMessage": "That answer can no longer be edited.",
+  "@aiConversationAnswerNotRevisableMessage": {
+    "description": "Plain-language message for the backend's 422 AnswerNotRevisableError (AI-001, AC8)."
+  },
+  "aiConversationTypingIndicatorLabel": "AI is typing",
+  "@aiConversationTypingIndicatorLabel": {
+    "description": "Screen-reader label for the 0-500ms/500ms-3s typing-indicator bubble (AI-001, AC6)."
+  },
+  "aiConversationTapToEditTooltip": "Tap to edit",
+  "@aiConversationTapToEditTooltip": {
+    "description": "Screen-reader tooltip on a past customer bubble that can be revised (AI-001, AC8)."
   }
 }

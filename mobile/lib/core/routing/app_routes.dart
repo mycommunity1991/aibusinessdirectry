@@ -110,4 +110,10 @@ class AppRoutes {
   /// card (`ProviderSearchCard`, Decision 8) -- skipping [claimSearch]
   /// entirely, since the user already found that exact listing.
   static const String claimOtp = '/claim-otp';
+
+  /// S-07 -- AI Conversation (AI-001, Decision 7). Reached from
+  /// [homePlaceholder]'s "Describe what you need" entry point -- the full
+  /// AI-mediated intake flow (guided free-text + follow-up questions),
+  /// alongside [searchFilters]'s existing structured (non-AI) browse path.
+  static const String aiConversation = '/ai-conversation';
 }

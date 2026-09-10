@@ -17,6 +17,8 @@ class AppTextField extends StatelessWidget {
     this.maxLength,
     this.enabled = true,
     this.autofocus = false,
+    this.maxLines = 1,
+    this.minLines,
   });
 
   final String label;
@@ -30,6 +32,12 @@ class AppTextField extends StatelessWidget {
   final bool enabled;
   final bool autofocus;
 
+  /// Defaults to a single-line field, matching every existing form on this
+  /// screen -- pass a larger value (e.g. for the AI Conversation compose
+  /// step's free-text description, AI-001) to allow multi-line entry.
+  final int? maxLines;
+  final int? minLines;
+
   @override
   Widget build(BuildContext context) {
     return TextField(
@@ -41,6 +49,8 @@ class AppTextField extends StatelessWidget {
       maxLength: maxLength,
       enabled: enabled,
       autofocus: autofocus,
+      maxLines: maxLines,
+      minLines: minLines,
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,

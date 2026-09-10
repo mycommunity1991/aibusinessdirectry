@@ -8,6 +8,7 @@ import '../../features/auth/presentation/screens/phone_entry_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/claim/presentation/screens/claim_otp_screen.dart';
 import '../../features/claim/presentation/screens/claim_search_screen.dart';
+import '../../features/conversation/presentation/screens/ai_conversation_screen.dart';
 import '../../features/customer/domain/models/address_form_args.dart';
 import '../../features/customer/presentation/screens/add_first_address_screen.dart';
 import '../../features/customer/presentation/screens/address_form_screen.dart';
@@ -173,6 +174,10 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
           final providerId = state.extra as String;
           return ClaimOtpScreen(providerId: providerId);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.aiConversation,
+        builder: (context, state) => const AiConversationScreen(),
       ),
     ],
   );

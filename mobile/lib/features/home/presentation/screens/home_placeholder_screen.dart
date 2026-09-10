@@ -26,9 +26,11 @@ import '../../../customer/domain/models/saved_address_exception.dart';
 /// The "Find a Service" button still enforces CUS-002's address-required
 /// gate (AC5, unchanged) — but as of DIR-001 (`Plan_S06_DIR-001.md`
 /// Decision 6), once a saved address exists it opens the real, structured
-/// Search Filters screen instead of showing a "coming soon" snackbar. The
-/// full AI Conversation entry point (S-06/S-07) remains a future story;
-/// this button is still not that, only a step closer to it.
+/// Search Filters screen instead of showing a "coming soon" snackbar. As of
+/// AI-001 (`Plan_S07_AI-001.md` Decision 7), the real AI Conversation entry
+/// point (S-06/S-07) also exists here, opening `AiConversationScreen`
+/// directly — the guided, free-text intake path alongside "Find a
+/// Service"'s structured browse.
 class HomePlaceholderScreen extends ConsumerWidget {
   const HomePlaceholderScreen({super.key});
 
@@ -109,6 +111,14 @@ class HomePlaceholderScreen extends ConsumerWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.xl),
+              // AI-001, Mobile item 27 -- the AI Conversation entry point
+              // (S-06/S-07, Decision 7), alongside the existing structured
+              // "Find a Service" browse path and the Claim entry point.
+              OutlinedButton(
+                onPressed: () => context.push(AppRoutes.aiConversation),
+                child: Text(l10n.aiConversationEntryPointLabel),
+              ),
+              const SizedBox(height: AppSpacing.md),
               OutlinedButton(
                 onPressed: () => _onFindService(ref, context),
                 child: Text(l10n.findServiceButtonLabel),
