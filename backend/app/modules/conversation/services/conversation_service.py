@@ -160,7 +160,7 @@ class ConversationService:
     ) -> ConversationTurnView:
         """
         Truncate-and-regenerate (Decision 5, AC8): updates a prior
-        customer answer, hard-deletes every later message in the same
+        customer answer, soft-deletes every later message in the same
         session (customer and AI alike), then regenerates the next turn
         fresh from the now-shorter history.
 
