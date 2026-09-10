@@ -2708,6 +2708,427 @@ story's close.
 
 ---
 
+# ADR-037
+
+## Title
+
+Cross-Module Wiring for `AI-002`: `conversation → search`, `search → administration`, `search → customer` — Confirmed Cycle-Free
+
+**Date**
+
+2026-09-10
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`AI-002` (routing low-confidence AI-Conversation sessions to manual matching) needs three new pieces of persisted
+state (`search.search_requests`/`provider_matches`/`search_event_log`,
+`administration.manual_match_assignments`) created and read from several call sites, without introducing a
+circular module dependency. `ConversationService` needs to trigger both the automated-match path and the
+manual-assignment path from the same two terminal session transitions (`completed`, `routed_to_admin`).
+
+### Decision
+
+A single new outgoing edge from `conversation`, plus two new outgoing edges from `search`, mirroring
+already-proven shapes (ADR-014/016/030) rather than inventing a new mechanism:
+
+- **`conversation → search`** (new): `ConversationService` gains one new constructor dependency,
+  `search_request_service: SearchRequestService`. The single call site is inside `_apply_completion_policy`,
+  immediately after a session transitions to `completed` **or** `routed_to_admin` — both branches call the same
+  `handle_session_completed(...)`, which internally branches on `status`. `search` receives plain primitives
+  (`session.id`, `session.customer_id`, `category_id`, `category_name`, `structured_criteria`, `status` as a plain
+  string) — never a `ConversationSession` ORM object — so `search` has zero imports from `conversation`.
+- **`search → administration`** (new): `SearchRequestService` depends on
+  `administration.ManualMatchAssignmentService` to create a `manual_match_assignments` row when routing, and to
+  resolve it when an admin acts. `administration` receives only `search_request_id: uuid.UUID` as a plain value —
+  zero imports from `search`.
+- **`search → customer`** (new): `SearchRequestService` depends on `customer.SavedAddressService` (already
+  shipped, CUS-002) to resolve the customer's default saved address for the automated-matching path. `customer`
+  has zero imports from `search`.
+- **`search → provider`** (already existed, DIR-001, reused unchanged): `SearchRequestService` depends on the
+  existing `SearchService` (which already depends on `ProviderService`) to run the actual matching query.
+
+**Confirmed cycle-free:** `search`, `administration`, and `customer` each have zero imports of `conversation`, of
+each other in the reverse direction, or of `conversation`'s models — every edge above is one-directional,
+identical in kind to every cross-module edge this codebase has shipped since ADR-014. `search` is kept as the
+single owner of both *creating* a `manual_match_assignments` row and *finalizing* its resolution into
+`provider_matches`/`search_requests.status` (see ADR-040), rather than splitting those two responsibilities
+across `conversation`/`administration`, which was rejected specifically because it would create the exact cycle
+risk (`conversation → administration → search → conversation`, or `search → administration → search`) this
+Decision avoids.
+
+### Alternatives Considered
+
+- **`conversation → administration` directly**, bypassing `search` for the manual-assignment creation —
+  rejected: would split assignment-creation from assignment-resolution across two different owning modules,
+  creating a genuine cycle risk.
+- **A domain-event bus** — rejected for the same reason ADR-014/016 already rejected it: no event-bus
+  infrastructure exists anywhere in this codebase; building one for these call sites would be premature
+  abstraction.
+
+### Consequences
+
+- `search` is now a real cross-module hub (depends on `provider`, `customer`, and `administration`) while
+  remaining depended-upon by nothing except `conversation` — any future domain needing to react to a
+  `search_requests` outcome should extend `SearchRequestService`'s own call sites, not add a new inbound edge
+  from `search` into itself.
+- This is the fourth distinct domain (`conversation`) shown to compose cleanly against the existing
+  constructor-injection cross-module pattern first established at ADR-014 — the pattern continues to scale
+  without a message bus.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-014/016 — the constructor-injection cross-module pattern this mirrors; ADR-030 — the
+  `provider`-owns-both-halves precedent `search` mirrors here; ADR-032 — `AI-001`'s own scope boundary that
+  assigned this story ownership of `search`/`administration`)
+- docs/implementation/plans/Plan_S07_AI-002.md (Decision 1)
+- docs/implementation/walkthroughs/Walkthrough_S07_AI-002.md
+- backend/app/modules/search/services/search_request_service.py
+- backend/app/modules/conversation/services/conversation_service.py (`_apply_completion_policy`)
+
+---
+
+# ADR-038
+
+## Title
+
+Four Flagged, Necessary Nullable-Column Deviations in the `search`/`administration` Schema (`AI-002`)
+
+**Date**
+
+2026-09-10
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`04_DATABASE.md`'s pre-existing literal spec for `search.search_requests` states `category_id`,
+`structured_criteria`, `customer_latitude`, and `customer_longitude` as `NOT NULL`, and
+`administration.manual_match_assignments.assigned_admin_id` as `NOT NULL`. Building `AI-002` against real code
+paths found all five columns cannot honestly always hold a value:
+
+- **`assigned_admin_id`** — `ADR-030` already found, in `CLM-001`'s context, that `NOT NULL` here "doesn't fit
+  'an unassigned queue, any admin may pick up.'" `AI-002` is the story that actually builds this table.
+- **`structured_criteria`** — a `routed_to_admin` session (`AI-001`'s own Decision 1b/ADR-033) always leaves
+  `conversation_sessions.structured_criteria = NULL` — there is no complete, validated answer set to build one
+  from.
+- **`customer_latitude`/`customer_longitude`** — no location-collection step exists anywhere in the AI
+  Conversation flow, and adding one is materially larger than this story's scope.
+- **`category_id`** (found during implementation, beyond the Plan's original three) — a `routed_to_admin` session
+  reached via `AI-001`'s hard turn cap (`CONVERSATION_MAX_TURNS`) can occur with no category ever resolved at all
+  — confirmed against `RuleBasedConversationAiClient._resolve_category`/
+  `ConversationService._apply_completion_policy`, neither of which requires `category_id` to be set before
+  routing to the turn-cap outcome.
+
+### Decision
+
+All five columns are nullable. Each is populated honestly whenever a real value exists, and left `NULL` — never
+fabricated — when it doesn't:
+
+- `manual_match_assignments.assigned_admin_id` — populated only at resolution (the admin who resolved it), `NULL`
+  while `status = pending`, mirroring `claim_review_requests.reviewed_by`'s exact nullable-until-resolved shape.
+- `search_requests.structured_criteria` — `NULL` for a `routed_to_admin` session; the admin resolving it works
+  from the raw transcript context instead (out of this story's scope to expose richly).
+- `search_requests.customer_latitude`/`customer_longitude` — `NULL` if the customer has no default saved address;
+  the request row is still created (never blocked, AC2), resolving to `unmatched` honestly rather than a guessed
+  `(0, 0)` or a country centroid. Deliberately independent of AC2's confidence-based routing: a high-confidence
+  session with no saved address still completes automatically as `unmatched`, rather than being silently
+  rerouted to the manual queue for an unrelated reason.
+- `search_requests.category_id` — `NULL` for a turn-cap-routed session that never resolved a category; making it
+  `NOT NULL` would force fabricating a category, the exact anti-fabrication violation the other three deviations
+  already reject.
+
+This is the same resolution this codebase has applied to every prior instance of "the locked spec doesn't fit
+what the real code path can honestly provide" (`00_PROJECT_CONTEXT.md` §3, first applied at this scale by
+`AI-001`'s own Decision 1b/2b) — make the column nullable and report the honest absence, never fabricate a value.
+
+### Alternatives Considered
+
+- **Leave the columns `NOT NULL` and block/error when data is missing** — rejected: directly violates AC2's "the
+  session is never left in limbo with no next step," and would make a customer with no saved address unable to
+  ever complete an AI-conversation search.
+- **Fabricate a value** (an "unassigned" sentinel UUID, an empty `structured_criteria` object, a country-centroid
+  lat/lng, a default/"uncategorized" category row) — rejected outright as exactly the "silently degrading to a
+  low-quality automated match" pattern both the story's own text and `00_PROJECT_CONTEXT.md` §3 prohibit.
+
+### Consequences
+
+- Any future consumer of `search_requests`/`manual_match_assignments` (most immediately `ADM-001`'s admin
+  dashboard) must treat all five of these columns as genuinely optional in its own UI/logic, not assume they are
+  always populated.
+- `04_DATABASE.md` is updated to record all four `search`/`administration` deviations plainly (Section update,
+  this closeout) — the fifth ADR-030-flagged one (`assigned_admin_id`) is the same finding, now actually built.
+
+### Related Documents
+
+- 00_PROJECT_CONTEXT.md §3 (anti-fabrication hard constraint)
+- 09_DECISIONS.md (ADR-029/ADR-030 — the prior nullable/anti-fabrication precedents this mirrors; ADR-033 — the
+  `structured_criteria` payload this deviation is downstream of)
+- 04_DATABASE.md (Search Domain, Administration Domain — updated at this closeout)
+- docs/implementation/plans/Plan_S07_AI-002.md (Decision 2)
+- backend/app/modules/search/models.py (module docstring documents all four deviations directly in code)
+- backend/app/modules/administration/models.py (`ManualMatchAssignment`'s docstring)
+
+---
+
+# ADR-039
+
+## Title
+
+`administration.ManualMatchAssignmentService` — Fourth Application of the Passive-Queue-Row Pattern; Atomic `try_resolve` as the Third Application of the Atomic-Conditional-Update Pattern
+
+**Date**
+
+2026-09-10
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+AC2 requires that a low-confidence session "notify an admin" without leaving the customer in limbo. `ADR-030`
+already established that no push-notification/"admin team recipient" concept exists anywhere in this codebase,
+and that a pull-based queue (an admin polls a list endpoint) is this codebase's standing answer for "admin
+becomes aware of new work" — first built for `admin_action_log`/VER-002, reused for `claim_review_requests`/
+CLM-001. `AI-002` needs a fourth instance for `manual_match_assignments`.
+
+During `architect` review, a second problem surfaced: the initially-shipped `ManualMatchAssignmentService.resolve()`
+was a plain read-then-write (`get_by_id` → a Python `status` check → `repository.update`), leaving a genuine
+TOCTOU race for two concurrent admins resolving the same assignment — both could pass the Python-level check
+before either commits, both proceeding into `SearchRequestService._finalize_matches` and writing a duplicate
+`provider_matches` batch and `search_event_log` row for one `search_requests` row.
+
+### Decision
+
+**Part 1 — the queue pattern (fourth application):** `ManualMatchAssignmentRepository`/`ManualMatchAssignmentService`
+expose exactly `create`, `list_pending`, `get_by_id`, `resolve` — four explicit methods, no generic CRUD,
+mirroring `ClaimReviewRequestService`'s shape file-for-file. `GET /admin/search/manual-matches`
+(`require_role(ROLE_ADMIN)`, ownerless per ADR-023) is the queue an admin (or a future `ADM-001` dashboard) polls
+— the "notify" mechanism, reused for a fourth time rather than invented anew.
+
+**Part 2 — the atomic-conditional-update fix (third application):** `ManualMatchAssignmentRepository.try_resolve`
+performs a single conditional `UPDATE manual_match_assignments SET status='completed', assigned_admin_id=...,
+completed_at=... WHERE id = :id AND status = 'pending'`, checking `rowcount == 1`. This is the **third**
+application of the exact atomic-conditional-update pattern first established by
+`VerificationRecordRepository.try_claim_for_review` (VER-002, ADR-024) and reused by
+`ProviderRepository.try_claim_for_account` (CLM-001, ADR-030) — Postgres takes a row lock on the first matching
+writer under READ COMMITTED; a concurrent second `UPDATE` targeting the same row blocks until the first commits,
+then re-evaluates its own `WHERE` clause against the now-current (already-completed) row, so at most one caller's
+`UPDATE` can ever match, even under true concurrency. `ManualMatchAssignmentService.resolve()` now calls
+`try_resolve` and raises `ManualMatchAssignmentAlreadyResolvedError` (409) on `False`, rather than trusting a
+Python-level check that a concurrent commit could invalidate between the check and the write.
+
+Proven with a genuine two-independent-database-session concurrency test (`TestTryResolveAtomicity`), not merely a
+sequential-call assertion — the same standard `try_claim_for_review`'s original fix was held to.
+
+### Alternatives Considered
+
+- **A database-level `SELECT ... FOR UPDATE` row lock, held across the read-then-write** — rejected as
+  unnecessary ceremony when a single conditional `UPDATE` achieves the identical guarantee more simply, and
+  would be a new locking idiom this codebase hasn't used anywhere else, when the atomic-`UPDATE` idiom already
+  has two clean precedents.
+- **Optimistic concurrency via a version column** — rejected: no table in this codebase uses row versioning; the
+  conditional-`UPDATE`-on-status pattern is the established, working answer for "exactly one caller wins" here.
+
+### Consequences
+
+- Any future admin-resolvable queue-row table (a fifth application) should default to this same
+  conditional-`UPDATE` shape rather than a read-then-write, per this codebase's now three-times-confirmed
+  precedent.
+- `SearchRequestService.resolve_manual_match` was also reordered (see ADR-040) so the atomic guard runs strictly
+  before `_finalize_matches` — the two fixes (atomicity inside the guard, and correct call ordering around it)
+  are complementary, not substitutes for each other.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-023 — ownerless `require_role(ROLE_ADMIN)` shape; ADR-024 — `try_claim_for_review`, the
+  pattern's first application; ADR-030 — `try_claim_for_account`, the pattern's second application, and
+  `ClaimReviewRequestService`'s queue-row shape this mirrors)
+- docs/implementation/plans/Plan_S07_AI-002.md (Decision 3)
+- docs/implementation/plans/Checkpoint_S07_AI-002.md (the backend addendum recording this fix's exact
+  file/line references — to be deleted at this closeout per the Continuity & Checkpointing rule once the
+  orchestrator confirms the story complete; see docs/implementation/walkthroughs/Walkthrough_S07_AI-002.md for
+  the retained account)
+- backend/app/modules/administration/repositories/manual_match_assignment_repository.py (`try_resolve`)
+- backend/app/modules/administration/services/manual_match_assignment_service.py (`resolve`)
+- backend/tests/modules/administration/test_manual_match_assignment_service.py (`TestTryResolveAtomicity`)
+
+---
+
+# ADR-040
+
+## Title
+
+`SearchRequestService._finalize_matches` — Single-Writer Mechanism for `provider_matches`/`search_requests.status`/`search_event_log`; Guard-Before-Finalize Ordering Fix
+
+**Date**
+
+2026-09-10
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+AC4 ("the same ranked-results screen") and AC6 ("`search_event_log` regardless of automated or manual origin")
+both require that a `search_requests` row's final outcome be written through exactly one mechanism, regardless
+of which of the two paths (automated match, or an admin resolving a manual assignment) produced it — otherwise
+the two paths could silently drift, exactly the risk `ADR-030`'s `_finalize_claim` helper was built to prevent
+for claims.
+
+During `tester` review, a genuine ordering bug was found: `SearchRequestService.resolve_manual_match` originally
+called `_finalize_matches` **before** `ManualMatchAssignmentService.resolve`'s already-resolved guard — so two
+sequential resolve attempts on the same assignment could both run `_finalize_matches` before the guard on the
+second call ever had a chance to reject it, directly contradicting AC6's "exactly once" guarantee.
+
+### Decision
+
+`SearchRequestService._finalize_matches(search_request, provider_ids)` is the **only** place in the codebase that
+ever writes `provider_matches` rows, sets `search_requests.status` to its final `matched`/`unmatched` value, or
+writes the corresponding `search_event_log` row. Both paths are thin wrappers around it:
+
+- **Automated path** (`_handle_completed`) — runs the existing `SearchService` query (ADR reused unchanged, see
+  the Search-domain closeout ADR below) to get an ordered provider-id list, creates the `search_requests` row with
+  its final status already known, then calls `_finalize_matches` synchronously in the same operation.
+- **Manual path** (`resolve_manual_match`) — validates admin-supplied `provider_ids` (see below), then calls
+  `ManualMatchAssignmentService.resolve` (the atomic guard, ADR-039) **first**, and only calls
+  `_finalize_matches` if that succeeds. This ordering fix (guard before finalize) is what closes the tester's
+  found gap: a rejected (409) second resolve attempt now writes nothing, never a duplicate
+  `provider_matches`/`search_event_log`.
+
+`rank` in `provider_matches` is the 1-based position in whichever ordered list produced it (the query's
+nearest-first order for the automated path; the admin's own supplied order for the manual path — never
+re-derived). `match_score` is left `NULL` for every row either path writes, since no real merit-ranking signal
+exists yet (see ADR-041).
+
+**A related, independently-found gap, fixed in the same area:** `resolve_manual_match` never validated
+admin-supplied `provider_ids` before writing `provider_matches`, so a bogus id surfaced as an opaque 500 (an FK
+constraint violation) instead of a proper 4xx. Fixed by validating every id against the existing
+`ProviderService.list_by_ids` (reused unchanged) **before** any mutation, raising a new
+`InvalidManualMatchProviderIdsError` (422) otherwise.
+
+### Alternatives Considered
+
+- **Two separate finalization code paths** — rejected: the exact drift risk `ADR-030` already identified and
+  fixed once for claims.
+- **Have `AdminManualMatchService`/an admin-facing service write `provider_matches` directly** — rejected: would
+  require `administration → search`'s repository, violating `02_ARCHITECTURE.md`'s "module → another module's
+  repository" prohibition, and would duplicate `_finalize_matches`'s logic.
+- **Validate `provider_ids` inside `ManualMatchAssignmentService.resolve` instead of `SearchRequestService`** —
+  rejected: `administration` has no dependency on `provider`, and adding one solely for this validation would be
+  a new, narrower-purpose edge duplicating a check `search` can already perform via its own existing
+  `provider_service` dependency.
+
+### Consequences
+
+- The combination of this ADR's ordering fix and ADR-039's atomicity fix together closes both the sequential
+  double-finalization gap (tester) and the true-concurrency double-finalization gap (architect) — reviewers of
+  future admin-resolution flows should check for both failure modes independently; fixing one does not imply the
+  other is also fixed.
+- `08_CODING_STANDARDS.md`'s "validate every endpoint's input" rule is now reinforced with a second concrete
+  example (`InvalidManualMatchProviderIdsError`) alongside its existing ones.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-029/ADR-030 — the `_finalize_claim` single-writer precedent this mirrors; ADR-039 — the
+  atomic `try_resolve` guard this ordering fix depends on)
+- docs/implementation/plans/Plan_S07_AI-002.md (Decision 4)
+- docs/implementation/walkthroughs/Walkthrough_S07_AI-002.md (full review-process account of both findings)
+- backend/app/modules/search/services/search_request_service.py (`_finalize_matches`, `resolve_manual_match`)
+- backend/app/core/exceptions/exceptions.py (`InvalidManualMatchProviderIdsError`)
+- backend/tests/modules/search/test_search_request_service.py, test_search_request_api.py
+
+---
+
+# ADR-041
+
+## Title
+
+Matching-Mechanism Reuse for `AI-002`: `search.SearchService`/`provider.ProviderService.search_nearby` (DIR-001) Unchanged — No New Ranking Algorithm
+
+**Date**
+
+2026-09-10
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+AC4 requires a real automated match to exist for the manual path's output to be compared against. No persisted
+matching mechanism exists yet in `search` (DIR-001's `SearchService` is a stateless read-layer). Building a new
+merit-ranking algorithm (rating + review volume + proximity, per `14_USER_FLOWS.md` Flow 4 step 6's literal text)
+is not realistic yet: the Review domain (`REV-001`) has not shipped, so `provider.provider_rating_summaries` is
+empty/all-zero placeholder data for every provider today.
+
+### Decision
+
+`SearchRequestService` takes the already-shipped `SearchService` as a constructor dependency and calls its
+existing matching query (category + geospatial radius + discoverability, nearest-first) unchanged, with
+`category` = the resolved `Category.name` (inheriting, not worsening, ADR-027's free-text exact-match posture and
+`13_OPEN_DECISIONS.md` item 1's already-tracked reconciliation gap), `radius_km =
+settings.SEARCH_DEFAULT_RADIUS_KM` (no radius-selection UI exists in the AI Conversation flow), capped at a new
+`settings.AI_MATCH_MAX_RESULTS: int = 10`. Ranking = the query's existing nearest-first order — identical to what
+DIR-001's structured browse already shows a customer today, not a new algorithm this story invents and cannot
+validate. `match_score` is left `NULL` on every `provider_matches` row this story writes, both paths — honest,
+not a placeholder `0`/`1.0`.
+
+### Alternatives Considered
+
+- **Build a merit-ranking formula now** (rating × review-count × inverse-distance) — rejected: no real rating
+  data exists yet to rank by; this would be exactly the "silently degrading to a low-quality automated match"
+  pattern the story's own text warns against, dressed up as a formula instead of an admission.
+- **Write a brand-new geospatial query independent of `SearchService`** — rejected: `SearchService`'s query is
+  already real, tested, and identical in kind to what this story needs; duplicating it violates `08_CODING_
+  STANDARDS.md`'s "reuse existing modules" rule for no benefit.
+
+### Consequences
+
+- The moment `REV-001` ships real, non-placeholder rating data, a future story can replace this nearest-first
+  ordering with a genuine merit-ranking formula inside `SearchRequestService._run_automated_match` alone — no
+  other part of `AI-002`'s design (the `_finalize_matches` contract, the `provider_matches.rank`/`match_score`
+  columns, the manual path) needs to change to support that.
+- `search_requests`/`provider_matches` now have real, non-ephemeral rows for the first time in this codebase —
+  DIR-001's own query remains deliberately unchanged and still writes nothing to either table.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-025/ADR-026/ADR-027 — `SearchService`/`ProviderSearchRepository`'s original DIR-001
+  design this reuses unchanged)
+- docs/implementation/plans/Plan_S07_AI-002.md (Decision 5)
+- docs/implementation/plans/Plan_S06_DIR-001.md (the matching logic reused unchanged)
+- backend/app/modules/search/services/search_request_service.py (`_run_automated_match`)
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

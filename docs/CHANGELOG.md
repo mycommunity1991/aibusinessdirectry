@@ -11,6 +11,64 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Search domain (new `search` schema) and Administration domain (third slice) — receive matches even when AI
+  confidence is low (Story AI-002): a new reversible Alembic migration creates `search.search_requests`,
+  `search.provider_matches`, `search.search_event_log`, and adds `administration.manual_match_assignments` to
+  the existing `administration` schema — all column-for-column per `04_DATABASE.md`'s pre-existing spec
+  **except four flagged nullable-column deviations** (three anticipated by the Plan —
+  `manual_match_assignments.assigned_admin_id`, `search_requests.structured_criteria`,
+  `search_requests.customer_latitude`/`customer_longitude` — plus a genuine fourth found during implementation,
+  `search_requests.category_id`, since a hard-turn-cap `routed_to_admin` session can occur with no category ever
+  resolved), each recorded plainly rather than fabricated (**ADR-038**). A new, first-time `conversation →
+  search`, `search → administration`, and `search → customer` cross-module edge triple (**ADR-037**, confirmed
+  cycle-free) wires `ConversationService`'s two terminal session transitions (`completed`, `routed_to_admin`) to
+  a new `SearchRequestService.handle_session_completed(...)` — the single call site inside
+  `_apply_completion_policy`. A single shared, private `_finalize_matches` helper (**ADR-040**) is the **only**
+  place in the codebase that ever writes `provider_matches` rows, sets `search_requests.status` to its final
+  `matched`/`unmatched` value, or writes a `search_event_log` row — called by both the automated path (reusing
+  `search.SearchService`/`provider.ProviderService.search_nearby`, DIR-001, entirely unchanged — no new ranking
+  algorithm, since the Review domain hasn't shipped and there's no real rating signal to rank by yet, **ADR-041**)
+  and the manual path (an admin resolving a `routed_to_admin` session's queue entry). A new
+  `administration.ManualMatchAssignmentService` (**ADR-039**) — `create`/`list_pending`/`get_by_id`/`resolve`,
+  the fourth application of the passive-queue-row pattern (`admin_action_log`/VER-002,
+  `claim_review_requests`/CLM-001 before it) — backs a new pull-based admin queue, `GET
+  /api/v1/admin/search/manual-matches` and `POST /api/v1/admin/search/manual-matches/{id}/resolve` (both
+  `require_role(ROLE_ADMIN)`, backend-API-only, no dashboard UI — `ADM-001`'s job). A new customer-facing `GET
+  /api/v1/search-requests/{id}` (`ensure_owner_or_not_found`) returns a `SearchRequestResultResponse` whose shape
+  is byte-for-byte identical regardless of whether the request was resolved automatically or by an admin.
+  `ConversationSessionResponse` gains exactly one new field, `search_request_id: uuid.UUID | None` — no
+  confidence/score field added, preserving `AI-001`'s AC6 and this story's own AC3 unchanged. A new
+  `test_no_forbidden_customer_copy.py` asserts `{"manual", "fallback", "admin"}` never appear in any
+  customer-facing string literal or live HTTP response, satisfying AC3/AC7 as an automated test rather than a
+  style guideline. **Fixed during review:** (1) the `tester` found `SearchRequestService.resolve_manual_match`
+  called `_finalize_matches` **before** `ManualMatchAssignmentService.resolve`'s already-resolved guard, so two
+  sequential resolve attempts on the same assignment could both finalize before the guard on the second call
+  ever had a chance to reject it — fixed by reordering (the guard now runs first); (2) the `architect`'s
+  subsequent review found the guard itself was still a plain read-then-write, not truly atomic — a genuine TOCTOU
+  race remained for two truly concurrent admins resolving the same assignment. Fixed by adding
+  `ManualMatchAssignmentRepository.try_resolve`, a single atomic conditional `UPDATE ... WHERE status =
+  'pending'`, mirroring `ProviderRepository.try_claim_for_account` (CLM-001, ADR-030) and
+  `VerificationRecordRepository.try_claim_for_review` (VER-002, ADR-024) exactly — the **third** application of
+  this atomic-conditional-update pattern, proven with a genuine two-independent-database-session concurrency
+  test; (3) the same review pass found `resolve_manual_match` never validated admin-supplied `provider_ids`
+  before writing `provider_matches`, so a bogus id surfaced as an opaque 500 instead of a proper 4xx — fixed by
+  validating every id against the existing `ProviderService.list_by_ids` before any mutation, raising a new
+  `InvalidManualMatchProviderIdsError` (422) otherwise. A second `architect` review pass confirmed both fixes and
+  returned **APPROVED with zero remaining findings**. This completes Sprint 7 (Category Domain / AI Intake
+  foundation) in full and, with it, Milestone ML7 (`CTG-001`, `AI-001`, `AI-002`) entirely.
+- Mobile AI Conversation screen, extended, and a new shared results-rendering module (Story AI-002): a full
+  shared-widget extraction — `mobile/lib/shared/models/ranked_provider_result.dart` and
+  `mobile/lib/shared/widgets/provider_result_card.dart`/`ranked_provider_results_list.dart` (generalized from
+  `features/search`'s existing `ProviderSearchCard`, with a nullable `distanceMeters` rendered by omitting the
+  distance line rather than guessing/zeroing it) — now serve both `features/search`'s Search Results screen
+  (S-08) and `features/conversation`'s completion state; neither feature imports the other's screen/widget file
+  directly, a cleaner outcome than `13_OPEN_DECISIONS.md` item 12's already-logged debt, not a new instance of
+  it. `ai_conversation_screen.dart`'s completion state, previously a static "we're finding matches for you"
+  message with no results mechanism to link to, now renders the shared ranked-results widget inline once
+  `status` is `matched`/`unmatched`, while `pending_manual_match` keeps showing the **exact existing** waiting
+  copy verbatim (never a new string that could reintroduce a forbidden word), with lifecycle-aware polling
+  (paused when the app is backgrounded via `WidgetsBindingObserver`, cancelled on dispose/"Start over") since no
+  real push-notification delivery channel exists yet.
 - Conversation / AI Intake domain — describe my service need in a guided AI conversation (Story AI-001): a new
   `conversation` Postgres schema with `conversation_sessions`, `messages`, and `confidence_scores` tables, all
   exactly per `04_DATABASE.md`'s pre-existing spec, via a new reversible Alembic migration (`conversation_domain`).

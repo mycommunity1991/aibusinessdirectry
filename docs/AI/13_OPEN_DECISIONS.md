@@ -313,7 +313,7 @@ read as historical, not as evidence the decision is still open.
 
 ## Item 10 — Degree of Manual ("Wizard-of-Oz") Matching at Launch
 
-**Status:** Open
+**Status:** Open (mechanism now implemented; the product question itself remains open)
 
 **Description:** How much of Search Request → Provider matching runs as genuine automated matching versus
 manual, admin-assisted matching behind the scenes at launch has not been decided. `03_DOMAIN_MODEL.md`'s
@@ -326,10 +326,27 @@ existed) used a different number for it.
 "manual match assignment" queue/UI needs to be built for low-confidence AI Conversation Sessions versus how much
 matching can be fully automated.
 
-**Blocks:** The Administration domain's dashboard scope (Sprint 11: ADM-001, ADM-002) and the AI-Guided Service
-Intake sprint's confidence-threshold routing design (Sprint 7: AI-001, AI-002).
+**Update (10 September 2026, Story `AI-002` shipped):** the Wizard-of-Oz mechanism this item names now has a
+real, working, first concrete implementation — a session below `Settings.CONVERSATION_CONFIDENCE_THRESHOLD`
+(the same config-driven threshold `AI-001`'s ADR-034/Decision 4 introduced) is routed to
+`administration.manual_match_assignments` (a pull-based admin queue, `GET /admin/search/manual-matches`, ADR-039)
+rather than blocked or silently degraded; resolving it produces the identical customer-facing ranked-results
+response an automated match would (ADR-040). **This update resolves nothing about the underlying product
+question** — it only confirms the mechanism is real and code-level-complete. Exactly how much of launch-time
+matching should stay manual long-term (i.e., what fraction of real sessions should be expected to fall below the
+threshold and route to the manual queue, and whether that's an acceptable steady state or a temporary bootstrap
+measure) is a product decision the CTO has not made and this story does not make on the CTO's behalf — the
+threshold remains a `Settings` value specifically so that decision can be tuned without a code change once made.
+This also newly informs the Administration domain's dashboard scope (`ADM-001`/`ADM-002`, Sprint 11): the queue
+this item's UI question was about now has a real backend to build against.
 
-**Related:** `03_DOMAIN_MODEL.md` (Conversation/AI Intake Session, Administration domains).
+**Blocks:** The Administration domain's dashboard scope (Sprint 11: ADM-001, ADM-002) — now with a real,
+shipped backend queue to design a UI against, rather than a hypothetical one.
+
+**Related:** `03_DOMAIN_MODEL.md` (Conversation/AI Intake Session, Administration domains); `09_DECISIONS.md`
+ADR-034 (the confidence-threshold `Settings` value), ADR-039 (the pull-based queue implementation), ADR-040 (the
+shared finalization guaranteeing identical customer experience); `docs/implementation/plans/Plan_S07_AI-002.md`;
+`docs/implementation/walkthroughs/Walkthrough_S07_AI-002.md`.
 
 ---
 

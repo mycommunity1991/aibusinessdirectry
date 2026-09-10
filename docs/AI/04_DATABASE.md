@@ -1,11 +1,24 @@
 # AI Marketplace Database Design
 
 **Document ID:** AI-04
-**Version:** 3.7.0
+**Version:** 3.8.0
 **Status:** Active
 **Owner:** CTO
 **Audience:** Engineering Team, Database Engineers, AI Assistants
 **Last Updated:** 2026-09-10
+
+**Change note (v3.7.0 → v3.8.0):** Confirmed the Search Domain's three tables (`search_requests`,
+`provider_matches`, `search_event_log`) and `administration.manual_match_assignments` shipped, by Story AI-002
+(Sprint 7) — via a new reversible Alembic migration creating the `search` schema and adding
+`manual_match_assignments` to the existing `administration` schema. Four flagged, necessary nullable-column
+deviations from this document's previously-literal `NOT NULL` text (see ADR-038, `09_DECISIONS.md`):
+`search_requests.category_id`, `search_requests.structured_criteria`, `search_requests.customer_latitude`/
+`customer_longitude` (all now nullable — a routed-to-admin session may have no resolved category, no validated
+structured criteria, and/or no default saved-address coordinates, and the row is still created honestly rather
+than fabricating a value or blocking the customer), and `manual_match_assignments.assigned_admin_id` (nullable,
+populated only at resolution — `ADR-030` had already found `NOT NULL` here didn't fit an unassigned pull-queue,
+this is the story that actually built the table). Updated the Search Domain and Administration Domain sections'
+tables accordingly.
 
 **Change note (v3.6.0 → v3.7.0):** Confirmed the Conversation / AI Intake Domain section's three tables
 (`conversation_sessions`, `messages`, `confidence_scores`) shipped exactly per this document's own pre-existing
@@ -660,16 +673,25 @@ Append-only log of confidence over the life of a session (a single session may b
 
 # Search Domain (`search` schema)
 
+Shipped by Story AI-002 (Sprint 7), exactly per this spec, **except four flagged nullable-column deviations**
+recorded in the table below and at ADR-038 (`09_DECISIONS.md`) — each resolved the way this codebase resolves
+every prior instance of "the locked spec doesn't fit what the real code path can honestly provide": make the
+column nullable and report the honest absence, never fabricate a value. `SearchRequestService` is this schema's
+sole writer, via one shared `_finalize_matches` helper for both the automated-match path (a `completed`
+Conversation Session) and the manual-resolution path (an admin resolving a `routed_to_admin` session's queue
+entry, `administration.manual_match_assignments` below) — see ADR-040. `DIR-001`'s `SearchService` remains a
+stateless read-layer over `provider` and writes none of these tables (unchanged, ADR-025/ADR-041).
+
 ## search_requests
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | customer_id | UUID | No | FK → `customer.customer_profiles.id` |
 | conversation_session_id | UUID | Yes | FK → `conversation.conversation_sessions.id` |
-| category_id | UUID | No | FK → `category.categories.id` |
-| structured_criteria | JSONB | No | Structured output of the Conversation Session (category-specific answers) |
-| customer_latitude | DOUBLE PRECISION | No | |
-| customer_longitude | DOUBLE PRECISION | No | |
+| category_id | UUID | **Yes** (deviation — was `NOT NULL`) | FK → `category.categories.id`. `NULL` only for a `routed_to_admin` session that reached the AI-Conversation hard turn cap without ever resolving a category (AI-002, ADR-038) — never fabricated. |
+| structured_criteria | JSONB | **Yes** (deviation — was `NOT NULL`) | Structured output of the Conversation Session (category-specific answers). `NULL` for a `routed_to_admin` session, which never has a complete, validated answer set (AI-001 Decision 1b/ADR-033; AI-002 ADR-038). |
+| customer_latitude | DOUBLE PRECISION | **Yes** (deviation — was `NOT NULL`) | `NULL` if the customer has no default saved address at request time — the row is still created (never blocked), resolving to `unmatched` (AI-002, ADR-038). |
+| customer_longitude | DOUBLE PRECISION | **Yes** (deviation — was `NOT NULL`) | Same nullability reasoning as `customer_latitude` (AI-002, ADR-038). |
 | status | `search_request_status` | No | |
 
 **Indexes:** `idx_search_requests_customer_id`, `idx_search_requests_created_at`, `idx_search_requests_status`
@@ -879,8 +901,9 @@ exempt it the way the immutable `audit.audit_logs` is exempted (see `09_DECISION
 reasoning). Written by `AdminActionLogService.record_verification_review` on every admin approve/reject action
 (AC6) — `metadata` carries `provider_id` and, for a rejection, `rejection_reason`, since `target_entity_id` is a
 single polymorphic reference and cannot itself hold a second id. `claim_review_requests` (below) has since shipped
-alongside it as the Administration domain's second slice (Story CLM-001, Sprint 6); `manual_match_assignments`,
-`unmatched_query_reports`, `feature_flags`, and `system_settings` (below) remain unbuilt.
+alongside it as the Administration domain's second slice (Story CLM-001, Sprint 6); `manual_match_assignments`
+(below) has since shipped as its third slice (Story AI-002, Sprint 7); `unmatched_query_reports`, `feature_flags`,
+and `system_settings` (below) remain unbuilt.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
@@ -894,13 +917,17 @@ alongside it as the Administration domain's second slice (Story CLM-001, Sprint 
 
 ## manual_match_assignments
 
-Wizard-of-Oz fallback for low-confidence Conversation Sessions.
+Wizard-of-Oz fallback for low-confidence Conversation Sessions. Shipped by Story AI-002 (Sprint 7) — a pull-based
+admin queue (no push-notification recipient concept exists anywhere in this codebase, `ADR-030`), the fourth
+application of the passive-queue-row pattern (`admin_action_log`/`claim_review_requests` before it), with an
+atomic conditional-`UPDATE` resolution guard (`ManualMatchAssignmentRepository.try_resolve`, mirroring
+`try_claim_for_account`/`try_claim_for_review`) — see `09_DECISIONS.md` ADR-039.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | conversation_session_id | UUID | No | FK → `conversation.conversation_sessions.id` |
 | search_request_id | UUID | Yes | FK → `search.search_requests.id` |
-| assigned_admin_id | UUID | No | FK → `identity.users.id` |
+| assigned_admin_id | UUID | **Yes** (deviation — was `NOT NULL`) | FK → `identity.users.id`. `NULL` while `status = pending` (an unassigned queue — any admin may pick up); populated only at resolution with the admin who resolved it, mirroring `claim_review_requests.reviewed_by`'s nullable-until-resolved shape (`ADR-030`'s own prior finding on this exact column, now actually built; AI-002 ADR-038). |
 | status | VARCHAR(20) | No | `pending` \| `completed` |
 | completed_at | TIMESTAMPTZ | Yes | |
 
