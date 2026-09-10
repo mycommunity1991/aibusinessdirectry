@@ -1,13 +1,14 @@
 # AI Marketplace — Open Decisions
 
 **Document ID:** AI-13
-**Version:** 0.6.0
+**Version:** 0.7.0
 **Status:** Draft — Reconstructed; item 1 resolved and implemented (`CTG-001` shipped), item 4 resolved, item 3
-given an explicit CTO risk-acceptance decision (still Open — the underlying legal question is unresolved),
-items 5/8/10/11/12 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
+given an explicit CTO risk-acceptance decision (still Open — the underlying legal question is unresolved), item
+13 newly added and given an explicit CTO risk-acceptance decision (still Open — real LLM vendor selection remains
+unresolved), items 5/8/10/11/12 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
 **Owner:** CTO
 **Audience:** Engineering Team, Product Team, AI Assistants
-**Last Updated:** 09 September 2026
+**Last Updated:** 10 September 2026
 
 ---
 
@@ -395,6 +396,77 @@ from VER-001's review).
 
 ---
 
+## Item 13 — Real LLM Vendor Selection and RAG Grounding Implementation
+
+**Status:** Open — CTO has made an explicit, informed risk-acceptance decision (10 September 2026) to ship
+`AI-001` against a fully rule-based interim client for MVP anyway; the underlying product question (which real
+LLM vendor, and how RAG grounding against live provider data actually works) remains genuinely unresolved.
+**`AI-001` has since shipped (10 September 2026) against this decision** — see "Implementation status" below.
+
+**Description:** `AI-001` ("describe my service need in a guided AI conversation") is this platform's stated core
+differentiator: an LLM-API-driven, RAG-grounded conversational intake. No real LLM provider, SDK, or credential is
+confirmed anywhere in this codebase or environment — a repository-wide search found none (mirroring how VER-001's
+planning found no real OCR pipeline either, item 11). Two of `AI-001`'s 11 verbatim acceptance criteria depend
+directly on a real vendor existing:
+- **AC3** ("system prompts are stored as version-controlled files, not inline strings") — meaningless for a
+  client with no prompts.
+- **AC5** ("a retrieved provider record with a null field is reported to the customer as unknown, never estimated
+  or guessed") — requires live retrieval/grounding against real `provider.providers` records mid-conversation,
+  which no code path in this story implements (`AI-001`'s scope boundary, item 1's now-resolved Category domain
+  aside, deliberately never queries providers at all).
+
+**This is a genuine product-differentiator gap, not a stub-infrastructure gap.** It is a different shape of
+problem from items this document already tracks for `FileStorage`/`DocumentOcrService`/`GooglePlacesClient`
+(all fully real mechanisms behind an interim/local vendor choice): here, the entire conversational intelligence
+is scripted and deterministic (`RuleBasedConversationAiClient` — case-insensitive substring category matching,
+verbatim template question walking, equal-step confidence) rather than prompt-driven reasoning grounded against
+live data. The rule-based client is fully honest about what it is (never invents a question or fact outside the
+seeded `category_question_templates`/`categories` taxonomy — a real, tested, structural guarantee, `AI-001`'s
+AC10), but it is not yet the differentiated, natural-language-understanding product experience the platform's own
+product description promises.
+
+**Risk-acceptance decision (10 September 2026):** the CTO reviewed the tradeoff of blocking `AI-001` entirely on
+this decision versus shipping the fully-buildable, fully-testable remainder of the story (the `conversation`
+schema, the swappable Protocol boundary, the confidence/turn-cap mechanics, the revise-a-previous-answer flow, the
+mobile chat screen, and 9 of 11 ACs) against a deterministic interim client. Chose to proceed with the interim
+client for MVP, with AC3/AC5 honestly recorded as **not met**, not silently skipped or falsely marked satisfied —
+mirroring exactly the risk-acceptance pattern item 3 already used for `CLM-001`'s Google Places decision. The
+Protocol boundary (`ConversationAiClient`, ADR-034) means a future real vendor is one new class plus one
+dependency-wiring change, zero changes to `ConversationService` itself.
+
+**Known, accepted exposure:** the product's stated core differentiator does not yet exist in a customer-observable
+sense — the guided conversation today is a scripted taxonomy walk, not an LLM-mediated natural-language
+understanding experience. A customer describing their problem in genuinely ambiguous or colloquial free text will
+be routed to a plain category picker far more often than a real NLU/LLM system would resolve automatically. Cost
+and rate-control policy for real LLM calls (Open Question 2 in `Plan_S07_AI-001.md`) is entirely undecided, since
+no real vendor call exists yet to have a policy for.
+
+**This item stays Open, not Resolved** — proceeding under accepted risk for MVP speed is not the same as the
+underlying product/vendor question being answered, and choosing a vendor later may require revisiting parts of the
+`ConversationAiClient` Protocol shape itself (e.g. streaming responses, function-calling/tool-use for retrieval)
+that the interim client's simple request/response shape does not need to anticipate.
+
+**Implementation status (10 September 2026, `AI-001` shipped and signed off):** the design this decision describes
+is live in the codebase — the full `conversation` schema and module, the `ConversationAiClient` Protocol and its
+only implementation (`RuleBasedConversationAiClient`), and the mobile AI Conversation screen (S-07) are all built
+and tested. See `docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md` for the full account, including two
+review-caught bug fixes (a mobile error-mapping bug, and a hard-delete-vs-soft-delete standards violation on the
+revise-answer flow) unrelated to this item's own gap.
+
+**Blocks:** Nothing at the code level for `AI-001` itself, which has shipped. **Blocks** AC3/AC5 ever being
+genuinely satisfied, and blocks `AI-002`'s eventual confidence-routing design from being informed by a real
+vendor's actual confidence-scoring behavior (today it is calibrated only against the interim client's own
+0.0-or-1.0 scores). Also blocks Open Question 2 (cost/rate controls) from having anything concrete to design
+against.
+
+**Related:** `03_DOMAIN_MODEL.md` (Conversation / AI Intake Session — the RAG-grounded differentiator framing),
+`04_DATABASE.md` (Conversation / AI Intake Domain), `09_DECISIONS.md` (ADR-034 — the `ConversationAiClient`
+Protocol; ADR-035 — this gap's own ADR; the item-3 Google Places risk-acceptance pattern this mirrors),
+`12_TECH_STACK.md` (no LLM vendor named), `docs/implementation/plans/Plan_S07_AI-001.md` (Decision 2, Decision 2b,
+Open Questions 1/2), `docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md`.
+
+---
+
 # Changelog
 
 - **08 September 2026** — Document created (reconstructed from citations across the codebase; see
@@ -439,6 +511,13 @@ from VER-001's review).
   `listing_source`/`google_place_id` bulk-deletion mitigation is now operative against real, imported data rather
   than a theoretical schema affordance. See item 3's "Implementation status" note and
   `docs/implementation/walkthroughs/Walkthrough_S06_CLM-001.md` for the full account.
+- **10 September 2026 (Sprint 7, `AI-001` shipped)** — Item 13 added: `AI-001` ("describe my service need in a
+  guided AI conversation") shipped against an explicit CTO risk-acceptance decision to ship a fully rule-based
+  interim `ConversationAiClient` for MVP, with AC3 (system-prompt version control) and AC5 (null-provider-field
+  grounding) honestly recorded as not met rather than silently skipped — mirroring item 3's risk-acceptance
+  pattern. Real LLM vendor selection and RAG grounding implementation remain genuinely open, tracked here as a
+  deliberate, CTO-approved MVP gap that must stay visibly open. Recorded as ADR-035 in `09_DECISIONS.md`. See
+  `docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md` for the full account.
 
 ---
 

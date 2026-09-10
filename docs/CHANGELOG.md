@@ -11,6 +11,55 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Conversation / AI Intake domain — describe my service need in a guided AI conversation (Story AI-001): a new
+  `conversation` Postgres schema with `conversation_sessions`, `messages`, and `confidence_scores` tables, all
+  exactly per `04_DATABASE.md`'s pre-existing spec, via a new reversible Alembic migration (`conversation_domain`).
+  Two additive items beyond that spec: `conversation_status` gains a fourth value, `abandoned` (set when a
+  customer starts a new session while a previous one is still `active`); and `conversation_sessions` gains
+  `structured_criteria` (JSONB, nullable), a `search_requests`-ready payload validated via a new
+  `StructuredCriteria` Pydantic model and populated only when a session reaches `status=completed` — recorded
+  together as **ADR-032**/**ADR-033**. A new swappable `ConversationAiClient` Protocol (`process_turn`) — the
+  fourth application of the `FileStorage`/`DocumentOcrService`/`GooglePlacesClient` Protocol-swappability
+  precedent — with one shipped implementation, `RuleBasedConversationAiClient` (**ADR-034**): resolves a category
+  from the customer's free text via case-insensitive substring matching against the seeded taxonomy, returning a
+  clarifying quick-reply category picker rather than ever guessing on zero or multiple matches, then walks that
+  category's required follow-up questions verbatim, one at a time, in `sort_order` — no code path can emit a
+  question, category, or fact absent from the seeded `category.categories`/`category_question_templates` rows,
+  proven directly by a new structural grounding test rather than claimed by prompt instruction. Confidence rises
+  in equal steps as required questions are answered, `0.0` while unresolved and `1.0` once complete.
+  `ConversationService` (`POST /api/v1/conversations`, `POST /api/v1/conversations/{id}/messages`, `PATCH
+  /api/v1/conversations/{id}/answers/{message_id}`, `GET /api/v1/conversations/{id}`, all
+  `require_role(ROLE_CUSTOMER)` + `ensure_owner_or_not_found`) applies a confidence-threshold-then-turn-cap
+  completion policy, both `Settings` (`CONVERSATION_CONFIDENCE_THRESHOLD`, `CONVERSATION_MAX_TURNS`), not code.
+  Revising a previous answer (`PATCH .../answers/{message_id}`) truncates every later message in the session and
+  regenerates the next turn fresh from the shorter history, clearing any stale `structured_criteria`.
+  `ConversationSessionResponse` never includes a raw confidence field anywhere in its schema. This story ends at
+  `conversation_sessions.status ∈ {completed, routed_to_admin}` — it makes **zero** writes to
+  `search.search_requests`/`provider_matches`/`search_event_log` or `administration.manual_match_assignments`
+  (**ADR-032**, Tracker-confirmed scope boundary); `AI-002` is the story that creates any `search_requests` row or
+  routes to manual matching. **Explicit, CTO-accepted MVP gap (ADR-035):** no real LLM vendor is selected
+  anywhere in this codebase — two of this story's 11 verbatim acceptance criteria, AC3 (system prompts stored as
+  version-controlled files) and AC5 (a retrieved provider record's null field reported as unknown, never
+  estimated), are honestly recorded as **not met** by this fully rule-based interim implementation, not silently
+  skipped, tracked as a new `docs/AI/13_OPEN_DECISIONS.md` item 13. **Fixed during review:** (1) a mobile
+  `ConversationRepository._mapError` bug that mapped every HTTP 422 response to "this answer can no longer be
+  revised," even for an unrelated request-body validation failure on `POST /conversations`/`POST .../messages` —
+  fixed by distinguishing the revise-specific 422 (`PATCH .../answers/{id}`) from every other endpoint's 422; (2)
+  a backend standards violation (**ADR-036**) — the revise-answer flow originally hard-`DELETE`d truncated
+  messages, reasoned on a factually incorrect premise that `messages` lacked a soft-delete column (it is
+  `CommonColumnsMixin`-based and already has `deleted_at`/`is_active`, like every other soft-deletable table in
+  this codebase); corrected to soft-delete, mirroring `saved_addresses`' precedent, requiring
+  `uq_messages_session_sequence`'s promotion from a plain unique constraint to a **partial** unique index (`WHERE
+  is_active = true`).
+- Mobile AI Conversation screen (Story AI-001): a new, sibling `features/conversation/` module — the AI
+  Conversation screen (S-07) with a tiered perceived-latency UI (a typing indicator through 3 seconds, a
+  contextual label from 3–8 seconds, then "we'll notify you" hand-off messaging past 8 seconds or on a timeout —
+  never an indefinite spinner), an in-flight-turn queue so the input field is never frozen while a turn is being
+  processed, quick-reply chips for `single_select`/`multi_select` questions, an inline tap-to-revise editor on any
+  past customer bubble (gated to still-`active` sessions only), an always-available "Start over" action, and
+  never a numeric confidence value anywhere in the widget tree. RTL-mirrored chat bubbles and Arabic prompt/
+  response rendering verified on this screen. A new primary "Describe what you need" entry point was added to the
+  Home placeholder screen.
 - Provider domain — claim my Google-seeded business listing (Story CLM-001): a new, idempotent, manually-invoked
   CLI script (`backend/scripts/import_google_places.py`) bulk-imports Business listings from the Google Places
   API, upserting on `google_place_id` so the same script run serves as both the first bulk seed and every later

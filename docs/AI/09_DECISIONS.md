@@ -2323,6 +2323,391 @@ while unset, rather than the whole app refusing to boot in every environment tha
 
 ---
 
+# ADR-032
+
+## Title
+
+`AI-001`/`AI-002` Scope Boundary — Conversation Domain Ends at `conversation_sessions.status ∈ {completed,
+routed_to_admin}`, Tracker-Confirmed
+
+**Date**
+
+2026-09-10
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`14_USER_FLOWS.md` Flow 4 describes one continuous journey (free-text description → guided questions → ranked
+provider list) but the Tracker splits Sprint 7's Conversation/AI Intake domain into two stories, `AI-001`/
+`AI-002`. `Plan_S07_AI-001.md` originally inferred the scope boundary from `04_DATABASE.md`'s
+`search_request_status` enum (`matched`/`unmatched`/`pending_manual_match` — all matching *outcomes*, with no
+"submitted, awaiting processing" value), before the Tracker's verbatim `AI-002` row could be read directly.
+
+### Decision
+
+`AI-001` owns the `conversation` schema/module only: it ends at `conversation_sessions.status ∈ {completed,
+routed_to_admin}`, with **zero** writes to `search.search_requests`/`provider_matches`/`search_event_log` or
+`administration.manual_match_assignments`. This is now **Tracker-confirmed**, not merely inferred: the verbatim
+`AI-002` row states its own scope boundary as "does not include the admin-side queue UI itself (`ADM-001`) — this
+story implements the routing/data model side and the customer-facing continuity guarantee," which presupposes
+`AI-002` — not `AI-001` — is the story that creates the manual-match routing/assignment records and any
+`search_requests` row. The mobile completion state after a `completed`/`routed_to_admin` session is an honest,
+plain confirmation ("Thanks — we're finding matches for you"), never a fabricated results list, since no results
+exist yet at the code level — the same "ship a real, complete domain slice ahead of its future consumer" shape
+`CTG-001` already established for `CategoryService`.
+
+### Alternatives Considered
+
+- **Build the whole Flow 4 (conversation + matching + results) as one story** — rejected: `.agents/agents.md`
+  explicitly instructs not to combine stories without explicit instruction; the verbatim `AI-002` row confirms two
+  stories were intended.
+- **Create `search_requests` now with a new, unspecified `pending`/`submitted` status value** — rejected: adds an
+  enum value to a table this story doesn't otherwise need to touch, purely to paper over a scope question.
+
+### Consequences
+
+- `AI-002` is now the confirmed owner of `search.search_requests` creation, real matching, and
+  `administration.manual_match_assignments` — it reads `conversation_sessions.structured_criteria` (ADR-033) as
+  its input rather than re-deriving it from raw `messages`.
+- The boundary evidence (the locked `search_request_status` enum having no "submitted" value) remains valid and
+  citable for any future story questioning this split.
+
+### Related Documents
+
+- 04_DATABASE.md (`search_request_status` enum; Conversation / AI Intake Domain)
+- 14_USER_FLOWS.md Flow 4
+- docs/implementation/plans/Plan_S07_AI-001.md (Decision 1)
+- docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md
+
+---
+
+# ADR-033
+
+## Title
+
+`conversation_sessions.structured_criteria` (JSONB) — a `search_requests`-Ready, Pydantic-Validated Payload That
+Never Crosses the `search`-Schema Boundary
+
+**Date**
+
+2026-09-10
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+AC9 requires "every completed session produces a `search_requests`-ready `structured_criteria` payload, validated
+via a Pydantic model before persistence." Writing directly to `search.search_requests` would violate ADR-032's
+scope boundary, yet AC9 is a verbatim, explicit requirement of this story.
+
+### Decision
+
+Add `conversation_sessions.structured_criteria` — `JSONB`, nullable, populated only when a session reaches
+`status=completed`. Shape, validated by `StructuredCriteria`/`StructuredCriteriaAnswer`
+(`conversation/services/structured_criteria.py`) before the column is ever written: `category_id`, `category_slug`,
+and an ordered `answers: list[{question_id, question_text, answer_text}]` — a generic, category-agnostic shape
+built from the resolved `Category` and every answered `is_required=true` `CategoryQuestionTemplate` paired with
+its persisted `messages.content` answer. `ConversationService._complete_session` builds and validates this
+instance, then persists `structured_criteria.model_dump(mode="json")` in the same transaction that sets
+`status=completed`; a `ValidationError` at this point raises `InvalidStructuredCriteriaError` (500) rather than a
+raw Pydantic error. A `routed_to_admin` session leaves `structured_criteria` `NULL` — there is no complete,
+validated answer set to build it from.
+
+This satisfies AC9 without violating ADR-032's scope boundary: the payload lives entirely inside the
+`conversation` schema, is genuinely `search_requests`-*ready* (its shape maps cleanly onto plausible future
+`search_requests` filter columns) without this story creating or writing to `search_requests` itself. `AI-002` (or
+a later story) is the one that reads `conversation_sessions.structured_criteria` to build the actual
+`search_requests` row.
+
+### Alternatives Considered
+
+- **Compute `structured_criteria` on-the-fly at read time (a service method, not a persisted column)** —
+  rejected: AC9 is explicit that persistence, not mere computability, is part of the requirement; a persisted
+  column is also directly queryable/auditable by `AI-002` without re-deriving it from the full `messages` history.
+- **A separate `structured_criteria` table instead of a column** — rejected as unrequested schema scope creep; a
+  1:1 relationship with `conversation_sessions` is simpler as a nullable JSONB column, the same reasoning
+  `04_DATABASE.md` already applies to `conversation_sessions.final_confidence_score`.
+
+### Consequences
+
+- `AI-002` has a real, validated, queryable input to build `search_requests` from, without ever needing to
+  re-parse raw `messages` rows itself.
+- Any future story revising a completed session (Decision 5, ADR-036) must clear a stale `structured_criteria`
+  rather than leave it inconsistent with the actual answer history — already implemented as part of
+  `revise_answer`.
+
+### Related Documents
+
+- 04_DATABASE.md (Conversation / AI Intake Domain; `search.search_requests`)
+- 09_DECISIONS.md (ADR-032 — the scope boundary this decision satisfies AC9 within)
+- docs/implementation/plans/Plan_S07_AI-001.md (Decision 1b)
+- docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md
+- backend/app/modules/conversation/services/structured_criteria.py
+
+---
+
+# ADR-034
+
+## Title
+
+`ConversationAiClient` Swappable Protocol — Fourth Application of the `FileStorage`/`DocumentOcrService`/
+`GooglePlacesClient` Pattern, with a `process_turn` Signature Generalized Beyond the Original Plan Sketch
+
+**Date**
+
+2026-09-10
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+No LLM provider, SDK, or credential is confirmed anywhere in this codebase. This is the fourth time this project
+has hit exactly this shape of problem — an external capability with no confirmed implementation — after
+`FileStorage` (ADR-017), `DocumentOcrService` (ADR-018), and `GooglePlacesClient` (ADR-031), each solved the same
+way: a swappable Protocol plus an honest concrete interim implementation.
+
+### Decision
+
+`conversation/services/conversation_ai_client.py` defines `ConversationTurnResult` (`reply_message`,
+`reply_message_ar`, `resolved_category_id`, `is_complete`, `confidence`, `quick_reply_options`), the
+`ConversationAiClient` Protocol, and `RuleBasedConversationAiClient` — the only implementation this story ships.
+Category resolution is a case-insensitive substring match against each active category's `name`/`name_ar`/`slug`;
+zero or multiple matches return a clarifying quick-reply prompt, never a guess (AC4). Follow-up questions walk a
+resolved category's required templates in `sort_order`, verbatim — the client has no natural-language generation
+capability at all beyond echoing template/category data, so AC10's grounding requirement holds by construction.
+Confidence is `0.0`/rising in equal steps/`1.0`, tagged `model_version="rule_based_v1"`. `ConversationService`
+depends on the Protocol only, wired via `conversation/dependencies.py:get_conversation_ai_client()` — neither API
+routes nor the mobile screen ever import a concrete client, which is what AC2 itself requires.
+
+**Signature deviation from the Plan's literal sketch, deliberately made during implementation:** `Plan_S07_AI-001
+.md`'s Decision 2 sketched `process_turn(..., active_question: CategoryQuestionTemplate | None, ...)`. Implementing
+that same Decision's own described *behavior* — walking questions one at a time while also tracking "how many
+required questions remain" for the equal-step confidence calculation — turned out to be impossible from a single
+`active_question` value alone, and there is no `active_question` to hand it at all in the same-turn
+category-resolution case, since the category is being resolved for the first time inside that very call. The
+shipped signature instead takes `question_templates_by_category: dict[uuid.UUID, list[CategoryQuestionTemplate]]`
+— every active category's templates, keyed by `category_id` — which `ConversationService` assembles once per turn
+from `CategoryService` (small: 14 categories, ~47 templates in the seeded taxonomy, cheap to refetch every turn
+rather than cache). This closes the circular dependency cleanly: a category resolved in the same call already has
+its templates available for the very next line of the method to use. This is judged a sound generalization, not a
+design regression — it implements the same Decision 2 behavior the Plan described, using a strictly more capable
+input shape, with no other change to Decision 2's design or guarantees.
+
+### Alternatives Considered
+
+- **Wire a real LLM API now, picking a provider unilaterally** — rejected: requires explicit approval per
+  `.agents/agents.md`, and would be unverifiable work without a real credential to test against.
+- **Keep the Plan's literal single-`active_question` signature and derive "how many remain" some other way** —
+  rejected: every alternative considered (a separate count parameter, a second Protocol method) either duplicated
+  information already available in the full per-category template list or split one logical "what does this
+  client need to know" concept across multiple parameters for no benefit.
+
+### Consequences
+
+- This is now this codebase's fourth confirmed application of the Protocol-swappability pattern (`FileStorage`,
+  `DocumentOcrService`, `GooglePlacesClient`, `ConversationAiClient`) for an unconfirmed/untestable external
+  capability.
+- A future real LLM implementation (`OpenAiConversationAiClient`, `AnthropicConversationAiClient`, or whichever
+  vendor is chosen once `13_OPEN_DECISIONS.md` item 13 resolves) is one new class plus one dependency-wiring
+  change, implementing the same `process_turn(..., question_templates_by_category, ...)` signature — the
+  generalization made here means a real client's own confidence/question-tracking logic is not artificially
+  constrained by a single-question view of the world either.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-017, ADR-018, ADR-031 — the pattern's prior three applications)
+- docs/implementation/plans/Plan_S07_AI-001.md (Decision 2)
+- docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md
+- backend/app/modules/conversation/services/conversation_ai_client.py (the deviation is recorded directly in the
+  module's own docstring)
+
+---
+
+# ADR-035
+
+## Title
+
+AC3 and AC5 Are Honest, CTO-Accepted MVP Gaps Under the Rule-Based Interim `ConversationAiClient` — Deferred to
+`13_OPEN_DECISIONS.md` Item 13
+
+**Date**
+
+2026-09-10
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+Two of `AI-001`'s 11 verbatim acceptance criteria are structurally unsatisfiable by `RuleBasedConversationAiClient`
+(ADR-034): AC3 ("system prompts are stored as version-controlled files, not inline strings") and AC5 ("a retrieved
+provider record with a null field is reported to the customer as unknown, never estimated or guessed"). The
+rule-based client has no LLM prompts at all — it does deterministic substring matching and verbatim template
+lookups — and never retrieves or discusses a specific provider record mid-conversation, since ADR-032's scope
+boundary keeps this story out of `provider.providers` entirely.
+
+### Decision
+
+The CTO explicitly accepted shipping the rule-based interim client for MVP (mirroring the same risk-acceptance
+pattern `13_OPEN_DECISIONS.md` item 3 already used for `CLM-001`'s Google Places decision), with AC3 and AC5
+recorded honestly as **not met** by this implementation — "Deferred (MVP gap)" in the Verification Plan, never
+"Satisfied." A placeholder "system prompt" file with no real content, or a fabricated synthetic provider record
+just to exercise AC5's code path, were both explicitly rejected as decorative compliance that would prove nothing
+true about the shipped system.
+
+**This is a genuine product-differentiator gap, not a stub-infrastructure gap.** Unlike `FileStorage`,
+`DocumentOcrService`, or `GooglePlacesClient` — where the *mechanism* (storage, OCR, a Places API call) is fully
+real and only the specific vendor is interim/local — here the entire conversational intelligence is scripted and
+deterministic; there is no prompt-driven reasoning or live grounding happening at all yet. Recorded as a new
+`13_OPEN_DECISIONS.md` item 13, tracking (a) which real LLM vendor to select, (b) AC3 (meaningful only once real
+prompts exist), and (c) AC5 (meaningful only once real provider retrieval exists) as one open, CTO-approved MVP
+gap that must stay visibly open, not silently forgotten.
+
+### Alternatives Considered
+
+- **Write a placeholder "system prompt" file with no real content, just to check the AC3 box** — rejected as
+  decorative compliance.
+- **Fabricate a synthetic "provider record" with a null field just to exercise AC5's code path** — rejected: this
+  story's scope boundary already excludes any provider-record retrieval from this domain; a fake retrieval solely
+  to test an AC not really being exercised by production logic would assert nothing true.
+- **Block the entire story on selecting a real LLM vendor first** — rejected: the Protocol boundary, the full
+  `conversation` schema, the confidence/turn-cap mechanics, the revise-a-previous-answer flow, and 9 of 11 ACs are
+  all real, valuable, and fully buildable and testable today, independent of which LLM is eventually chosen.
+
+### Consequences
+
+- `13_OPEN_DECISIONS.md` item 13 is the single authoritative place tracking this gap — any future story or review
+  should check it before assuming AC3/AC5 are either resolved or forgotten.
+- The moment a real LLM+RAG implementation is built (item 13's resolution), AC3 and AC5 become directly testable
+  and required — this ADR's deferral has a clear, concrete trigger for revisiting it.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-034 — the Protocol this gap is a property of; the item-3 Google Places precedent this
+  mirrors)
+- docs/AI/13_OPEN_DECISIONS.md (item 13, item 3 — the precedent for documenting a deliberate MVP gap)
+- docs/implementation/plans/Plan_S07_AI-001.md (Decision 2b)
+- docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md
+
+---
+
+# ADR-036
+
+## Title
+
+Revising a Previous Answer — Truncate-and-Regenerate via Soft-Delete on a Partial Unique Index, Corrected from an
+Originally-Planned Hard Delete; the Additive `conversation_status.abandoned` Value
+
+**Date**
+
+2026-09-10
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+AC8 requires the customer be able to revise a previous answer without restarting the conversation. Editing an
+early answer can invalidate every AI question that came after it. `Plan_S07_AI-001.md`'s Decision 5 originally
+specified a hard `DELETE` of every truncated message, reasoned as necessary because "`messages` has no
+`deleted_at`/soft-delete column... unlike `CommonColumnsMixin`-based tables." During `architect` review, this
+premise was found to be factually wrong: `Message(CommonColumnsMixin, Base)` (`backend/app/modules/conversation/
+models.py`) *is* `CommonColumnsMixin`-based and *does* already have `deleted_at`/`is_active`
+(`backend/app/database/mixins.py`). A hard `DELETE` of customer conversation transcript data, triggered by a
+customer-initiated revise rather than an administrative action, violated `04_DATABASE.md`'s "Common Columns" rule
+that permanent deletion is an administrative operation — `audit.audit_logs`/`search.search_event_log` are the
+only stated exemptions, and `messages` is neither.
+
+### Decision
+
+`PATCH /conversations/{session_id}/answers/{message_id}` (a) updates the target message's content, (b)
+**soft-deletes** every message (customer and AI alike) with a strictly greater `sequence_number` in the same
+session — `MessageRepository.delete_after_sequence` sets `deleted_at`/`is_active=False`, mirroring
+`SavedAddressRepository.soft_delete`'s exact convention, never a hard `DELETE` — and (c) re-invokes
+`ConversationAiClient.process_turn` with the now-shorter, active-only history to generate the next turn fresh.
+`list_for_session` and `get_next_sequence_number` filter `is_active.is_(True)` so a soft-deleted message is
+invisible to the transcript and never double-counted when assigning the next `sequence_number` — the
+customer-visible behavior (truncated messages disappear, sequence numbers continue correctly) is unchanged, only
+the persistence mechanism is. If the truncated history no longer has a complete answer set, any previously
+computed `structured_criteria` on that session (ADR-033) is cleared until the session re-completes.
+
+This required promoting `uq_messages_session_sequence` from a plain table-level `UniqueConstraint` to a **partial**
+unique index scoped `WHERE is_active = true` (mirroring `uq_saved_addresses_customer_default`'s existing
+precedent), so a regenerated turn can reuse a soft-deleted row's old `sequence_number` without a constraint
+conflict. A revise-triggered `PATCH` on an already-`completed`/`routed_to_admin` session reverts it to `active`
+before reprocessing; an `abandoned` session can never be revised (`AnswerNotRevisableError`) since it was
+superseded by a newer session.
+
+**A small, additive enum value:** `conversation_status` gains `abandoned` — set when a customer starts a new
+session while a previous one is still `active`. Genuinely new beyond `04_DATABASE.md`'s previously-explicit text
+(`active`/`completed`/`routed_to_admin`), flagged for and now completed as a `04_DATABASE.md` update at this
+story's close.
+
+### Alternatives Considered
+
+- **In-place edit only, leave subsequent AI messages stale** — rejected: would show AI questions that no longer
+  make sense for a revised answer, directly undermining trust.
+- **Hard-delete truncated messages (the Plan's original text)** — **superseded, this ADR's own correction**: the
+  premise that `messages` lacked a soft-delete column was factually wrong; soft-delete is this codebase's standing
+  convention for exactly this shape of problem, and hard-delete was the actual violation.
+- **Silently leave `active` sessions abandoned with no status change when a new one starts** — rejected: makes
+  "how many conversations did a customer actually finish vs. give up on" ungoverned and unqueryable.
+
+### Consequences
+
+- Any future story needing to "remove" rows from a `CommonColumnsMixin`-based table in response to a
+  customer-initiated action (not an administrative one) should default to soft-delete plus a partial unique index
+  scoped `WHERE is_active = true` if uniqueness needs to tolerate a superseded row's old key being reused — this
+  is now the second confirmed application of that exact pattern (`saved_addresses`, `messages`).
+- A Plan's own stated alternatives-considered reasoning is not automatically correct just because it's written
+  down — `architect` review caught a factual premise error here that a less-thorough review might have accepted
+  at face value; this is recorded so future reviews keep verifying claims like "table X has no column Y" against
+  the actual model/mixin code, not just the Plan's prose.
+
+### Related Documents
+
+- 04_DATABASE.md (Common Columns soft-delete rule; `saved_addresses`' `uq_saved_addresses_customer_default`
+  precedent; Conversation / AI Intake Domain)
+- 09_DECISIONS.md (ADR-015 — the `uq_saved_addresses_customer_default` partial-unique-index precedent this
+  mirrors)
+- docs/implementation/plans/Plan_S07_AI-001.md (Decision 5, including its own "Correction (post-implementation,
+  `architect` review)" note)
+- docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md
+- backend/app/modules/conversation/repositories/message_repository.py (`delete_after_sequence`'s docstring
+  records this reasoning directly in code)
+- backend/alembic/versions/2026_09_10_1000-ef7b7d439f40_conversation_domain.py
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

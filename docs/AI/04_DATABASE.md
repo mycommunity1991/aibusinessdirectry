@@ -1,11 +1,22 @@
 # AI Marketplace Database Design
 
 **Document ID:** AI-04
-**Version:** 3.6.0
+**Version:** 3.7.0
 **Status:** Active
 **Owner:** CTO
 **Audience:** Engineering Team, Database Engineers, AI Assistants
-**Last Updated:** 2026-09-09
+**Last Updated:** 2026-09-10
+
+**Change note (v3.6.0 → v3.7.0):** Confirmed the Conversation / AI Intake Domain section's three tables
+(`conversation_sessions`, `messages`, `confidence_scores`) shipped exactly per this document's own pre-existing
+spec, by Story AI-001 (Sprint 7) — plus two additive items flagged for this update: `conversation_status` gains a
+fourth value, `abandoned` (set when a customer starts a new session while a previous one is still `active`); and
+`conversation_sessions` gains `structured_criteria` (JSONB, nullable), the AC9 `search_requests`-ready payload
+populated only when a session reaches `status=completed`, validated via a Pydantic model before persistence (see
+ADR-032/ADR-033, `09_DECISIONS.md`). Also documented `messages`' `uq_messages_session_sequence` as a **partial**
+unique index (`WHERE is_active = true`) rather than a plain table-level constraint — required because
+`AI-001`'s revise-a-previous-answer flow soft-deletes truncated messages rather than hard-deleting them (ADR-036),
+mirroring `uq_saved_addresses_customer_default`'s existing precedent.
 
 **Change note (v3.5.0 → v3.6.0):** Confirmed the Category Domain section's three tables (`categories`,
 `category_question_templates`, `provider_categories`) shipped exactly per this document's own pre-existing spec,
@@ -587,14 +598,24 @@ A Provider belongs to one or more Categories (many-to-many). Not present in the 
 
 # Conversation / AI Intake Domain (`conversation` schema)
 
+**Shipped exactly per this section's spec by Story `AI-001` (Sprint 7, 10 September 2026)** — plus two additive
+items, both flagged below and recorded in `09_DECISIONS.md` (ADR-032/ADR-033/ADR-036). All three tables exist via
+a reversible Alembic migration (`conversation_domain`,
+`backend/alembic/versions/2026_09_10_1000-ef7b7d439f40_conversation_domain.py`). `AI-001` ships a fully
+rule-based, deterministic interim `ConversationAiClient` behind a swappable Protocol — no real LLM vendor is
+selected yet (`13_OPEN_DECISIONS.md` item 13, open). This story never creates or writes to
+`search.search_requests`; see the Search Domain section below for that table's own status. See
+`docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md` for the full account.
+
 ## conversation_sessions
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | customer_id | UUID | No | FK → `customer.customer_profiles.id` |
 | category_id | UUID | Yes | FK → `category.categories.id`. Null until the AI has narrowed to a category. |
-| status | `conversation_status` | No | Default `active` |
+| status | `conversation_status` | No | Default `active`. Values: `active`, `completed`, `routed_to_admin`, `abandoned` (the last is additive — see the enum table's own note above, added by `AI-001`/ADR-036, set when a customer starts a new session while a previous one is still `active`). |
 | final_confidence_score | NUMERIC(4,3) | Yes | Cached latest value from `confidence_scores`; drives Wizard-of-Oz routing |
+| structured_criteria | JSONB | Yes | **Additive, `AI-001`/ADR-033.** The AC9 `search_requests`-ready payload (`{category_id, category_slug, answers: [{question_id, question_text, answer_text}]}`), populated only when `status` reaches `completed`, validated via the `StructuredCriteria` Pydantic model before persistence. `NULL` for an active, `routed_to_admin`, or `abandoned` session. Lives entirely inside this schema — `AI-002` (or a later story) reads it to build the actual `search.search_requests` row; this table is never written to from `search`. |
 | started_at | TIMESTAMPTZ | No | Default `now()` |
 | completed_at | TIMESTAMPTZ | Yes | |
 
@@ -611,7 +632,15 @@ The AI intake chat only — not customer-provider messaging, which does not exis
 | content | TEXT | No | |
 | sequence_number | INTEGER | No | Ordering within the session |
 
-**Constraints:** `uq_messages_session_sequence (conversation_session_id, sequence_number)`
+**Constraints:** `uq_messages_session_sequence` — **partial** unique index on `(conversation_session_id,
+sequence_number)` WHERE `is_active = true` (not a plain table-level `UniqueConstraint`), mirroring
+`saved_addresses`' `uq_saved_addresses_customer_default` precedent (ADR-015). Required by `AI-001`'s
+revise-a-previous-answer flow (ADR-036): a revised answer soft-deletes every later message in the session
+(`deleted_at`/`is_active=false`, per this document's own Common Columns soft-delete rule — never a hard `DELETE`
+of customer transcript data) rather than hard-deleting it, and the regenerated turn that replaces it must be able
+to reuse a soft-deleted row's old `sequence_number` without a constraint conflict. `list_for_session`/
+`get_next_sequence_number` (application code) filter `is_active = true` so a soft-deleted message is invisible to
+the transcript and never double-counted.
 **Indexes:** `idx_messages_conversation_session_id`
 
 ## confidence_scores
