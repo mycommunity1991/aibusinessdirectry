@@ -13,12 +13,14 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.core.constants import ROLE_ADMIN, ROLE_CUSTOMER
 from app.core.security import create_access_token
 from app.database.session import get_db
 from app.main import app
 from app.modules.identity.models import User
+from app.modules.search.models import SearchEventLog
 
 from ._helpers import (
     create_category,
@@ -344,6 +346,80 @@ class TestAdminResolveManualMatch:
         )
 
         assert second.status_code == 409
+
+    async def test_a_rejected_second_resolve_does_not_double_finalize(
+        self, client: TestClient, db_session
+    ) -> None:
+        """
+        BUG regression test (found during AI-002 QA verification): AC4/AC6
+        and `SearchRequestService.resolve_manual_match`'s own docstring
+        both promise "never silently double-finalizing" for a rejected
+        (409) second resolve attempt. The current implementation does not
+        honor this -- `resolve_manual_match` calls `self._finalize_matches`
+        *before* `ManualMatchAssignmentService.resolve` raises
+        `ManualMatchAssignmentAlreadyResolvedError` (409), so the shared
+        `_finalize_matches` helper (Decision 4) -- the "only place
+        `provider_matches`/`search_requests.status`/`search_event_log` are
+        ever written" -- actually runs a second time on every rejected
+        409 attempt, before the rejection is raised.
+
+        This test uses two *different* non-empty `provider_ids` on the
+        first vs. second call specifically so the bug is visible as data
+        corruption (an extra `search_event_log` row, and a second,
+        different `provider_matches` set silently appended) rather than
+        being masked by the `provider_matches` table's own
+        `uq_provider_matches_request_provider` unique constraint (which
+        would otherwise turn an identical-provider-ids second call into a
+        500 instead, hiding the real bug).
+        """
+        user = await create_user(db_session, "930000050")
+        admin = await create_user(db_session, "930000051")
+        provider_first = await create_discoverable_provider(
+            db_session, category_label="Plumbing", display_name="Provider First"
+        )
+        provider_second = await create_discoverable_provider(
+            db_session, category_label="Plumbing", display_name="Provider Second"
+        )
+        _search_request, assignment = await _create_pending_manual_match(
+            db_session, user
+        )
+
+        first = client.post(
+            f"/api/v1/admin/search/manual-matches/{assignment.id}/resolve",
+            headers=_headers(admin.id, [ROLE_ADMIN]),
+            json={"provider_ids": [str(provider_first.id)]},
+        )
+        assert first.status_code == 200
+
+        second = client.post(
+            f"/api/v1/admin/search/manual-matches/{assignment.id}/resolve",
+            headers=_headers(admin.id, [ROLE_ADMIN]),
+            json={"provider_ids": [str(provider_second.id)]},
+        )
+        assert second.status_code == 409
+
+        # AC6: exactly one `search_event_log` row must exist for this
+        # `search_requests` row, regardless of how many resolve attempts
+        # were made -- a rejected (409) attempt must not write a second
+        # one.
+        log_result = await db_session.execute(
+            select(SearchEventLog).where(
+                SearchEventLog.search_request_id == _search_request.id
+            )
+        )
+        assert len(log_result.scalars().all()) == 1
+
+        # AC4: the customer-visible result must still be exactly what the
+        # first (accepted) resolve produced -- the rejected second call
+        # must not have appended `provider_second` to `provider_matches`.
+        customer_response = client.get(
+            f"/api/v1/search-requests/{_search_request.id}",
+            headers=_headers(user.id, [ROLE_CUSTOMER]),
+        )
+        matched_ids = [
+            p["id"] for p in customer_response.json()["data"]["matched_providers"]
+        ]
+        assert matched_ids == [str(provider_first.id)]
 
     async def test_resolving_a_nonexistent_assignment_returns_404(
         self, client: TestClient, db_session

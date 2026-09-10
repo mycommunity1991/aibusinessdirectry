@@ -53,6 +53,7 @@ from app.modules.customer.repositories.customer_profile_repository import (
 )
 from app.modules.customer.services.customer_service import CustomerService
 from app.modules.identity.models import AuthProvider, User
+from app.modules.search.models import SearchRequest, SearchRequestStatus
 
 from ._search_request_service_helper import make_search_request_service
 
@@ -201,6 +202,27 @@ class TestSubmitTurn:
         assert final_view.session.structured_criteria is not None
         assert final_view.quick_reply_options is None
 
+        # AI-002, AC2/Decision 2c -- regression coverage for a real gap in
+        # `Plan_S07_AI-002.md` item 23's own stated scope ("a session
+        # reaching completed... always has a non-None search_request_id
+        # afterward"): the extended AI-002 backend commit (eb34f38) never
+        # actually added this assertion to this file, only the DI wiring.
+        # This customer (created via `_create_user`, no `SavedAddress` ever
+        # created) proves both AC2 ("never left in limbo" -- a real,
+        # non-None `search_requests` row exists) and Decision 2c's
+        # no-default-address degrade-to-`unmatched`-with-null-coordinates
+        # path, through a genuine multi-turn `ConversationService` flow --
+        # not a synthetic one-shot `handle_session_completed(...)` call
+        # built directly against `search`'s own test helpers.
+        assert final_view.search_request_id is not None
+        search_request = await db_session.get(
+            SearchRequest, final_view.search_request_id
+        )
+        assert search_request is not None
+        assert search_request.status == SearchRequestStatus.UNMATCHED
+        assert search_request.customer_latitude is None
+        assert search_request.customer_longitude is None
+
     async def test_exceeding_max_turns_without_completing_routes_to_admin(
         self, db_session, monkeypatch
     ) -> None:
@@ -217,6 +239,20 @@ class TestSubmitTurn:
 
         assert view.session.status == ConversationStatus.ROUTED_TO_ADMIN
         assert view.session.structured_criteria is None
+
+        # AI-002, AC2 -- same regression coverage as above, for the
+        # `routed_to_admin` branch: a real hard-turn-cap conversation
+        # still always leaves a non-None `search_request_id` behind, never
+        # limbo. (This particular opening message resolves a category on
+        # its very first turn -- see `TestCategoryIdNullOnRoutedToAdmin`
+        # below for the genuinely-uncategorized `category_id IS NULL`
+        # case, the fourth flagged nullable-column deviation.)
+        assert view.search_request_id is not None
+        search_request = await db_session.get(SearchRequest, view.search_request_id)
+        assert search_request is not None
+        assert search_request.status == SearchRequestStatus.PENDING_MANUAL_MATCH
+        assert search_request.category_id == view.session.category_id
+        assert search_request.category_id is not None
 
     async def test_submitting_a_turn_to_a_non_active_session_raises(
         self, db_session, monkeypatch
@@ -256,6 +292,38 @@ class TestSubmitTurn:
             raise AssertionError("expected ConversationSessionNotFoundError")
         except ConversationSessionNotFoundError:
             pass
+
+
+class TestCategoryIdNullOnRoutedToAdmin:
+    """AI-002's fourth flagged nullable-column deviation (found during
+    implementation, beyond the Plan's own three, `search_requests.
+    models.py` docstring): a `routed_to_admin` session that hits `AI-001`'s
+    hard turn cap without ever resolving a category at all -- exercised
+    here through a real multi-turn conversation whose opening message
+    matches no seeded category name, not a synthetic session built
+    directly in the DB."""
+
+    async def test_a_never_categorized_session_still_gets_a_search_request(
+        self, db_session, monkeypatch
+    ) -> None:
+        monkeypatch.setattr(settings, "CONVERSATION_MAX_TURNS", 1)
+        user = await _create_user(db_session, "701000016")
+        await _seed_category(db_session, question_count=5)
+        service = _make_service(db_session)
+
+        view = await service.start_conversation(
+            user.id, message="Something ambiguous nobody can categorize"
+        )
+
+        assert view.session.status == ConversationStatus.ROUTED_TO_ADMIN
+        assert view.session.category_id is None
+
+        assert view.search_request_id is not None
+        search_request = await db_session.get(SearchRequest, view.search_request_id)
+        assert search_request is not None
+        assert search_request.status == SearchRequestStatus.PENDING_MANUAL_MATCH
+        assert search_request.category_id is None
+        assert search_request.structured_criteria is None
 
 
 class TestReviseAnswer:
