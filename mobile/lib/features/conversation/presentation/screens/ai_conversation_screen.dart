@@ -379,20 +379,20 @@ class _ReviseEditor extends StatelessWidget {
               ),
             ),
             const SizedBox(width: AppSpacing.sm),
-            // `FilledButton`'s app-wide theme sets a full-width minimum
-            // size (`Size.fromHeight`, unbounded width) -- it must be
-            // wrapped in `Expanded` whenever placed inside a `Row`
-            // (unlike its usual full-width `Column` placement elsewhere),
-            // or it forces an infinite-width layout constraint.
+            // `PrimaryButton`'s underlying `FilledButton` theme sets a
+            // full-width minimum size (`Size.fromHeight`, unbounded width)
+            // -- it must be wrapped in `Expanded` whenever placed inside a
+            // `Row` (unlike its usual full-width `Column` placement
+            // elsewhere), or it forces an infinite-width layout constraint.
             Expanded(
-              child: FilledButton(
+              child: PrimaryButton(
                 key: const ValueKey('ai-conversation-revise-save'),
+                label: l10n.saveLabel,
                 onPressed: () {
                   final text = textController.text;
                   textController.clear();
                   controller.submitRevision(text);
                 },
-                child: Text(l10n.saveLabel),
               ),
             ),
           ],
