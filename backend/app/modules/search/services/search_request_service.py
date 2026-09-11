@@ -13,8 +13,10 @@ screen") and AC6 ("regardless of... automated or manual") true by
 construction, not by convention.
 
 Cross-module edges (Decision 1): depends on the already-shipped
-`SearchService`/`ProviderService` (`search -> provider`, DIR-001, reused
-unchanged -- Decision 5, no new ranking algorithm), `customer.
+`SearchService`/`ProviderService` (`search -> provider`, DIR-001;
+AI-002's Decision 5 reused this unchanged, and MAT-001's Decision 1/3,
+`Plan_S08_MAT-001.md`, extends it in place to be merit-ranked -- still
+the same shared query, never a second, divergent one, AC2), `customer.
 SavedAddressService`/`CustomerService` (`search -> customer`, Decision
 2c), and `administration.ManualMatchAssignmentService` (`search ->
 administration`, Decision 3). `search` has zero imports from
@@ -305,7 +307,13 @@ class SearchRequestService:
         await self.manual_match_assignment_service.resolve(
             assignment_id, admin_user_id=admin_user_id
         )
-        return await self._finalize_matches(search_request, provider_ids)
+        # Decision 3 (`Plan_S08_MAT-001.md`): the admin's own supplied
+        # order *is* the rank -- never a formula-derived `match_score`,
+        # so every row here carries `None`.
+        ranked_matches: list[tuple[uuid.UUID, float | None]] = [
+            (provider_id, None) for provider_id in provider_ids
+        ]
+        return await self._finalize_matches(search_request, ranked_matches)
 
     # -- internal helpers -----------------------------------------------
 
@@ -328,15 +336,15 @@ class SearchRequestService:
         """
         default_address = await self._get_default_address(customer_id)
 
-        provider_ids: list[uuid.UUID] = []
+        ranked_matches: list[tuple[uuid.UUID, float | None]] = []
         if default_address is not None:
-            provider_ids = await self._run_automated_match(
+            ranked_matches = await self._run_automated_match(
                 default_address, category_name=category_name
             )
 
         initial_status = (
             SearchRequestStatus.MATCHED
-            if provider_ids
+            if ranked_matches
             else SearchRequestStatus.UNMATCHED
         )
         search_request = await self.search_request_repository.create(
@@ -354,7 +362,7 @@ class SearchRequestService:
                 "status": initial_status,
             }
         )
-        return await self._finalize_matches(search_request, provider_ids)
+        return await self._finalize_matches(search_request, ranked_matches)
 
     async def _handle_routed_to_admin(
         self,
@@ -396,7 +404,9 @@ class SearchRequestService:
         return search_request
 
     async def _finalize_matches(
-        self, search_request: SearchRequest, provider_ids: list[uuid.UUID]
+        self,
+        search_request: SearchRequest,
+        ranked_matches: list[tuple[uuid.UUID, float | None]],
     ) -> SearchRequest:
         """
         Decision 4's shared helper -- the **only** place `provider_
@@ -405,15 +415,19 @@ class SearchRequestService:
         `search_event_log` row is written. Called by both the automated
         path (immediately, in the same operation that creates the row)
         and the manual path (`resolve_manual_match`, at resolution time).
+
+        `ranked_matches` is a list of `(provider_id, match_score)` pairs
+        (MAT-001, Decision 3) -- a real score for the automated path, or
+        `None` for every entry on the manual path.
         """
-        if provider_ids:
+        if ranked_matches:
             await self.provider_match_repository.bulk_create(
-                search_request.id, provider_ids
+                search_request.id, ranked_matches
             )
 
         final_status = (
             SearchRequestStatus.MATCHED
-            if provider_ids
+            if ranked_matches
             else SearchRequestStatus.UNMATCHED
         )
         updated = await self.search_request_repository.update_status(
@@ -425,8 +439,8 @@ class SearchRequestService:
                 "customer_id": updated.customer_id,
                 "category_id": updated.category_id,
                 "query_text": None,
-                "result_count": len(provider_ids),
-                "was_matched": bool(provider_ids),
+                "result_count": len(ranked_matches),
+                "was_matched": bool(ranked_matches),
             }
         )
         return updated
@@ -443,14 +457,26 @@ class SearchRequestService:
 
     async def _run_automated_match(
         self, address: SavedAddress, *, category_name: str | None
-    ) -> list[uuid.UUID]:
+    ) -> list[tuple[uuid.UUID, float | None]]:
         """
-        Decision 5: reuses `SearchService`'s existing nearest-first
-        query unchanged, capped at `settings.AI_MATCH_MAX_RESULTS` --
-        no new ranking algorithm. Returns an ordered list of provider
-        ids; `rank` is simply this order's 1-based position.
+        MAT-001, Decision 1/3 (`Plan_S08_MAT-001.md`): reuses `Search
+        Service.search_providers_ranked` -- the same shared, merit-ranked
+        query DIR-001's own `GET /search/providers` uses (Decision 5's
+        "no second, divergent ranking implementation" still holds, AC2)
+        -- capped at `settings.AI_MATCH_MAX_RESULTS`. Calls
+        `search_providers_ranked` directly (rather than
+        `search_providers`, which discards `scores_by_id`) so the real
+        `match_score` per provider is preserved for `provider_matches`
+        (Decision 3). Returns an ordered list of `(provider_id,
+        match_score)` pairs; `rank` is simply this order's 1-based
+        position.
         """
-        results, _total_items = await self.search_service.search_providers(
+        (
+            providers,
+            _distances_by_id,
+            _total_items,
+            scores_by_id,
+        ) = await self.search_service.search_providers_ranked(
             category=category_name,
             latitude=address.latitude,
             longitude=address.longitude,
@@ -458,7 +484,7 @@ class SearchRequestService:
             page=1,
             page_size=settings.AI_MATCH_MAX_RESULTS,
         )
-        return [result.id for result in results]
+        return [(provider.id, scores_by_id.get(provider.id)) for provider in providers]
 
     @staticmethod
     def _distance_for(

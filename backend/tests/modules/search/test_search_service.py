@@ -52,7 +52,7 @@ def _provider(**overrides: object) -> Provider:
 @pytest.fixture
 def mock_provider_service() -> MagicMock:
     service = MagicMock()
-    service.search_nearby = AsyncMock(return_value=([], {}, 0))
+    service.search_nearby = AsyncMock(return_value=([], {}, 0, {}))
     service.get_primary_photo_urls = AsyncMock(return_value={})
     service.get_category_labels_by_provider_id = AsyncMock(return_value={})
     service.list_distinct_category_labels = AsyncMock(return_value=[])
@@ -94,6 +94,7 @@ class TestSearchProvidersRatingShape:
             [provider],
             {provider.id: 1234.5},
             1,
+            {},
         )
         mock_provider_service.get_category_labels_by_provider_id.return_value = {
             provider.id: ["Plumbing"]
@@ -126,6 +127,7 @@ class TestSearchProvidersRatingShape:
             [provider],
             {provider.id: 500.0},
             1,
+            {},
         )
 
         results, _total_items = await search_service.search_providers(
@@ -151,6 +153,7 @@ class TestSearchProvidersResponseShaping:
             [provider],
             {provider.id: 42.0},
             1,
+            {},
         )
         mock_provider_service.get_primary_photo_urls.return_value = {
             provider.id: "/media/portfolios/abc/photo.jpg"
@@ -184,6 +187,7 @@ class TestSearchProvidersResponseShaping:
             [provider],
             {provider.id: 42.0},
             1,
+            {},
         )
         mock_provider_service.get_primary_photo_urls.return_value = {provider.id: None}
 
@@ -203,7 +207,7 @@ class TestSearchProvidersResponseShaping:
         self, search_service: SearchService, mock_provider_service: MagicMock
     ) -> None:
         """AC4's backend half: an empty `data`/`total_items: 0` shape."""
-        mock_provider_service.search_nearby.return_value = ([], {}, 0)
+        mock_provider_service.search_nearby.return_value = ([], {}, 0, {})
 
         results, total_items = await search_service.search_providers(
             category="Plumbing",
@@ -251,6 +255,82 @@ class TestSearchProvidersResponseShaping:
         assert kwargs["offset"] == 40
 
 
+class TestMeritRankingWiring:
+    """MAT-001, Decision 1 (`Plan_S08_MAT-001.md`): `search_providers`
+    reads the five `RANKING_*` `Settings` values and passes them through
+    to `ProviderService.search_nearby`, and never re-sorts the
+    already-merit-ranked result list itself -- `GET /search/providers`'s
+    actual response order is directly proven at this layer (not only
+    inferred from the repository layer's own tests)."""
+
+    @pytest.mark.anyio
+    async def test_passes_the_five_ranking_settings_through_to_provider_service(
+        self, search_service: SearchService, mock_provider_service: MagicMock
+    ) -> None:
+        from app.core.config import settings
+
+        await search_service.search_providers(
+            category=None,
+            latitude=_ORIGIN_LAT,
+            longitude=_ORIGIN_LNG,
+            radius_km=10.0,
+            page=1,
+            page_size=20,
+        )
+
+        _args, kwargs = mock_provider_service.search_nearby.call_args
+        assert kwargs["weight_proximity"] == settings.RANKING_WEIGHT_PROXIMITY
+        assert kwargs["weight_rating"] == settings.RANKING_WEIGHT_RATING
+        assert kwargs["weight_review_volume"] == settings.RANKING_WEIGHT_REVIEW_VOLUME
+        assert (
+            kwargs["neutral_average_rating"] == settings.RANKING_NEUTRAL_AVERAGE_RATING
+        )
+        assert kwargs["review_volume_cap"] == settings.RANKING_REVIEW_VOLUME_CAP
+
+    @pytest.mark.anyio
+    async def test_response_order_is_exactly_the_merit_ranked_order_returned(
+        self, search_service: SearchService, mock_provider_service: MagicMock
+    ) -> None:
+        """A farther-but-higher-rated provider, already ranked first by
+        the merit-ranking query (AC3/AC8's outcome, proven at the
+        repository layer) -- `search_providers` must preserve that exact
+        order, never re-sorting by `distance_meters` or anything else
+        itself."""
+        farther_top_rated = _provider(
+            display_name="Farther Top Rated",
+            average_rating=Decimal("5.00"),
+            review_count=50,
+        )
+        closer_unrated = _provider(
+            display_name="Closer Unrated", average_rating=None, review_count=0
+        )
+        # The mock's order *is* the merit-ranked order (`match_score
+        # DESC, id ASC` -- the repository's own job, tested directly in
+        # `test_provider_search_repository.py::TestMeritRanking`); the
+        # farther-but-higher-rated provider is listed first even though
+        # its `distance_meters` is larger.
+        mock_provider_service.search_nearby.return_value = (
+            [farther_top_rated, closer_unrated],
+            {farther_top_rated.id: 3000.0, closer_unrated.id: 500.0},
+            2,
+            {farther_top_rated.id: 0.82, closer_unrated.id: 0.72},
+        )
+
+        results, _total_items = await search_service.search_providers(
+            category=None,
+            latitude=_ORIGIN_LAT,
+            longitude=_ORIGIN_LNG,
+            radius_km=10.0,
+            page=1,
+            page_size=20,
+        )
+
+        assert [result.id for result in results] == [
+            farther_top_rated.id,
+            closer_unrated.id,
+        ]
+
+
 class TestIsClaimedField:
     """CLM-001, AC2's backend half, Decision 8: `is_claimed` is populated
     directly from `Provider.is_claimed` for both claimed and unclaimed
@@ -268,6 +348,7 @@ class TestIsClaimedField:
             [provider],
             {provider.id: 100.0},
             1,
+            {},
         )
 
         results, _total_items = await search_service.search_providers(
@@ -292,6 +373,7 @@ class TestIsClaimedField:
             [provider],
             {provider.id: 100.0},
             1,
+            {},
         )
 
         results, _total_items = await search_service.search_providers(

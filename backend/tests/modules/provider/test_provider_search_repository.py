@@ -16,6 +16,13 @@ Covers:
     Bitmap Index Scan node targeting `idx_service_areas_location` --
     and explicitly asserts the top-level scan of `service_areas` is not
     a `Seq Scan`.
+  * MAT-001 AC3/AC8/AC4 (`TestMeritRanking`, `Plan_S08_MAT-001.md`) --
+    known rating/distance combinations proving the composite
+    `match_score` formula (a farther-but-higher-rated provider outranks
+    a closer-but-unrated one), a genuine exact-tie fixture re-anchored
+    to `match_score DESC, id ASC`, and a regression fixture proving
+    uniform-rating candidates preserve the pre-existing nearest-first
+    order.
 
 The GiST index itself is not created by `Base.metadata.create_all()`
 (`db_engine`'s fixture setup) -- it is a functional index over an
@@ -31,6 +38,7 @@ exercised" framing for the >=1,000-row seed.
 import json
 import random
 import uuid
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import insert, text
@@ -145,13 +153,18 @@ class TestFilterPrecedence:
         await _add_service_area(db_session, provider)
         await _add_category_label(db_session, provider, "Plumbing")
 
-        ids, distances, total = await repository.search_nearby(
+        ids, distances, total, _scores = await repository.search_nearby(
             category="Plumbing",
             origin_lat=_DUBAI_LAT,
             origin_lng=_DUBAI_LNG,
             radius_meters=10 * _ONE_KM_METERS,
             limit=10,
             offset=0,
+            weight_proximity=0.6,
+            weight_rating=0.3,
+            weight_review_volume=0.1,
+            neutral_average_rating=3.0,
+            review_volume_cap=50,
         )
 
         assert ids == [provider.id]
@@ -166,13 +179,18 @@ class TestFilterPrecedence:
         await _add_service_area(db_session, provider)
         await _add_category_label(db_session, provider, "Electrician")
 
-        ids, _distances, total = await repository.search_nearby(
+        ids, _distances, total, _scores = await repository.search_nearby(
             category="Plumbing",
             origin_lat=_DUBAI_LAT,
             origin_lng=_DUBAI_LNG,
             radius_meters=10 * _ONE_KM_METERS,
             limit=10,
             offset=0,
+            weight_proximity=0.6,
+            weight_rating=0.3,
+            weight_review_volume=0.1,
+            neutral_average_rating=3.0,
+            review_volume_cap=50,
         )
 
         assert ids == []
@@ -188,13 +206,18 @@ class TestFilterPrecedence:
         )
         await _add_category_label(db_session, provider, "Plumbing")
 
-        ids, _distances, total = await repository.search_nearby(
+        ids, _distances, total, _scores = await repository.search_nearby(
             category="Plumbing",
             origin_lat=_DUBAI_LAT,
             origin_lng=_DUBAI_LNG,
             radius_meters=10 * _ONE_KM_METERS,
             limit=10,
             offset=0,
+            weight_proximity=0.6,
+            weight_rating=0.3,
+            weight_review_volume=0.1,
+            neutral_average_rating=3.0,
+            review_volume_cap=50,
         )
 
         assert ids == []
@@ -211,13 +234,18 @@ class TestFilterPrecedence:
         await _add_service_area(db_session, provider)
         await _add_category_label(db_session, provider, "Plumbing")
 
-        ids, _distances, total = await repository.search_nearby(
+        ids, _distances, total, _scores = await repository.search_nearby(
             category="Plumbing",
             origin_lat=_DUBAI_LAT,
             origin_lng=_DUBAI_LNG,
             radius_meters=10 * _ONE_KM_METERS,
             limit=10,
             offset=0,
+            weight_proximity=0.6,
+            weight_rating=0.3,
+            weight_review_volume=0.1,
+            neutral_average_rating=3.0,
+            review_volume_cap=50,
         )
 
         assert ids == []
@@ -237,13 +265,18 @@ class TestFilterPrecedence:
         await _add_service_area(db_session, substring_only)
         await _add_category_label(db_session, substring_only, "AC Repair Specialist")
 
-        ids, _distances, total = await repository.search_nearby(
+        ids, _distances, total, _scores = await repository.search_nearby(
             category="AC Repair",
             origin_lat=_DUBAI_LAT,
             origin_lng=_DUBAI_LNG,
             radius_meters=10 * _ONE_KM_METERS,
             limit=10,
             offset=0,
+            weight_proximity=0.6,
+            weight_rating=0.3,
+            weight_review_volume=0.1,
+            neutral_average_rating=3.0,
+            review_volume_cap=50,
         )
 
         assert ids == [exact_match.id]
@@ -264,13 +297,18 @@ class TestFilterPrecedence:
         await _add_service_area(db_session, electrician)
         await _add_category_label(db_session, electrician, "Electrician")
 
-        ids, _distances, total = await repository.search_nearby(
+        ids, _distances, total, _scores = await repository.search_nearby(
             category=None,
             origin_lat=_DUBAI_LAT,
             origin_lng=_DUBAI_LNG,
             radius_meters=10 * _ONE_KM_METERS,
             limit=10,
             offset=0,
+            weight_proximity=0.6,
+            weight_rating=0.3,
+            weight_review_volume=0.1,
+            neutral_average_rating=3.0,
+            review_volume_cap=50,
         )
 
         assert set(ids) == {plumber.id, electrician.id}
@@ -293,13 +331,18 @@ class TestDeterministicTieBreak:
         await _add_category_label(db_session, first, "Plumbing")
         await _add_category_label(db_session, second, "Plumbing")
 
-        ids, _distances, _total = await repository.search_nearby(
+        ids, _distances, _total, _scores = await repository.search_nearby(
             category="Plumbing",
             origin_lat=_DUBAI_LAT,
             origin_lng=_DUBAI_LNG,
             radius_meters=10 * _ONE_KM_METERS,
             limit=10,
             offset=0,
+            weight_proximity=0.6,
+            weight_rating=0.3,
+            weight_review_volume=0.1,
+            neutral_average_rating=3.0,
+            review_volume_cap=50,
         )
 
         assert ids == sorted([first.id, second.id])
@@ -323,16 +366,198 @@ class TestDeterministicTieBreak:
             await _add_service_area(db_session, provider)
             await _add_category_label(db_session, provider, "Plumbing")
 
-        ids, _distances, _total = await repository.search_nearby(
+        ids, _distances, _total, _scores = await repository.search_nearby(
             category="Plumbing",
             origin_lat=_DUBAI_LAT,
             origin_lng=_DUBAI_LNG,
             radius_meters=10 * _ONE_KM_METERS,
             limit=10,
             offset=0,
+            weight_proximity=0.6,
+            weight_rating=0.3,
+            weight_review_volume=0.1,
+            neutral_average_rating=3.0,
+            review_volume_cap=50,
         )
 
         assert ids == sorted(provider.id for provider in providers)
+
+
+class TestMeritRanking:
+    """AC3/AC8 (MAT-001, Decision 1, `Plan_S08_MAT-001.md`): ranking
+    combines proximity with rating and review volume, never distance
+    alone -- known rating/distance combinations, computed against the
+    default (CTO-confirmed launch) weights (`RANKING_WEIGHT_
+    PROXIMITY=0.6`, `RANKING_WEIGHT_RATING=0.3`, `RANKING_WEIGHT_REVIEW_
+    VOLUME=0.1`, `RANKING_NEUTRAL_AVERAGE_RATING=3.0`, `RANKING_REVIEW_
+    VOLUME_CAP=50`). AC4's tie-break is re-anchored to the new
+    `match_score`-based order here too."""
+
+    _RADIUS_METERS = 10 * _ONE_KM_METERS
+    _WEIGHTS: dict[str, float | int] = {
+        "weight_proximity": 0.6,
+        "weight_rating": 0.3,
+        "weight_review_volume": 0.1,
+        "neutral_average_rating": 3.0,
+        "review_volume_cap": 50,
+    }
+
+    @staticmethod
+    def _expected_score(
+        *,
+        distance_meters: float,
+        radius_meters: float,
+        average_rating: float,
+        review_count: int,
+    ) -> float:
+        proximity = 0.6 * (1.0 - (distance_meters / radius_meters))
+        rating = 0.3 * (average_rating / 5.0)
+        review_volume = 0.1 * (min(review_count, 50) / 50)
+        return proximity + rating + review_volume
+
+    @pytest.mark.anyio
+    async def test_a_farther_but_higher_rated_provider_outranks_a_closer_unrated_one(
+        self, db_session: AsyncSession, repository: ProviderSearchRepository
+    ) -> None:
+        closer_unrated = await _create_provider(
+            db_session,
+            display_name="Closer Unrated",
+            average_rating=None,
+            review_count=0,
+        )
+        await _add_service_area(db_session, closer_unrated)
+        await _add_category_label(db_session, closer_unrated, "Plumbing")
+
+        farther_top_rated = await _create_provider(
+            db_session,
+            display_name="Farther Top Rated",
+            average_rating=Decimal("5.00"),
+            review_count=50,
+        )
+        # ~3.3km north of the search origin -- well within the 10km
+        # radius, but genuinely farther than `closer_unrated`.
+        await _add_service_area(
+            db_session,
+            farther_top_rated,
+            latitude=_DUBAI_LAT + 0.03,
+            longitude=_DUBAI_LNG,
+        )
+        await _add_category_label(db_session, farther_top_rated, "Plumbing")
+
+        ids, distances, _total, scores = await repository.search_nearby(
+            category="Plumbing",
+            origin_lat=_DUBAI_LAT,
+            origin_lng=_DUBAI_LNG,
+            radius_meters=self._RADIUS_METERS,
+            limit=10,
+            offset=0,
+            **self._WEIGHTS,
+        )
+
+        # Sanity check: the fixture is genuinely farther, not accidentally tied.
+        assert distances[farther_top_rated.id] > distances[closer_unrated.id]
+
+        # AC3/AC8: the higher-rated, more-reviewed provider outranks the
+        # merely-closer one under the default launch weights.
+        assert ids == [farther_top_rated.id, closer_unrated.id]
+
+        # The returned `match_score` matches the documented formula
+        # exactly (not just "some score exists").
+        assert scores[closer_unrated.id] == pytest.approx(
+            self._expected_score(
+                distance_meters=distances[closer_unrated.id],
+                radius_meters=self._RADIUS_METERS,
+                average_rating=3.0,  # neutral default for `average_rating IS NULL`
+                review_count=0,
+            )
+        )
+        assert scores[farther_top_rated.id] == pytest.approx(
+            self._expected_score(
+                distance_meters=distances[farther_top_rated.id],
+                radius_meters=self._RADIUS_METERS,
+                average_rating=5.0,
+                review_count=50,
+            )
+        )
+
+    @pytest.mark.anyio
+    async def test_equal_rating_and_distance_providers_tie_break_on_id_ascending(
+        self, db_session: AsyncSession, repository: ProviderSearchRepository
+    ) -> None:
+        """AC4: two providers with identical `average_rating`/
+        `review_count`/distance produce a stable tie-break on `id ASC`
+        -- re-anchored to the new `match_score`-based order, not just
+        the old `distance_meters`-based one."""
+        first = await _create_provider(
+            db_session,
+            display_name="Provider A",
+            average_rating=Decimal("4.50"),
+            review_count=10,
+        )
+        second = await _create_provider(
+            db_session,
+            display_name="Provider B",
+            average_rating=Decimal("4.50"),
+            review_count=10,
+        )
+        await _add_service_area(db_session, first)
+        await _add_service_area(db_session, second)
+        await _add_category_label(db_session, first, "Plumbing")
+        await _add_category_label(db_session, second, "Plumbing")
+
+        ids, _distances, _total, scores = await repository.search_nearby(
+            category="Plumbing",
+            origin_lat=_DUBAI_LAT,
+            origin_lng=_DUBAI_LNG,
+            radius_meters=self._RADIUS_METERS,
+            limit=10,
+            offset=0,
+            **self._WEIGHTS,
+        )
+
+        assert ids == sorted([first.id, second.id])
+        assert scores[first.id] == pytest.approx(scores[second.id])
+
+    @pytest.mark.anyio
+    async def test_uniform_rating_and_review_count_preserves_nearest_first_order(
+        self, db_session: AsyncSession, repository: ProviderSearchRepository
+    ) -> None:
+        """Decision 1's Consequences: when every candidate shares the
+        same (null) `average_rating`/`review_count` -- true for
+        essentially every real provider today, since no Review domain
+        exists -- the merit-ranked order is identical to the pre-
+        existing nearest-first order. Proven, not just asserted: three
+        unrated providers at three genuinely different distances."""
+        near = await _create_provider(db_session, display_name="Near")
+        await _add_service_area(db_session, near)
+        await _add_category_label(db_session, near, "Plumbing")
+
+        mid = await _create_provider(db_session, display_name="Mid")
+        await _add_service_area(
+            db_session, mid, latitude=_DUBAI_LAT + 0.02, longitude=_DUBAI_LNG
+        )
+        await _add_category_label(db_session, mid, "Plumbing")
+
+        far = await _create_provider(db_session, display_name="Far")
+        await _add_service_area(
+            db_session, far, latitude=_DUBAI_LAT + 0.05, longitude=_DUBAI_LNG
+        )
+        await _add_category_label(db_session, far, "Plumbing")
+
+        ids, distances, _total, _scores = await repository.search_nearby(
+            category="Plumbing",
+            origin_lat=_DUBAI_LAT,
+            origin_lng=_DUBAI_LNG,
+            radius_meters=self._RADIUS_METERS,
+            limit=10,
+            offset=0,
+            **self._WEIGHTS,
+        )
+
+        expected_nearest_first_order = sorted(
+            [near.id, mid.id, far.id], key=lambda provider_id: distances[provider_id]
+        )
+        assert ids == expected_nearest_first_order
 
 
 class TestPagination:
@@ -349,21 +574,31 @@ class TestPagination:
             await _add_category_label(db_session, provider, "Plumbing")
         expected_order = sorted(provider.id for provider in providers)
 
-        first_page, _distances, total = await repository.search_nearby(
+        first_page, _distances, total, _scores = await repository.search_nearby(
             category="Plumbing",
             origin_lat=_DUBAI_LAT,
             origin_lng=_DUBAI_LNG,
             radius_meters=10 * _ONE_KM_METERS,
             limit=2,
             offset=0,
+            weight_proximity=0.6,
+            weight_rating=0.3,
+            weight_review_volume=0.1,
+            neutral_average_rating=3.0,
+            review_volume_cap=50,
         )
-        second_page, _distances, _total = await repository.search_nearby(
+        second_page, _distances, _total, _scores = await repository.search_nearby(
             category="Plumbing",
             origin_lat=_DUBAI_LAT,
             origin_lng=_DUBAI_LNG,
             radius_meters=10 * _ONE_KM_METERS,
             limit=2,
             offset=2,
+            weight_proximity=0.6,
+            weight_rating=0.3,
+            weight_review_volume=0.1,
+            neutral_average_rating=3.0,
+            review_volume_cap=50,
         )
 
         assert total == 3
@@ -457,6 +692,11 @@ class TestAC6QueryPlanUsesTheGistIndex:
                 "radius_meters": 10 * _ONE_KM_METERS,
                 "limit": 10,
                 "offset": 0,
+                "weight_proximity": 0.6,
+                "weight_rating": 0.3,
+                "weight_review_volume": 0.1,
+                "neutral_average_rating": 3.0,
+                "review_volume_cap": 50,
             },
         )
         raw_plan = result.scalar_one()

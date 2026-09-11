@@ -152,6 +152,28 @@ class Settings(BaseSettings):
     # threshold.
     AI_MATCH_MAX_RESULTS: int = 10
 
+    # Merit-ranking formula (MAT-001, Decision 1, `Plan_S08_MAT-001.md`)
+    # -- config-driven, not code, mirroring `CONVERSATION_CONFIDENCE_
+    # THRESHOLD`/`AI_MATCH_MAX_RESULTS`'s established precedent. Shared
+    # by both `SearchService.search_providers` (DIR-001's own `GET
+    # /search/providers`) and `SearchRequestService._run_automated_match`
+    # (AI-002) -- the same, single `ProviderSearchRepository.search_
+    # nearby` query both callers already share (AC2). The three weights
+    # are CTO-confirmed launch defaults that sum to `1.0`, so `match_
+    # score` itself is always in `[0, 1]`; they are not derived from any
+    # locked product spec and remain independently tunable without a
+    # code change.
+    RANKING_WEIGHT_PROXIMITY: float = 0.6
+    RANKING_WEIGHT_RATING: float = 0.3
+    RANKING_WEIGHT_REVIEW_VOLUME: float = 0.1
+    # The 1-5 scale's literal midpoint -- an unrated provider
+    # (`average_rating IS NULL`) is treated as neither better nor worse
+    # than a typical mid-scale rating, never fabricated as best or worst.
+    RANKING_NEUTRAL_AVERAGE_RATING: float = 3.0
+    # Diminishing returns after this many reviews -- caps the review-
+    # volume term's normalization denominator.
+    RANKING_REVIEW_VOLUME_CAP: int = 50
+
     # Config dict to support loading from parent .env or current .env
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

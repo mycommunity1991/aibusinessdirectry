@@ -16,24 +16,33 @@ class ProviderMatchRepository(BaseRepository[ProviderMatch]):
         super().__init__(model=ProviderMatch, session=session)
 
     async def bulk_create(
-        self, search_request_id: uuid.UUID, ranked_provider_ids: list[uuid.UUID]
+        self,
+        search_request_id: uuid.UUID,
+        ranked_matches: list[tuple[uuid.UUID, float | None]],
     ) -> list[ProviderMatch]:
         """
-        Creates one row per provider id, `rank` = the 1-based position in
-        `ranked_provider_ids` -- the caller's own ordering *is* the rank,
-        never re-derived (Decision 4: nearest-first for the automated
-        path, the admin's own supplied order for the manual path).
-        `match_score` is left `NULL` for every row (Decision 5 -- no
-        real merit-ranking algorithm exists yet).
+        Creates one row per `(provider_id, match_score)` pair, `rank` =
+        the 1-based position in `ranked_matches` -- the caller's own
+        ordering *is* the rank, never re-derived (Decision 4: merit-
+        ranked for the automated path, the admin's own supplied order for
+        the manual path).
+
+        `match_score` (MAT-001, Decision 3, `Plan_S08_MAT-001.md`) is the
+        tuple's second element, populated as-is: a real `[0, 1]` score
+        for the automated path (from `ProviderSearchRepository.
+        search_nearby`'s `scores_by_id`), or `None` for every row on the
+        manual path -- an admin's own judgment produces that order, so no
+        formula-derived score is ever fabricated to fill the column
+        (anti-fabrication principle, `00_PROJECT_CONTEXT.md` §3).
         """
         rows = [
             ProviderMatch(
                 search_request_id=search_request_id,
                 provider_id=provider_id,
                 rank=rank,
-                match_score=None,
+                match_score=match_score,
             )
-            for rank, provider_id in enumerate(ranked_provider_ids, start=1)
+            for rank, (provider_id, match_score) in enumerate(ranked_matches, start=1)
         ]
         self.session.add_all(rows)
         await self.session.flush()

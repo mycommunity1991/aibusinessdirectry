@@ -11,6 +11,7 @@ and AC6 (`search_event_log` written exactly once, regardless of origin).
 """
 
 import uuid
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
@@ -21,7 +22,7 @@ from app.core.exceptions import (
     SearchRequestNotFoundError,
 )
 from app.modules.administration.models import ManualMatchAssignment
-from app.modules.search.models import SearchEventLog, SearchRequestStatus
+from app.modules.search.models import ProviderMatch, SearchEventLog, SearchRequestStatus
 
 from ._helpers import (
     create_category,
@@ -175,6 +176,109 @@ class TestHandleSessionCompletedAutomatedPath:
         assert search_request.status == SearchRequestStatus.PENDING_MANUAL_MATCH
 
 
+class TestMeritRankingPersistence:
+    """MAT-001, Decision 1/3 (`Plan_S08_MAT-001.md`): the automated path
+    writes a real, non-`null` `match_score` on every `provider_matches`
+    row, and the customer's final ranked list (`get_matched_providers`)
+    reflects merit-ranking, not just proximity."""
+
+    async def test_automated_match_writes_a_non_null_match_score_for_every_row(
+        self, db_session
+    ) -> None:
+        user = await create_user(db_session, "920000050")
+        profile = await create_customer_profile(db_session, user)
+        await create_default_address(db_session, profile.id)
+        category = await create_category(db_session, name="Plumbing")
+        provider = await create_discoverable_provider(
+            db_session,
+            category_label="Plumbing",
+            average_rating=Decimal("4.50"),
+            review_count=10,
+        )
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        search_request = await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="completed",
+            category_id=category.id,
+            category_name="Plumbing",
+            structured_criteria={"category_id": str(category.id), "answers": []},
+        )
+        await db_session.commit()
+
+        matches_result = await db_session.execute(
+            select(ProviderMatch).where(
+                ProviderMatch.search_request_id == search_request.id
+            )
+        )
+        matches = matches_result.scalars().all()
+        assert len(matches) == 1
+        assert matches[0].provider_id == provider.id
+        assert matches[0].match_score is not None
+        assert 0.0 <= matches[0].match_score <= 1.0
+
+    async def test_a_farther_but_higher_rated_provider_ranks_first_for_the_customer(
+        self, db_session
+    ) -> None:
+        """AC3/AC8, proven end to end through the automated-match path
+        and `get_matched_providers` -- not just at the repository layer
+        (`test_provider_search_repository.py::TestMeritRanking`)."""
+        user = await create_user(db_session, "920000051")
+        profile = await create_customer_profile(db_session, user)
+        await create_default_address(db_session, profile.id)
+        category = await create_category(db_session, name="Plumbing")
+
+        closer_unrated = await create_discoverable_provider(
+            db_session,
+            category_label="Plumbing",
+            display_name="Closer Unrated",
+            average_rating=None,
+            review_count=0,
+        )
+        farther_top_rated = await create_discoverable_provider(
+            db_session,
+            category_label="Plumbing",
+            display_name="Farther Top Rated",
+            latitude=25.2048 + 0.03,  # ~3.3km north -- still within radius
+            longitude=55.2708,
+            average_rating=Decimal("5.00"),
+            review_count=50,
+        )
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        search_request = await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="completed",
+            category_id=category.id,
+            category_name="Plumbing",
+            structured_criteria={"category_id": str(category.id), "answers": []},
+        )
+        await db_session.commit()
+
+        matched = await service.get_matched_providers(search_request)
+        assert [m.id for m in matched] == [farther_top_rated.id, closer_unrated.id]
+
+        matches_result = await db_session.execute(
+            select(ProviderMatch)
+            .where(ProviderMatch.search_request_id == search_request.id)
+            .order_by(ProviderMatch.rank.asc())
+        )
+        matches = matches_result.scalars().all()
+        assert [m.provider_id for m in matches] == [
+            farther_top_rated.id,
+            closer_unrated.id,
+        ]
+        assert matches[0].match_score > matches[1].match_score
+
+
 class TestHandleSessionCompletedManualPath:
     async def test_routed_to_admin_creates_exactly_one_pending_manual_match_assignment(
         self, db_session
@@ -266,6 +370,16 @@ class TestResolveManualMatch:
         assert resolved.status == SearchRequestStatus.MATCHED
         matched = await service.get_matched_providers(resolved)
         assert [m.id for m in matched] == [provider_b.id, provider_a.id]
+
+        # MAT-001, Decision 3 (`Plan_S08_MAT-001.md`): the manual path
+        # never fabricates a `match_score` -- the admin's own supplied
+        # order *is* the rank, so every row here stays `NULL`.
+        matches_result = await db_session.execute(
+            select(ProviderMatch).where(ProviderMatch.search_request_id == resolved.id)
+        )
+        matches = matches_result.scalars().all()
+        assert len(matches) == 2
+        assert all(match.match_score is None for match in matches)
 
         refreshed_assignment = await db_session.get(
             ManualMatchAssignment, assignment.id

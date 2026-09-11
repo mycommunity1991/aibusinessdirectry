@@ -1,11 +1,12 @@
 """
-Shared test helpers for the `search` module's AI-002 test files
+Shared test helpers for the `search` module's AI-002/MAT-001 test files
 (`test_search_request_service.py`, `test_search_request_api.py`) --
 mirrors `tests/modules/conversation/_search_request_service_helper.py`'s
 identical "build the real thing, no mocks" approach.
 """
 
 import uuid
+from decimal import Decimal
 
 from app.modules.administration.repositories.manual_match_assignment_repository import (
     ManualMatchAssignmentRepository,
@@ -190,7 +191,16 @@ async def create_discoverable_provider(
     longitude: float = _DUBAI_LNG,
     radius_meters: int = 20_000,
     display_name: str = "Jane the Plumber",
+    average_rating: Decimal | None = None,
+    review_count: int = 0,
 ) -> Provider:
+    """
+    `average_rating`/`review_count` (MAT-001, Backend Proposed Changes
+    item 11, `Plan_S08_MAT-001.md`) let ranking tests construct providers
+    with deliberately varied rating/distance combinations -- default to
+    the same honest, unrated/`0`-review state every real provider has
+    today (no Review domain exists yet).
+    """
     owner = await create_user(db_session, f"9{uuid.uuid4().int % 10**8:08d}")
     provider = Provider(
         user_id=owner.id,
@@ -201,7 +211,8 @@ async def create_discoverable_provider(
         is_claimed=True,
         verification_status=VerificationStatus.APPROVED,
         is_discoverable=True,
-        review_count=0,
+        average_rating=average_rating,
+        review_count=review_count,
         country_code="AE",
     )
     db_session.add(provider)

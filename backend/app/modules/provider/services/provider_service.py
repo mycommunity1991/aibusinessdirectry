@@ -188,18 +188,27 @@ class ProviderService:
         radius_meters: float,
         limit: int,
         offset: int,
-    ) -> tuple[list[Provider], dict[uuid.UUID, float], int]:
+        weight_proximity: float,
+        weight_rating: float,
+        weight_review_volume: float,
+        neutral_average_rating: float,
+        review_volume_cap: int,
+    ) -> tuple[list[Provider], dict[uuid.UUID, float], int, dict[uuid.UUID, float]]:
         """
         Thin pass-through to `ProviderSearchRepository.search_nearby`
-        (DIR-001, Decision 4, `Plan_S06_DIR-001.md`) -- `search`'s own
-        `SearchService` depends on this method, never on
-        `ProviderSearchRepository` directly, per `02_ARCHITECTURE.md`'s
-        "modules communicate through services only" rule.
+        (DIR-001, Decision 4, `Plan_S06_DIR-001.md`; extended with
+        MAT-001's five ranking parameters, Decision 1,
+        `Plan_S08_MAT-001.md`) -- `search`'s own `SearchService` depends
+        on this method, never on `ProviderSearchRepository` directly, per
+        `02_ARCHITECTURE.md`'s "modules communicate through services
+        only" rule. This method resolves no `Settings` values itself
+        (mirrors the repository's own posture) -- every ranking
+        parameter is caller-supplied.
 
         Hydrates the repository's ordered provider ids into full
         `Provider` rows via `list_by_ids` (VER-002 precedent), while
-        preserving the repository's own `distance_meters ASC, id ASC`
-        order -- `list_by_ids`'s own `WHERE id IN (...)` query makes no
+        preserving the repository's own `match_score DESC, id ASC` order
+        -- `list_by_ids`'s own `WHERE id IN (...)` query makes no
         row-order guarantee, so the ordering is reconstructed here from
         the repository's already-ordered id list, not re-derived.
         """
@@ -207,6 +216,7 @@ class ProviderService:
             ordered_ids,
             distances_by_id,
             total_items,
+            scores_by_id,
         ) = await self.provider_search_repository.search_nearby(
             category=category,
             origin_lat=origin_lat,
@@ -214,6 +224,11 @@ class ProviderService:
             radius_meters=radius_meters,
             limit=limit,
             offset=offset,
+            weight_proximity=weight_proximity,
+            weight_rating=weight_rating,
+            weight_review_volume=weight_review_volume,
+            neutral_average_rating=neutral_average_rating,
+            review_volume_cap=review_volume_cap,
         )
         providers_by_id = {
             provider.id: provider
@@ -224,7 +239,7 @@ class ProviderService:
             for provider_id in ordered_ids
             if provider_id in providers_by_id
         ]
-        return ordered_providers, distances_by_id, total_items
+        return ordered_providers, distances_by_id, total_items, scores_by_id
 
     async def list_distinct_category_labels(self) -> list[str]:
         """
