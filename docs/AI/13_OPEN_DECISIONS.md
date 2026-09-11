@@ -1,14 +1,15 @@
 # AI Marketplace — Open Decisions
 
 **Document ID:** AI-13
-**Version:** 0.7.0
+**Version:** 0.8.0
 **Status:** Draft — Reconstructed; item 1 resolved and implemented (`CTG-001` shipped), item 4 resolved, item 3
 given an explicit CTO risk-acceptance decision (still Open — the underlying legal question is unresolved), item
 13 newly added and given an explicit CTO risk-acceptance decision (still Open — real LLM vendor selection remains
-unresolved), items 5/8/10/11/12 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
+unresolved), item 14 newly added (`MAT-001`, still Open — a `REV-001` design question), items 5/8/10/11/12 still
+pending CTO review, items 2/6/7 still unrecoverable numbering gaps
 **Owner:** CTO
 **Audience:** Engineering Team, Product Team, AI Assistants
-**Last Updated:** 10 September 2026
+**Last Updated:** 11 September 2026
 
 ---
 
@@ -484,6 +485,45 @@ Open Questions 1/2), `docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md
 
 ---
 
+## Item 14 — `provider_rating_summaries` Remains Unbuilt: Is It Still Needed Once Real Reviews Exist?
+
+**Status:** Open
+
+**Description:** `04_DATABASE.md`'s Review Domain section fully specs `review.provider_rating_summaries` (a
+denormalized per-provider rating aggregate, recalculated on every Review write). `MAT-001` ("see ranked
+providers for my request", Sprint 8) needed a real rating signal to rank by now, but this table cannot yet hold
+any real data — the Review domain is structurally impossible to build meaningfully before `CON-001` ships (a
+Review anchors to a Contact View with a "Yes" Outcome Tag; Contact View is `CON-001`, which itself depends on
+`MAT-001`). `MAT-001` therefore ranks against the already-existing, already-wired `providers.average_rating`/
+`review_count` columns instead (`09_DECISIONS.md` ADR-043) — a deliberate, flagged substitution of AC3's
+literally-named data source, not a silent reinterpretation.
+
+**The genuinely open question, for a future `REV-001` to decide:** once the Review domain actually ships and
+real reviews can exist, is `review.provider_rating_summaries` still needed as a distinct table — e.g. for a
+richer, decoupled read-model separate from `providers` itself — or is `providers.average_rating`/`review_count`
+alone (already `04_DATABASE.md`'s own documented `REV-001` write target, independent of whether
+`provider_rating_summaries` is ever built) sufficient? `04_DATABASE.md` itself appears to carry two overlapping
+denormalized-rating specs today, both described as "recalculated on/whenever a Review is written" — this looks
+like undocumented drift from the schema's evolution (the `provider_rating_summaries` section's own text says it
+"replaces" an earlier "ratings" placeholder), not a deliberate two-tier design. This is not `MAT-001`'s decision
+to resolve; it is `REV-001`'s design question to make with real requirements in hand.
+
+**Current workaround:** none needed yet — `provider_rating_summaries` remains an unbuilt table with zero
+readers/writers anywhere in the codebase. `MAT-001`'s ranking formula and every provider-facing rating display
+(DIR-001, AI-002, MAT-001) already read `providers.average_rating`/`review_count` exclusively.
+
+**Blocks:** Nothing at the code level today. Will directly shape `REV-001`'s own schema design once that story
+is planned — whichever answer is chosen, no other domain's code needs to change, since every current reader
+already targets `providers.average_rating`/`review_count`, not `provider_rating_summaries`.
+
+**Related:** `03_DOMAIN_MODEL.md` (Review domain — Contact-View/Outcome-Tag anchor requirement), `04_DATABASE.md`
+(`providers.average_rating`/`review_count`, lines 405–406; `provider_rating_summaries`, Review Domain section),
+`09_DECISIONS.md` (ADR-041 — AI-002's original deferred-ranking gap; ADR-042/ADR-043 — MAT-001's ranking formula
+and rating-source substitution), `docs/implementation/plans/Plan_S08_MAT-001.md` (Decision 2),
+`docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md`.
+
+---
+
 # Changelog
 
 - **08 September 2026** — Document created (reconstructed from citations across the codebase; see
@@ -535,6 +575,13 @@ Open Questions 1/2), `docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md
   pattern. Real LLM vendor selection and RAG grounding implementation remain genuinely open, tracked here as a
   deliberate, CTO-approved MVP gap that must stay visibly open. Recorded as ADR-035 in `09_DECISIONS.md`. See
   `docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md` for the full account.
+- **11 September 2026 (Sprint 8, `MAT-001` shipped)** — Item 14 added: `MAT-001` ("see ranked providers for my
+  request") shipped a real merit-ranking formula reading `providers.average_rating`/`review_count` rather than
+  the unbuilt `review.provider_rating_summaries` table (`09_DECISIONS.md` ADR-042/ADR-043), since the Review
+  domain is structurally impossible to build meaningfully before `CON-001` ships. Whether
+  `provider_rating_summaries` is still needed as a distinct table once `REV-001` ships real reviews, or whether
+  `providers.average_rating`/`review_count` alone is sufficient, remains a genuinely open design question for
+  that future story. See `docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md` for the full account.
 
 ---
 

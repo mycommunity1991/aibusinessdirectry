@@ -6,60 +6,45 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 10 September 2026, immediately after Story AI-002 closeout.
+**Last updated:** 11 September 2026, immediately after Story MAT-001 closeout.
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `6c7482c` (tracker sync marking AI-002 Done)
+**Last commit at time of writing:** `2eab29c` (head at MAT-001 closeout — tracker sync marking MAT-001 Done is
+the orchestrator's next step, not yet performed as of this file's update)
 
 ---
 
 ## 1. Where things stand
 
 - **Sprints 1–7 are fully complete.** Milestones ML1 through **ML7 are all Done.**
-- **Dashboard numbers (as of commit `6c7482c`):** Overall Progress **49%** | Completed Milestones **7/24** |
-  Completed Epics **13/23** | Completed Stories **33/47** | Current Phase **PH2** | Current Milestone **ML8** |
-  Current Sprint **SP08** | Upcoming Sprint **SP09**.
-- **Sprint 8 / Milestone ML8 has NOT been started.** Its two stories are detailed in full below (Section 2) —
-  everything needed to start is already here, no tracker read required.
-- Full narrative history of every story shipped so far (Sprints 1–7) lives in
+- **Sprint 8 / Milestone ML8 has started, 1 of 2 stories done: `MAT-001` is Done.** Shipped and signed off 11
+  September 2026 — see `docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md`. `architect` review
+  returned **APPROVED, zero findings** — the cleanest review this project has had.
+- **Dashboard numbers:** stale as of this writing (last confirmed at commit `6c7482c`, before `MAT-001`
+  shipped: Overall Progress **49%** | Completed Milestones **7/24** | Completed Epics **13/23** | Completed
+  Stories **33/47** | Current Phase **PH2** | Current Milestone **ML8** | Current Sprint **SP08** | Upcoming
+  Sprint **SP09**). `MAT-001` is Done but the exact rollup numbers (Completed Stories, and whether ML8/SP08
+  flip any Epic/Milestone/Phase-level percentage) need the orchestrator's own tracker sync (Section 5 below) to
+  confirm — not computed in this documentation-only closeout pass.
+- **`CON-001` is the sole remaining Sprint 8 / Milestone ML8 story.** Detailed in full below (Section 2) —
+  everything needed to start is already here, no tracker read required. **Do NOT start it without the CTO's
+  explicit "Start CON-001" (or equivalent) instruction.** Standing practice throughout this project: no
+  engineering agent plans or starts a story unprompted.
+- Full narrative history of every story shipped so far (Sprints 1–8) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
-  historical context on a specific earlier decision; it's ~1000 lines.
+  historical context on a specific earlier decision; it's ~1100 lines.
 
-## 2. Next stories — Sprint 8 / Milestone ML8 (verbatim from the tracker, already extracted)
+## 2. Next story — `CON-001` (Sprint 8 / Milestone ML8, the only one left)
 
-**Do NOT start either story without the CTO's explicit "Start MAT-001" (or equivalent) instruction.**
+**Do NOT start without the CTO's explicit "Start CON-001" (or equivalent) instruction.**
 Standing practice throughout this project: no engineering agent plans or starts a story unprompted.
 
-### MAT-001 — "See ranked providers for my request"
-- Sprint: SP08 | Epic: ML8-EP01 | Milestone: ML8 | Phase: PH2 | Priority: **Critical** | Depends On: **AI-002 (done)**
-- **Description:** As a customer, I want the providers matched to my described need ranked by relevance and
-  quality, so that the best-fit options show up first. This story upgrades DIR-001's structured search into
-  the AI-powered ranking pipeline, consuming AI-002's structured Search Request output and combining it with
-  the same category → geospatial → discoverability filter chain, then ranking by proximity plus rating and
-  review volume — never distance alone. **Scope boundary:** does not include the actual contact/reveal step
-  (CON-001) — this story ends at a ranked results list.
-- **Acceptance Criteria (verbatim):**
-  1. `search_requests` and `provider_matches` tables exist via migration; `provider_matches` stores rank and
-     match_score per provider per request.
-  2. Filter order is identical to DIR-001's (category, then geospatial radius, then discoverability) — this
-     story does not introduce a second, divergent filter implementation.
-  3. Ranking combines proximity with `provider_rating_summaries` (average rating and review count) and is
-     never based on distance alone.
-  4. Ranking ties break deterministically (e.g., by `provider_id`) so identical searches return stable,
-     reproducible ordering.
-  5. Search Results screen consumes AI-001's conversation output directly — Home's search entry point starts
-     a Conversation Session, which flows into this screen without a manual re-search step.
-  6. Every search, matched or not, is written to `search_event_log` with an accurate `was_matched` flag.
-  7. A provider with `is_discoverable=false` never appears in ranked results, mirroring DIR-001's rule.
-  8. Automated tests cover ranking correctness against known rating/distance combinations and deterministic
-     tie-breaking.
-- **Important note for whoever plans this:** `search.search_requests`/`provider_matches`/`search_event_log`
-  and the `_finalize_matches` mechanism **already exist** — AI-002 built them (see ADR-037/038/039/040/041).
-  AI-002's Decision 5 explicitly deferred a real merit-ranking algorithm (rating × review-count × proximity)
-  because the Review domain (`REV-001`, unshipped) has no real rating data yet — `match_score` is currently
-  always `NULL`. **This story (MAT-001) is very likely the one meant to finally implement that ranking
-  formula** — check whether `REV-001`/`provider_rating_summaries` has shipped by the time this starts; if not,
-  this is a real, must-resolve planning question (same shape as AI-001's own scope questions), not something
-  to silently guess at.
+**`MAT-001` ("see ranked providers for my request") has shipped** — its dependency requirement for `CON-001`
+is satisfied. Key things `CON-001` should know about what `MAT-001` built: `SearchService.
+search_providers_ranked(...)` is now the shared entry point behind both `GET /search/providers` and the
+AI-conversation automated-match path; `provider_matches.match_score` is real for automated matches, `NULL` for
+manual ones; ranking reads `providers.average_rating`/`review_count`, not `provider_rating_summaries` (still
+unbuilt, tracked at `13_OPEN_DECISIONS.md` item 14) — none of this should require `CON-001` to change anything
+about how it reads a matched provider, since the response shape MAT-001 exposes is unchanged from AI-002's.
 
 ### CON-001 — "Contact a matched provider directly"
 - Sprint: SP08 | Epic: ML8-EP02 | Milestone: ML8 | Phase: PH2 | Priority: **Critical** | Depends On: **MAT-001**
@@ -117,7 +102,12 @@ implementing speculatively is against this project's established practice.
 
 **Never let a real finding from tester/architect go unfixed before sign-off.** Every story so far (CLM-001,
 AI-001, AI-002) has had at least one genuine bug found and fixed during review — this is the process working
-as intended, not a sign something is wrong.
+as intended, not a sign something is wrong. **`MAT-001` is the first exception**: `architect` returned
+APPROVED with zero findings on the first pass — the tester found no functional bugs either, only a genuine
+end-to-end coverage gap to close (a claim of "already satisfied" for AC5 that had never actually been tested)
+and one trivial doc-only bug (a stale OpenAPI comment). Don't read this as evidence the review process can be
+skipped or lightened going forward — it can genuinely happen when a story's scope is this narrow and
+well-precedented, not a reason to expect it every time.
 
 ## 4. Key technical precedents already established (reuse, don't reinvent)
 
@@ -154,6 +144,20 @@ as intended, not a sign something is wrong.
   user's resource); a strict one-per-account resource (a profile) is a `/me` singleton with no id parameter.
 - **Config, not schema, for a business-tunable numeric threshold** (confidence threshold, turn cap, match
   result cap) — a `Settings` field, not a hardcoded constant or a new DB column.
+- **In-place upgrade of a shared query, not a second parallel implementation, when two callers need to share a
+  changed behavior** (ADR-042, `MAT-001`): when a Plan/prior story has already pre-announced that a shared
+  query will later gain new behavior (e.g. DIR-001's own AC5 naming `MAT-001` as its future ranking upgrade),
+  modify the existing method in place — never fork it into `foo`/`foo_v2` — and prove the untouched parts
+  (filter clauses, WHERE conditions) really didn't change via a direct diff, not just "tests still pass."
+- **Merit-ranking formula pattern** (ADR-042/043, `MAT-001`): a bounded `[0, 1]` weighted composite score,
+  every term normalized before combining (never mixing raw units like meters with a 1–5 rating scale), computed
+  inside the same `ORDER BY` a paginated query already uses (never re-ranked in Python after `LIMIT`/`OFFSET`
+  — that either defeats pagination or silently misranks across pages). Config-driven weights (`RANKING_*`
+  `Settings`), a documented neutral default for a `NULL` signal (never treating "no data" as best or worst).
+  **`REV-001` will need this precedent**: the formula already reads `providers.average_rating`/`review_count`
+  and needs zero further code change once real rating data exists — `REV-001`'s job is only to become the first
+  real writer of those columns (and to decide `13_OPEN_DECISIONS.md` item 14 — whether `provider_rating_summaries`
+  is still needed as a separate table).
 
 ## 5. Tracker editing method (raw XML — never openpyxl `.save()`)
 
@@ -201,17 +205,30 @@ item's full history/reasoning.
   extraction instead) — keep that discipline.
 - **Item 13 — Real LLM Vendor Selection and RAG Grounding Implementation.** Open. `ConversationAiClient` is
   fully rule-based; AC3/AC5 of AI-001 are honestly unmet pending a real vendor decision + credentials.
+- **Item 14 — `provider_rating_summaries` Remains Unbuilt: Is It Still Needed Once Real Reviews Exist?** Open
+  (new, added at `MAT-001`'s close). `MAT-001` ranks against `providers.average_rating`/`review_count` instead,
+  since the table is unbuilt and structurally cannot hold data before `CON-001`/an Outcome Tag mechanism ship. A
+  future `REV-001` must decide whether the distinct table is still needed once real reviews exist, or whether
+  the `providers` columns alone are sufficient — not resolved here, not this story's decision to make.
 
 ## 7. ADR numbering
 
-Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-041**. Next new ADR starts at **ADR-042**.
+Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-043**. Next new ADR starts at **ADR-044**.
 
 ## 8. Environment notes
 
-- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of this writing: **658 backend tests
-  passing**, **169 mobile tests passing**. `ruff check .` clean. `mypy` is configured in `pyproject.toml` but
-  is **not installed** in this sandbox's venv — cannot be run here; this is a known, pre-existing environment
-  gap, not a regression to chase.
+- **Dashboard/tracker rollup numbers are stale as of this writing** — `MAT-001` is Done, but the exact rollup
+  (Completed Stories, and any Epic/Milestone/Phase percentage shift) needs the orchestrator's own tracker sync
+  (Section 5) to confirm; not computed in `MAT-001`'s documentation-only closeout pass.
+- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of AI-002's closeout: **658 backend
+  tests passing**, **169 mobile tests passing**. `MAT-001` added further backend test coverage (a new
+  `TestMeritRanking` class plus `TestMeritRankingWiring`/`TestMeritRankingPersistence`/
+  `TestMeritRankingChangesDirOwnEndpointOrder`/`TestAC5ConversationCompletionFlowsIntoRankedResults`) — the
+  backend agent's own Checkpoint reported 665/665 passing immediately after implementation, before the tester's
+  additional coverage; the exact final count was not independently re-run in this documentation-only closeout
+  pass and should be confirmed by whoever runs the suite next. `ruff check .` clean. `mypy` is configured in
+  `pyproject.toml` but is **not installed** in this sandbox's venv — cannot be run here; this is a known,
+  pre-existing environment gap, not a regression to chase.
 - Mobile: Flutter/Riverpod. Flutter SDK is not preinstalled in a fresh container — a prior session cloned
   `flutter/stable` to `/root/.flutter_sdk` to run `flutter analyze`/`flutter test`/`gen-l10n`; this is outside
   the repo and won't persist across containers, so a fresh session may need to redo this setup step once,
@@ -223,5 +240,5 @@ Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-041**. Next new ADR starts 
 
 ---
 
-**End of handoff. When resuming: read this file, confirm the CTO wants to proceed with MAT-001 (or a
+**End of handoff. When resuming: read this file, confirm the CTO wants to proceed with `CON-001` (or a
 different story), then follow Section 3's cycle starting with `tech-lead`.**

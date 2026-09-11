@@ -3129,6 +3129,216 @@ not a placeholder `0`/`1.0`.
 
 ---
 
+# ADR-042
+
+## Title
+
+Merit-Ranking Formula (`MAT-001`): In-Place Upgrade of `ProviderSearchRepository.search_nearby`'s Shared Query — Not a Second, Parallel Ranking Implementation
+
+**Date**
+
+2026-09-11
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`MAT-001` ("see ranked providers for my request") requires AI-002's placeholder `NULL` `match_score` to become a
+real, bounded ranking signal combining proximity with rating and review volume — "never distance alone" (AC3),
+with a deterministic tie-break (AC4) and no second, divergent filter/ranking implementation (AC2). Two callers
+share the query this story upgrades: DIR-001's own `GET /search/providers` (structured browse) and the
+AI-conversation automated-match path AI-002 built (`SearchRequestService._run_automated_match`). ADR-041
+(AI-002) had deliberately deferred any real ranking formula because no real rating data existed yet to rank by
+— that gap is what this story closes. DIR-001's own Plan (`Plan_S06_DIR-001.md`, AC5) had already pre-announced
+this exact upgrade path: "ready to be upgraded to AI-ranked matching in a future story (MAT-001)."
+
+### Decision
+
+`ProviderSearchRepository`'s existing `_SEARCH_NEARBY_SQL` query is modified **in place** — `_WHERE_CLAUSE`/
+`_COUNT_NEARBY_SQL` stay byte-for-byte unchanged (verified by direct diff during both `tester`'s and
+`architect`'s review, not merely asserted) — changing only the `SELECT`/`ORDER BY` to compute and sort by a
+bounded, deterministic composite score:
+
+```
+match_score =
+      weight_proximity      * (1.0 - (distance_meters / radius_meters))
+    + weight_rating         * (COALESCE(average_rating, neutral_average_rating) / 5.0)
+    + weight_review_volume  * (LEAST(review_count, review_volume_cap) / review_volume_cap)
+
+ORDER BY match_score DESC, p.id ASC
+```
+
+Every term is bound to `[0, 1]` by construction (distance is already `<= radius_meters` per `_WHERE_CLAUSE`'s
+own condition; rating is on a 1–5 scale or a neutral default when `NULL`; review count is capped before
+normalizing), so with the default weights summing to `1.0`, `match_score` itself is always in `[0, 1]` and fits
+`provider_matches.match_score NUMERIC(5,4)` comfortably. `p.id ASC` re-anchors AC4's deterministic tie-break to
+the new score instead of raw distance. `search_nearby(...)` gains five new required, bound (never
+string-interpolated) parameters — `weight_proximity`, `weight_rating`, `weight_review_volume`,
+`neutral_average_rating`, `review_volume_cap` — sourced from five new `Settings` fields
+(`RANKING_WEIGHT_PROXIMITY=0.6`, `RANKING_WEIGHT_RATING=0.3`, `RANKING_WEIGHT_REVIEW_VOLUME=0.1`,
+`RANKING_NEUTRAL_AVERAGE_RATING=3.0`, `RANKING_REVIEW_VOLUME_CAP=50` — CTO-confirmed launch defaults, config not
+schema, mirroring `CONVERSATION_CONFIDENCE_THRESHOLD`/`AI_MATCH_MAX_RESULTS`'s precedent) and returns one new
+value, `scores_by_id: dict[uuid.UUID, float]`.
+
+A new shared entry point, `SearchService.search_providers_ranked(...)`, reads the five `RANKING_*` settings and
+calls `provider_service.search_nearby(...)` once — this is the **single** method both `SearchService.
+search_providers` (DIR-001's `GET /search/providers`, which discards `scores_by_id` — no new field on
+`SearchResultProviderResponse`) and `SearchRequestService._run_automated_match` (AI-002/MAT-001, which uses
+`scores_by_id` to populate `provider_matches.match_score` for the first time) now call, rather than either
+duplicating the settings-read/parameter-assembly logic or reaching into a private method across service
+instances.
+
+This is a deliberate, in-scope behavioral change to DIR-001's already-shipped, previously-signed-off `GET
+/search/providers` endpoint's result order — not only the AI-conversation path — directly evidenced by DIR-001's
+own pre-announcement of this exact upgrade, and confirmed via a live HTTP round trip against a non-uniform
+rating fixture proving the order genuinely changes (`backend/tests/modules/search/test_search_endpoints.py::
+TestMeritRankingChangesDirOwnEndpointOrder`).
+
+### Alternatives Considered
+
+- **A second, parallel ranking-only repository method (e.g. `search_nearby_ranked`), leaving DIR-001's own
+  `search_nearby` completely untouched.** Rejected — DIR-001's own Plan explicitly named this exact upgrade as
+  MAT-001's expected job; a parallel method would be closer to the "second, divergent filter implementation"
+  AC2 warns against than the in-place upgrade is, even reusing `_WHERE_CLAUSE`.
+- **Compute the composite score in Python after fetching a wider, unranked candidate set.** Rejected — this
+  would either defeat `LIMIT`/`OFFSET` pagination entirely (fetch everything) or silently misrank across pages
+  (a later page could contain a higher-scoring row than an earlier page's lowest). Scoring inside the same
+  `ORDER BY` the database already uses for `LIMIT`/`OFFSET` avoids both failure modes.
+- **A raw, unnormalized linear combination** (e.g. `rating * review_count - distance_meters`). Rejected —
+  incompatible units (meters vs. a 1–5 scale vs. an unbounded count) and would not fit `match_score`'s intent as
+  a normalized `[0, 1]` quality indicator.
+
+### Consequences
+
+- Today, for any candidate set where every provider shares the same `average_rating`/`review_count` (true for
+  essentially every real provider today, since no Review domain has shipped), this formula is mathematically
+  equivalent to the pre-existing nearest-first order — proven, not assumed, by a dedicated regression fixture at
+  the repository layer (`TestMeritRanking::test_uniform_rating_and_review_count_preserves_nearest_first_order`)
+  and confirmed across every pre-existing `test_search_service.py` fixture (all of which happened to use uniform
+  rating data, so none needed its expected order updated).
+- DIR-001's own shipped endpoint's result order is a legitimate, intentional behavioral change under this ADR,
+  not a regression — any future story reasoning about `GET /search/providers`'s ordering should cite this ADR,
+  not ADR-025/026/027 alone.
+- The moment a future `REV-001` writes real, non-placeholder `providers.average_rating`/`review_count` values,
+  this formula becomes genuinely differentiated in production with zero further code change — this was designed
+  into the formula from the start, not a follow-up obligation invented for `REV-001`.
+- One stale OpenAPI/docstring reference to "nearest-first" ordering in `backend/app/modules/search/api.py` (a
+  documentation-only artifact of DIR-001's original, since-superseded behavior) was found during review and
+  corrected to describe merit-ranked ordering — no functional change, a trivial doc-only bug.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-025/ADR-026/ADR-027 — the original `SearchService`/`ProviderSearchRepository` design this
+  ADR modifies in place; ADR-041 — AI-002's deferred-ranking decision this ADR resolves)
+- docs/implementation/plans/Plan_S08_MAT-001.md (Decision 1)
+- docs/implementation/plans/Plan_S06_DIR-001.md (AC5's own pre-announcement of this upgrade)
+- docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md
+- backend/app/modules/provider/repositories/provider_search_repository.py
+- backend/app/modules/search/services/search_service.py (`search_providers_ranked`)
+
+---
+
+# ADR-043
+
+## Title
+
+Rating Source for Merit-Ranking (`MAT-001`): `providers.average_rating`/`review_count`, Not the Unbuilt `provider_rating_summaries` Table; `match_score` Real Only for the Automated Path
+
+**Date**
+
+2026-09-11
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+AC3's literal text names `provider_rating_summaries` (`review` schema) as the ranking's rating source. That
+table does not exist in the codebase, and — per direct investigation during planning — cannot yet hold any real
+data: `03_DOMAIN_MODEL.md`'s Review domain business rules require a Review to anchor to a Contact View with a
+"Yes" Outcome Tag, and Contact View is `CON-001`, which itself depends on `MAT-001`. There is no code path, today
+or by the time this story ships, that could populate a real `reviews`/`provider_rating_summaries` row.
+Separately, AC1 requires `provider_matches.match_score` to genuinely store a value — AI-002 (ADR-041) had left
+it always `NULL` since no ranking formula existed yet.
+
+### Decision
+
+ADR-042's ranking formula reads the already-existing, already-wired `providers.average_rating` (nullable,
+`NUMERIC(3,2)`) and `providers.review_count` (`NOT NULL`, default `0`) columns — shipped by `PRO-001`, already
+rendered honestly in every provider-facing response (`SearchResultProviderResponse`, `MatchedProviderResponse`)
+as "No reviews yet" when `NULL`, never a fabricated `0.0`. Building any part of the real Review domain
+(`review.reviews`/`review.provider_rating_summaries`, anchor-verification against `contact_views`, a "Yes"
+Outcome Tag precondition, recalculation-on-write) remains entirely `REV-001`'s scope — a genuinely separate,
+sizable domain that cannot be exercised end-to-end until `CON-001` and an Outcome Tag mechanism also ship, and
+which `04_DATABASE.md` (lines 405–406) already documented as a future `REV-001` write target for these exact
+`providers` columns, independent of whether `provider_rating_summaries` is ever also built.
+
+**Addendum — `match_score` real for the automated path, `NULL` for the manual path:**
+`ProviderMatchRepository.bulk_create`'s signature changed from `ranked_provider_ids: list[uuid.UUID]` to
+`ranked_matches: list[tuple[uuid.UUID, float | None]]`. `SearchRequestService._run_automated_match` now returns
+real `(provider_id, match_score)` tuples using ADR-042's formula output; `resolve_manual_match` continues to
+build `(provider_id, None)` pairs for every row an admin manually orders — an admin's own judgment is not
+produced by the formula, so a formula-derived score displayed or stored alongside it would misrepresent how that
+row was actually ranked, a direct anti-fabrication violation (`00_PROJECT_CONTEXT.md` §3). This closes AI-002's
+own flagged gap (ADR-041: "`match_score` is left `NULL` on every `provider_matches` row this story writes, both
+paths") for the automated path only, by design.
+
+### Alternatives Considered
+
+- **Build an empty `review.provider_rating_summaries` table now, populated by nothing**, just so AC3's literal
+  table name exists. Rejected — schema for schema's sake: an empty, writer-less table provides zero additional
+  testability over the already-existing `providers.average_rating`/`review_count` columns (both equally
+  placeholder-empty today), while creating a second, disconnected "rating storage" concept for a future
+  `REV-001` to reconcile against.
+- **Build a minimal, real Review domain slice now** (a bare `reviews` table with no anchor-verification).
+  Rejected outright — this would ship a Review write path that skips the self-dealing-inheriting
+  anchor-verification business rule `03_DOMAIN_MODEL.md` requires, a real, unrequested security/product
+  regression baked in ahead of `REV-001`'s actual design work.
+- **Also compute and store a formula-derived score for the manual path**, re-running ADR-042's formula against
+  the admin's chosen providers just to fill the column. Rejected outright — the admin's ordering is not produced
+  by the formula; a score displayed or stored alongside it would misrepresent how that row was actually ranked.
+- **Defer AC3 entirely, ship nearest-first again (repeat AI-002's ADR-041 verbatim).** Rejected — AC8 explicitly
+  requires automated tests covering "known rating/distance combinations," which is only meaningful against a
+  real, testable formula; test fixtures can inject arbitrary rating/distance combinations regardless of whether
+  *production* data is populated yet.
+
+### Consequences
+
+- `provider_rating_summaries` remains fully unbuilt and unused — tracked as a genuinely open design question for
+  a future `REV-001` at `13_OPEN_DECISIONS.md` item 14 (whether it is still needed as a distinct table once real
+  reviews exist, or whether `providers.average_rating`/`review_count` alone is sufficient).
+- `04_DATABASE.md`'s Review Domain section carries a cross-reference note to this ADR under
+  `provider_rating_summaries`'s existing spec.
+- `providers.average_rating` has no DB-level `CHECK` constraint enforcing the 0–5 range today (flagged during
+  `architect` review as a documentation note, not a schema change for this story) — a future `REV-001` write
+  path should add one when it becomes the first real writer of this column.
+- This story requires zero new migration and touches zero Review-domain code — the substitution is confined
+  entirely to which existing, already-wired columns the ranking formula reads.
+
+### Related Documents
+
+- 00_PROJECT_CONTEXT.md §3 (anti-fabrication principle)
+- 03_DOMAIN_MODEL.md (Review domain — Contact-View/Outcome-Tag anchor requirement)
+- 04_DATABASE.md (`providers.average_rating`/`review_count`, lines 405–406; `provider_rating_summaries`, Review
+  Domain section)
+- 09_DECISIONS.md (ADR-041 — AI-002's deferred-`match_score` decision this ADR resolves for the automated path)
+- 13_OPEN_DECISIONS.md item 14
+- docs/implementation/plans/Plan_S08_MAT-001.md (Decision 2, Decision 3)
+- docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

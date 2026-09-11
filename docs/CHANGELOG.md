@@ -11,6 +11,32 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Merit-based provider ranking — see ranked providers for my request (Story MAT-001): a new bounded `[0, 1]`
+  composite ranking formula (proximity + rating + review volume, five new `Settings`-driven weights —
+  `RANKING_WEIGHT_PROXIMITY=0.6`, `RANKING_WEIGHT_RATING=0.3`, `RANKING_WEIGHT_REVIEW_VOLUME=0.1`,
+  `RANKING_NEUTRAL_AVERAGE_RATING=3.0`, `RANKING_REVIEW_VOLUME_CAP=50`) computed **in place** inside
+  `ProviderSearchRepository`'s existing shared `_SEARCH_NEARBY_SQL` query — `_WHERE_CLAUSE`/`_COUNT_NEARBY_SQL`
+  stay byte-for-byte unchanged (**ADR-042**), never a second, divergent ranking implementation. A new shared
+  entry point, `SearchService.search_providers_ranked(...)`, is now the single method both DIR-001's `GET
+  /search/providers` (which discards the raw score — no new response field) and the AI-conversation automated-
+  match path (`SearchRequestService._run_automated_match`) call. **This is a deliberate, in-scope behavioral
+  change to DIR-001's already-shipped endpoint's result order**, not only the AI-conversation path, directly
+  evidenced by DIR-001's own Plan pre-announcing this exact upgrade — proven via a real HTTP round trip against a
+  non-uniform rating fixture. Ranking reads the already-existing, already-wired `providers.average_rating`/
+  `review_count` columns rather than the unbuilt `review.provider_rating_summaries` table, since the Review
+  domain is structurally impossible to build meaningfully before `CON-001` ships (**ADR-043**); tracked as a
+  genuinely open design question for a future `REV-001` at `13_OPEN_DECISIONS.md` item 14.
+  `provider_matches.match_score` is now genuinely non-null for every automated match (closing AI-002's
+  ADR-041-flagged gap), while staying `NULL` for every manually-resolved admin match — an admin's own ordering
+  is never assigned a fabricated score. No new migration, no new module — every table/column this story needed
+  already existed. **Tester-found coverage additions, no functional bugs:** a real, multi-turn HTTP conversation
+  round trip proving AC5's "conversation flows directly into ranked results" claim end to end (previously only
+  inferred from reading shipped mobile code, never actually tested); a non-uniform-rating fixture through
+  DIR-001's own `GET /search/providers` endpoint directly proving its result order changes; two formula-bounds
+  tests confirming the score's true ceiling (`~1.0`) and floor (`0.18`, never `0` outright, per the neutral-
+  rating design decision). One trivial doc-only bug fixed: a stale "nearest-first" OpenAPI/docstring reference in
+  `backend/app/modules/search/api.py`. `architect` review returned **APPROVED, zero findings**. See
+  `docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md` for the full account.
 - Search domain (new `search` schema) and Administration domain (third slice) — receive matches even when AI
   confidence is low (Story AI-002): a new reversible Alembic migration creates `search.search_requests`,
   `search.provider_matches`, `search.search_event_log`, and adds `administration.manual_match_assignments` to
