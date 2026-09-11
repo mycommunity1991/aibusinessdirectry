@@ -12,6 +12,7 @@ verification_service.py`'s `_create_provider` precedent.
 """
 
 import uuid
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -64,7 +65,13 @@ def _headers(user_id: uuid.UUID, roles: list[str]) -> dict[str, str]:
 
 
 async def _create_discoverable_provider(
-    db_session, phone_number: str, *, category_label: str = "Plumbing", **overrides
+    db_session,
+    phone_number: str,
+    *,
+    category_label: str = "Plumbing",
+    latitude: float = _DUBAI_LAT,
+    longitude: float = _DUBAI_LNG,
+    **overrides,
 ) -> Provider:
     user = await _create_user(db_session, phone_number)
     payload: dict[str, object] = {
@@ -88,8 +95,8 @@ async def _create_discoverable_provider(
     db_session.add(
         ServiceArea(
             provider_id=provider.id,
-            center_latitude=_DUBAI_LAT,
-            center_longitude=_DUBAI_LNG,
+            center_latitude=latitude,
+            center_longitude=longitude,
             radius_meters=5000,
         )
     )
@@ -248,6 +255,67 @@ class TestSearchProviders:
 
         assert response.status_code == 200
         assert response.json()["pagination"]["total_items"] == 2
+
+
+class TestMeritRankingChangesDirOwnEndpointOrder:
+    """MAT-001, Decision 1 (`Plan_S08_MAT-001.md`): DIR-001's own `GET
+    /search/providers` result order is a legitimate, in-scope behavioral
+    change under MAT-001, not just the AI-conversation path -- both
+    callers share the identical `ProviderSearchRepository.search_nearby`
+    query (`search_providers_ranked`), never a second, divergent
+    ranking implementation (AC2). Every pre-existing fixture in this
+    file happens to use uniform `average_rating`/`review_count`, so none
+    of them alone proves the order-changing claim -- this test
+    deliberately uses non-uniform rating data through the real HTTP
+    endpoint to prove it directly, not just infer it from the
+    repository-layer tests."""
+
+    async def test_a_farther_but_higher_rated_provider_outranks_a_closer_unrated_one(
+        self, client: TestClient, db_session
+    ) -> None:
+        closer_unrated = await _create_discoverable_provider(
+            db_session,
+            "601000080",
+            category_label="Plumbing",
+            average_rating=None,
+            review_count=0,
+        )
+        farther_top_rated = await _create_discoverable_provider(
+            db_session,
+            "601000081",
+            category_label="Plumbing",
+            latitude=_DUBAI_LAT + 0.03,  # ~3.3km north -- still in radius
+            longitude=_DUBAI_LNG,
+            average_rating=Decimal("5.00"),
+            review_count=50,
+        )
+        caller = await _create_user(db_session, "601000082")
+
+        response = client.get(
+            "/api/v1/search/providers",
+            headers=_headers(caller.id, [ROLE_CUSTOMER]),
+            params={
+                "latitude": _DUBAI_LAT,
+                "longitude": _DUBAI_LNG,
+                "radius_km": 10,
+                "category": "Plumbing",
+            },
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["pagination"]["total_items"] == 2
+        ordered_ids = [result["id"] for result in body["data"]]
+        # If this were still DIR-001's old distance-only order, the
+        # closer (unrated) provider would come first. Under MAT-001's
+        # merit-ranking, the farther-but-top-rated one outranks it
+        # instead -- direct proof, through the real HTTP endpoint, that
+        # this query's order genuinely changed for DIR-001's own path,
+        # not only the AI-conversation path.
+        assert ordered_ids == [str(farther_top_rated.id), str(closer_unrated.id)]
+        # The endpoint still never exposes a raw `match_score` field.
+        for result in body["data"]:
+            assert "match_score" not in result
 
 
 class TestListCategoriesEndpoint:

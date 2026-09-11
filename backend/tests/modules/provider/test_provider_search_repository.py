@@ -559,6 +559,110 @@ class TestMeritRanking:
         )
         assert ids == expected_nearest_first_order
 
+    @pytest.mark.anyio
+    async def test_perfect_provider_at_zero_distance_scores_at_or_near_one(
+        self, db_session: AsyncSession, repository: ProviderSearchRepository
+    ) -> None:
+        """AC3's formula bound: `average_rating=5.0`, `review_count>=50`
+        (the cap), `distance_meters=0` should produce `match_score` at or
+        very near `1.0` -- every term of the `[0, 1]`-bounded composite
+        at its own maximum simultaneously."""
+        provider = await _create_provider(
+            db_session,
+            display_name="Perfect Provider",
+            average_rating=Decimal("5.00"),
+            review_count=50,
+        )
+        # Exactly at the search origin -- distance_meters == 0.
+        await _add_service_area(
+            db_session, provider, latitude=_DUBAI_LAT, longitude=_DUBAI_LNG
+        )
+        await _add_category_label(db_session, provider, "Plumbing")
+
+        ids, distances, _total, scores = await repository.search_nearby(
+            category="Plumbing",
+            origin_lat=_DUBAI_LAT,
+            origin_lng=_DUBAI_LNG,
+            radius_meters=self._RADIUS_METERS,
+            limit=10,
+            offset=0,
+            **self._WEIGHTS,
+        )
+
+        assert ids == [provider.id]
+        assert distances[provider.id] == pytest.approx(0.0, abs=1.0)
+        assert scores[provider.id] == pytest.approx(1.0, abs=1e-6)
+
+    @pytest.mark.anyio
+    async def test_worst_case_provider_at_the_radius_edge_hits_the_formulas_true_floor(
+        self, db_session: AsyncSession, repository: ProviderSearchRepository
+    ) -> None:
+        """AC3's formula floor -- **not** `0` overall, by design: with
+        `average_rating IS NULL`, `review_count=0`, and `distance_meters`
+        at the exact radius edge, the *proximity term* genuinely reaches
+        its own `0` floor (proven below), but the *total* `match_score`
+        floors at `weight_rating * (neutral_average_rating / 5.0)` =
+        `0.3 * (3.0 / 5.0)` = `0.18` under the default launch weights --
+        never `0` outright, because `RANKING_NEUTRAL_AVERAGE_RATING=3.0`
+        deliberately treats an unrated provider as average, never as the
+        worst possible one (Decision 1's own documented reasoning,
+        `Plan_S08_MAT-001.md`). A test asserting the *total* score
+        approaches `0` here would be asserting a fabricated expectation
+        the formula was never designed to satisfy."""
+        provider = await _create_provider(
+            db_session,
+            display_name="Edge Case Provider",
+            average_rating=None,
+            review_count=0,
+        )
+        # ~1 degree of latitude is ~111.32km; place the provider at 98%
+        # of a small, precisely-known radius -- comfortably inside the
+        # boundary `_WHERE_CLAUSE`'s own `earth_distance(...) <=
+        # :radius_meters` allows (the naive degrees-to-meters
+        # approximation used here is close, but not bit-identical, to
+        # `earthdistance`'s own great-circle formula, so placing exactly
+        # at the nominal 100% edge can land a hair outside the real
+        # boundary and be excluded -- 98% leaves a safety margin while
+        # still genuinely testing the near-edge case).
+        radius_meters = 1000.0
+        edge_fraction = 0.98
+        await _add_service_area(
+            db_session,
+            provider,
+            latitude=_DUBAI_LAT + (radius_meters * edge_fraction / 111_320.0),
+            longitude=_DUBAI_LNG,
+        )
+        await _add_category_label(db_session, provider, "Plumbing")
+
+        ids, distances, _total, scores = await repository.search_nearby(
+            category="Plumbing",
+            origin_lat=_DUBAI_LAT,
+            origin_lng=_DUBAI_LNG,
+            radius_meters=radius_meters,
+            limit=10,
+            offset=0,
+            **self._WEIGHTS,
+        )
+
+        assert ids == [provider.id]
+        # Confirm this fixture genuinely sits at the radius edge, not
+        # comfortably inside it.
+        assert distances[provider.id] == pytest.approx(radius_meters, rel=0.05)
+
+        expected_score = self._expected_score(
+            distance_meters=distances[provider.id],
+            radius_meters=radius_meters,
+            average_rating=3.0,  # neutral default for `average_rating IS NULL`
+            review_count=0,
+        )
+        assert scores[provider.id] == pytest.approx(expected_score, abs=1e-6)
+        # The formula's true floor at this boundary is the neutral-
+        # rating/no-review composite, never `0` outright while
+        # `RANKING_NEUTRAL_AVERAGE_RATING > 0` -- but the *proximity
+        # term itself* is at or near its own `0` floor here.
+        proximity_term = 0.6 * (1.0 - (distances[provider.id] / radius_meters))
+        assert proximity_term == pytest.approx(0.0, abs=0.05)
+
 
 class TestPagination:
     @pytest.mark.anyio
