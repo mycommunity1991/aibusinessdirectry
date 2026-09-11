@@ -29,8 +29,8 @@ class SearchRepository {
 
   /// Browses `is_discoverable=true` providers by optional [category] and
   /// geospatial radius around ([latitude], [longitude]) (AC2/AC3). Results
-  /// are ordered nearest-first by the backend -- this method never
-  /// re-sorts them.
+  /// are merit-ranked by the backend (proximity + rating + review volume,
+  /// MAT-001) -- this method never re-sorts them.
   Future<SearchProvidersPage> searchProviders({
     String? category,
     required double latitude,
