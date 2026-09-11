@@ -6,10 +6,9 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 11 September 2026, immediately after Story MAT-001 closeout.
+**Last updated:** 11 September 2026, immediately after Story MAT-001 closeout, tracker synced.
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `2eab29c` (head at MAT-001 closeout — tracker sync marking MAT-001 Done is
-the orchestrator's next step, not yet performed as of this file's update)
+**Last commit at time of writing:** `ee1e94b` (tracker sync marking MAT-001 Done)
 
 ---
 
@@ -18,13 +17,12 @@ the orchestrator's next step, not yet performed as of this file's update)
 - **Sprints 1–7 are fully complete.** Milestones ML1 through **ML7 are all Done.**
 - **Sprint 8 / Milestone ML8 has started, 1 of 2 stories done: `MAT-001` is Done.** Shipped and signed off 11
   September 2026 — see `docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md`. `architect` review
-  returned **APPROVED, zero findings** — the cleanest review this project has had.
-- **Dashboard numbers:** stale as of this writing (last confirmed at commit `6c7482c`, before `MAT-001`
-  shipped: Overall Progress **49%** | Completed Milestones **7/24** | Completed Epics **13/23** | Completed
-  Stories **33/47** | Current Phase **PH2** | Current Milestone **ML8** | Current Sprint **SP08** | Upcoming
-  Sprint **SP09**). `MAT-001` is Done but the exact rollup numbers (Completed Stories, and whether ML8/SP08
-  flip any Epic/Milestone/Phase-level percentage) need the orchestrator's own tracker sync (Section 5 below) to
-  confirm — not computed in this documentation-only closeout pass.
+  returned **APPROVED, zero findings** — the cleanest review this project has had. Independently re-confirmed:
+  669/669 backend tests passing.
+- **Dashboard numbers (confirmed as of commit `ee1e94b`):** Overall Progress **51.6%** | Completed Milestones
+  **7/24** | Completed Epics **14/23** | Completed Stories **34/47** | Current Phase **PH2** | Current Milestone
+  **ML8** (1/2 stories done, In Progress) | Current Sprint **SP08** (1/2 done, In Progress) | Upcoming Sprint
+  **SP09**.
 - **`CON-001` is the sole remaining Sprint 8 / Milestone ML8 story.** Detailed in full below (Section 2) —
   everything needed to start is already here, no tracker read required. **Do NOT start it without the CTO's
   explicit "Start CON-001" (or equivalent) instruction.** Standing practice throughout this project: no
@@ -217,22 +215,16 @@ Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-043**. Next new ADR starts 
 
 ## 8. Environment notes
 
-- **Dashboard/tracker rollup numbers are stale as of this writing** — `MAT-001` is Done, but the exact rollup
-  (Completed Stories, and any Epic/Milestone/Phase percentage shift) needs the orchestrator's own tracker sync
-  (Section 5) to confirm; not computed in `MAT-001`'s documentation-only closeout pass.
-- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of AI-002's closeout: **658 backend
-  tests passing**, **169 mobile tests passing**. `MAT-001` added further backend test coverage (a new
-  `TestMeritRanking` class plus `TestMeritRankingWiring`/`TestMeritRankingPersistence`/
-  `TestMeritRankingChangesDirOwnEndpointOrder`/`TestAC5ConversationCompletionFlowsIntoRankedResults`) — the
-  backend agent's own Checkpoint reported 665/665 passing immediately after implementation, before the tester's
-  additional coverage; the exact final count was not independently re-run in this documentation-only closeout
-  pass and should be confirmed by whoever runs the suite next. `ruff check .` clean. `mypy` is configured in
-  `pyproject.toml` but is **not installed** in this sandbox's venv — cannot be run here; this is a known,
-  pre-existing environment gap, not a regression to chase.
-- Mobile: Flutter/Riverpod. Flutter SDK is not preinstalled in a fresh container — a prior session cloned
-  `flutter/stable` to `/root/.flutter_sdk` to run `flutter analyze`/`flutter test`/`gen-l10n`; this is outside
-  the repo and won't persist across containers, so a fresh session may need to redo this setup step once,
-  before running any mobile agent.
+- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of MAT-001's closeout, independently
+  re-run by the orchestrator (not just trusted from a subagent report): **669/669 backend tests passing**
+  (665 after backend's implementation + 4 more from tester's adversarial/end-to-end coverage). `ruff check .`
+  clean. `mypy` is configured in `pyproject.toml` but is **not installed** in this sandbox's venv — cannot be
+  run here; this is a known, pre-existing environment gap, not a regression to chase.
+- Mobile: Flutter/Riverpod. **169 mobile tests passing** as of AI-002's closeout (MAT-001 needed zero mobile
+  changes beyond one stale code comment). Flutter SDK is not preinstalled in a fresh container — a prior
+  session cloned `flutter/stable` to `/root/.flutter_sdk` to run `flutter analyze`/`flutter test`/`gen-l10n`;
+  this is outside the repo and won't persist across containers, so a fresh session may need to redo this setup
+  step once, before running any mobile agent.
 - `Project_Tracker.xlsx` is readable by direct `openpyxl`/shell access in this orchestrating session, but the
   specialist agents (tech-lead, tester, architect, backend, frontend) do **not** have Bash/openpyxl tools —
   always relay verbatim tracker text to them directly in the task prompt rather than asking them to read the
