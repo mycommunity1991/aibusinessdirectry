@@ -56,7 +56,8 @@ _DEFAULT_PAGE_SIZE = 20
         "`provider_category_labels`, Decision 1) and geospatial radius "
         "around a caller-supplied `latitude`/`longitude` origin (AC1/"
         "AC2) -- category, then geospatial radius, then discoverability, "
-        "in that literal order (AC2). Results are ordered nearest-first, "
+        "in that literal order (AC2). Results are merit-ranked by "
+        "proximity, average rating, and review volume (MAT-001), "
         "`id ASC` as the deterministic tie-break (AC7), and include "
         "photo, name, category labels, rating with review count (never "
         "rating alone -- honestly `null` until a Review domain exists, "
@@ -80,7 +81,7 @@ async def search_providers(
     search_service: SearchService = Depends(get_search_service),  # noqa: B008
 ) -> CollectionResponse[SearchResultProviderResponse]:
     """Returns one page of discoverable providers matching the given
-    category/location/radius filters, nearest-first."""
+    category/location/radius filters, merit-ranked (MAT-001)."""
     page_size = min(page_size, settings.SEARCH_MAX_PAGE_SIZE)
     results, total_items = await search_service.search_providers(
         category=category,
