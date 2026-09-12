@@ -433,6 +433,43 @@ void main() {
     );
 
     testWidgets(
+      'tapping a matched provider card navigates to the Provider Profile '
+      "screen with the session's real, already-known searchRequestId "
+      '(CON-001, Decision 4)',
+      (tester) async {
+        final fakeRepository = FakeConversationRepository(
+          startResult: const ConversationSession(
+            id: 'session-1',
+            status: ConversationSessionStatus.completed,
+            messages: [],
+            searchRequestId: 'search-request-1',
+          ),
+          getSearchRequestResultsResult: const SearchRequestResult(
+            status: SearchRequestResultStatus.matched,
+            matchedProviders: [matchedProvider],
+          ),
+        );
+
+        await pumpConversationScreen(
+          tester,
+          child: const AiConversationScreen(),
+          overrides: [
+            conversationRepositoryProvider.overrideWithValue(fakeRepository),
+          ],
+        );
+        await startSession(tester);
+
+        await tester.tap(find.text('Al Noor Plumbing Services LLC'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('provider-profile-stub-provider-1-search-request-1'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
       'an `unmatched` search request (zero matched providers) shows a '
       'distinct empty state, never the plain completion banner nor a '
       "forbidden term (AC3)",

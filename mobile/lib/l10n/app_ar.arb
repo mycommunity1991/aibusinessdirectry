@@ -215,7 +215,6 @@
   "ratingWithReviewCountLabel": "{rating} ({count, plural, one {تقييم واحد} other {{count} تقييمات}})",
   "distanceInMetersLabel": "على بعد {meters} م",
   "distanceInKmLabel": "على بعد {km} كم",
-  "providerProfileComingSoonMessage": "ملفات مزودي الخدمة قادمة قريباً.",
 
   "unclaimedBannerLabel": "غير مُطالَب به — هل هذا نشاطك التجاري؟ طالِب به",
   "claimEntryPointLabel": "نشاطك مدرج على Google؟ طالِب بنشاطك التجاري",
@@ -266,5 +265,21 @@
   "aiConversationTypingIndicatorLabel": "الذكاء الاصطناعي يكتب",
   "aiConversationTapToEditTooltip": "اضغط للتعديل",
   "aiConversationResultsHeading": "إليك مطابقاتك",
-  "aiConversationNoMatchesMessage": "لم نتمكن من إيجاد مطابقة لهذا الطلب. ابدأ طلبًا جديدًا للمحاولة مرة أخرى."
+  "aiConversationNoMatchesMessage": "لم نتمكن من إيجاد مطابقة لهذا الطلب. ابدأ طلبًا جديدًا للمحاولة مرة أخرى.",
+
+  "verifiedBadgeLabel": "موثّق",
+  "providerProfileTitle": "ملف مزود الخدمة",
+  "providerProfileContactButtonLabel": "تواصل",
+  "providerProfileHoursLabel": "ساعات العمل",
+  "providerProfileServiceAreaLabel": "نطاق الخدمة",
+  "providerProfileDeliveryRadiusLabel": "التوصيل ضمن {km} كم",
+  "providerProfileServiceRadiusLabel": "يتنقل حتى {km} كم",
+  "providerProfileNotFoundMessage": "لم يعد مزود الخدمة هذا متاحاً.",
+  "contactSheetTitle": "تواصل",
+  "contactSheetCallLabel": "اتصال",
+  "contactSheetWhatsAppLabel": "واتساب",
+  "contactSheetOutsideAppNote": "ستغادر التطبيق للتواصل معهم مباشرة.",
+  "contactSheetNoPhoneNumberMessage": "لا يوجد رقم هاتف مسجَّل.",
+  "contactSelfDealingMessage": "لا يمكنك التواصل مع إدراجك الخاص.",
+  "contactProviderNotFoundMessage": "لم يعد مزود الخدمة هذا متاحاً."
 }

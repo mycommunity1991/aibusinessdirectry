@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_config.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../l10n/generated/app_localizations.dart';
 import '../models/ranked_provider_result.dart';
+import '../utils/rating_label.dart';
+import 'unclaimed_banner.dart';
 
 /// The reusable, single result-card widget for any ranked-provider list
 /// (`shared/widgets/ranked_provider_results_list.dart`, `Plan_S07_AI-002.md`
@@ -21,12 +22,12 @@ import '../models/ranked_provider_result.dart';
 /// merit-ranking algorithm exists yet (DIR-001 AC5, AI-002 Decision 5).
 ///
 /// CLM-001, Decision 8: when [RankedProviderResult.isClaimed] is `false`,
-/// renders a full-width Warning-color banner above the card's normal
-/// content (the exact locked copy/color from `16_UX_GUIDELINES.md`'s
-/// "Trust & Verification UX Patterns") -- server-driven off that one
-/// boolean, never inferred client-side. Tapping the banner calls
-/// [onClaimTap]; tapping anywhere else on the card still calls [onTap]
-/// unchanged.
+/// renders the shared [UnclaimedBanner] (extracted to `shared/widgets/
+/// unclaimed_banner.dart` by CON-001, Decision 9 -- the same widget the
+/// Provider Profile screen, S-09, also renders) above the card's normal
+/// content -- server-driven off that one boolean, never inferred
+/// client-side. Tapping the banner calls [onClaimTap]; tapping anywhere
+/// else on the card still calls [onTap] unchanged.
 class ProviderResultCard extends StatelessWidget {
   const ProviderResultCard({
     super.key,
@@ -54,7 +55,7 @@ class ProviderResultCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (!provider.isClaimed) _UnclaimedBanner(onTap: onClaimTap),
+          if (!provider.isClaimed) UnclaimedBanner(onTap: onClaimTap),
           InkWell(
             onTap: onTap,
             child: Padding(
@@ -87,7 +88,11 @@ class ProviderResultCard extends StatelessWidget {
                         ],
                         const SizedBox(height: AppSpacing.xs),
                         Text(
-                          _ratingLabel(l10n, provider),
+                          ratingWithReviewCountLabel(
+                            l10n,
+                            averageRating: provider.averageRating,
+                            reviewCount: provider.reviewCount,
+                          ),
                           style: textTheme.bodySmall,
                         ),
                         // AI-002, Decision 2c: `distanceMeters` is `null`
@@ -112,20 +117,6 @@ class ProviderResultCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  /// `averageRating == null` always renders "No reviews yet" -- never a
-  /// synthesized `"0.0 (0 reviews)"`.
-  static String _ratingLabel(
-    AppLocalizations l10n,
-    RankedProviderResult provider,
-  ) {
-    final rating = provider.averageRating;
-    if (rating == null) return l10n.noReviewsYetLabel;
-    return l10n.ratingWithReviewCountLabel(
-      rating.toStringAsFixed(1),
-      provider.reviewCount,
     );
   }
 
@@ -179,61 +170,6 @@ class _Placeholder extends StatelessWidget {
       child: Icon(
         Icons.storefront_outlined,
         color: colorScheme.onSurfaceVariant,
-      ),
-    );
-  }
-}
-
-/// The locked, full-width "Unclaimed" banner (`16_UX_GUIDELINES.md` --
-/// "Trust & Verification UX Patterns", Decision 8): solid Warning-color
-/// (`AppColors.warning`, `#F59E0B`) with `AppColors.onWarning` text/icon for
-/// contrast -- deliberately the *solid* warning pair, not `DESIGN.md`'s
-/// softer `badge-unclaimed` component, since `16_UX_GUIDELINES.md`'s own
-/// resolved pattern for this exact banner explicitly specifies the full,
-/// solid Warning color. Occupies the card's full width by construction.
-class _UnclaimedBanner extends StatelessWidget {
-  const _UnclaimedBanner({required this.onTap});
-
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final textTheme = Theme.of(context).textTheme;
-
-    return Material(
-      color: AppColors.warning,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.info_outline,
-                color: AppColors.onWarning,
-                size: 18,
-              ),
-              const SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text(
-                  l10n.unclaimedBannerLabel,
-                  style: textTheme.labelLarge?.copyWith(
-                    color: AppColors.onWarning,
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.chevron_right,
-                color: AppColors.onWarning,
-                size: 18,
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

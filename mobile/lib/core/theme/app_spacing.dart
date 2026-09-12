@@ -26,4 +26,10 @@ class AppRadius {
   static const double standard = 12;
   static const double largeCard = 16;
   static const double bottomSheet = 24;
+
+  /// `DESIGN.md`'s `rounded.full` token (`9999px`) -- a fully rounded
+  /// "pill" shape, large enough to round any reasonably-sized badge's
+  /// corners into a stadium regardless of its height (CON-001,
+  /// `VerifiedBadge`).
+  static const double full = 999;
 }

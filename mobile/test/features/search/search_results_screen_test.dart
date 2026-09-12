@@ -183,4 +183,30 @@ void main() {
 
     expect(fakeRepository.searchProvidersCallCount, 2);
   });
+
+  testWidgets(
+    'tapping a result card navigates to the Provider Profile screen with '
+    'searchRequestId: null -- the structured search path creates no '
+    'search_requests row (CON-001, Decision 4)',
+    (tester) async {
+      final fakeRepository = FakeSearchRepository(
+        results: const [providerWithNoReviews],
+      );
+
+      await pumpScreen(
+        tester,
+        child: const SearchResultsScreen(filters: filters),
+        overrides: [searchRepositoryProvider.overrideWithValue(fakeRepository)],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Speedy Plumbing'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('provider-profile-stub-provider-1-no-search-request'),
+        findsOneWidget,
+      );
+    },
+  );
 }

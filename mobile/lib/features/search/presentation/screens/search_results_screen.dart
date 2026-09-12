@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../features/provider_profile/domain/models/provider_profile_args.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/app_error_message.dart';
 import '../../../../shared/widgets/loading_indicator.dart';
@@ -57,18 +58,17 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     await ref.read(searchResultsControllerProvider.notifier).search(filters);
   }
 
-  void _onCardTap(BuildContext context) {
-    // S-09 (the real Provider Profile screen) doesn't exist yet -- a
-    // simple "coming soon" acknowledgment is this story's accepted stub,
-    // mirroring CUS-002's own precedent for a not-yet-built downstream
-    // screen (`Plan_S06_DIR-001.md`, Mobile item 20).
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          AppLocalizations.of(context).providerProfileComingSoonMessage,
-        ),
-      ),
+  /// Navigates to the Provider Profile screen (S-09, CON-001). `searchRequestId`
+  /// is always `null` here -- the structured (non-AI) search path this
+  /// screen serves creates no `search.search_requests` row at all
+  /// (DIR-001/MAT-001's own Verified Current State, Decision 4,
+  /// `Plan_S08_CON-001.md`).
+  void _onCardTap(BuildContext context, String providerId) {
+    final ProviderProfileArgs args = (
+      providerId: providerId,
+      searchRequestId: null,
     );
+    context.push(AppRoutes.providerProfile, extra: args);
   }
 
   /// CLM-001, Decision 8 -- the unclaimed banner's CTA navigates straight
@@ -108,7 +108,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                     results: state.results
                         .map((provider) => provider.toRankedProviderResult())
                         .toList(),
-                    onTap: (_) => _onCardTap(context),
+                    onTap: (providerId) => _onCardTap(context, providerId),
                     onClaimTap: (providerId) =>
                         _onClaimTap(context, providerId),
                     onRefresh: _onRefresh,

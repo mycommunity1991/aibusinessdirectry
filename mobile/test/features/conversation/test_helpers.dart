@@ -1,30 +1,60 @@
+import 'package:ai_marketplace_app/core/routing/app_routes.dart';
 import 'package:ai_marketplace_app/core/theme/app_theme.dart';
+import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile_args.dart';
 import 'package:ai_marketplace_app/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
-/// Pumps a single [child] widget under a minimal ProviderScope +
+/// Pumps a single [child] widget under a minimal GoRouter + ProviderScope +
 /// localizations shell -- mirrors `features/claim/test_helpers.dart`'s
-/// `pumpClaimScreen` pattern, kept local to this feature's tests. The AI
-/// Conversation screen never navigates elsewhere internally (all of its
-/// interactivity -- revise, start over, quick replies -- is in-screen
-/// state), so no `GoRouter` is needed here.
+/// `pumpClaimScreen` pattern, kept local to this feature's tests. A
+/// `GoRouter` (rather than a bare `MaterialApp`) is needed since CON-001
+/// wired a real `context.push` to the Provider Profile screen from a
+/// matched-result card tap -- a stub destination for it is registered here
+/// so that navigation resolves without needing the full app router.
 Future<void> pumpConversationScreen(
   WidgetTester tester, {
   required Widget child,
   List<Override> overrides = const [],
   Locale locale = const Locale('en'),
 }) async {
+  final router = GoRouter(
+    initialLocation: '/under-test',
+    routes: [
+      GoRoute(path: '/under-test', builder: (context, state) => child),
+      GoRoute(
+        path: AppRoutes.claimOtp,
+        builder: (context, state) {
+          final providerId = state.extra as String? ?? 'unknown-provider';
+          return Scaffold(body: Text('claim-otp-stub-$providerId'));
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.providerProfile,
+        builder: (context, state) {
+          final args = state.extra as ProviderProfileArgs?;
+          return Scaffold(
+            body: Text(
+              'provider-profile-stub-${args?.providerId ?? 'unknown'}-'
+              '${args?.searchRequestId ?? 'no-search-request'}',
+            ),
+          );
+        },
+      ),
+    ],
+  );
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: overrides,
-      child: MaterialApp(
+      child: MaterialApp.router(
         theme: AppTheme.light(),
         locale: locale,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: child,
+        routerConfig: router,
       ),
     ),
   );

@@ -19,6 +19,16 @@ class AppColors {
   /// Approved verification / positive outcome states.
   static const Color success = Color(0xFF22C55E);
 
+  /// `DESIGN.md`'s `success-container` token -- the `badge-verified`
+  /// component's background (CON-001, Decision 8), mirroring how
+  /// [warning]/[onWarning] below already exist as raw constants for
+  /// content painted outside `ColorScheme`'s own built-in slots.
+  static const Color successContainer = Color(0xFFC3F4D3);
+
+  /// `DESIGN.md`'s `on-success-container` token -- text/icon color for
+  /// content painted on top of [successContainer].
+  static const Color onSuccessContainer = Color(0xFF002109);
+
   /// Pending verification / unclaimed-listing states.
   static const Color warning = Color(0xFFF59E0B);
 

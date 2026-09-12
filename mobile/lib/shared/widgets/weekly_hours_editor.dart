@@ -70,6 +70,24 @@ TimeOfDay parseTimeOfDay(String value) {
   return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
 }
 
+/// The full, localized weekday name for one of [weeklyHoursOrderedDays]'s
+/// wire-value keys -- a top-level function (rather than a private method
+/// scoped to [WeeklyHoursEditor]) so the Provider Profile screen's
+/// read-only hours display (CON-001, AC5) can render the same day labels
+/// without duplicating this switch (`docs/AI/08_CODING_STANDARDS.md`,
+/// "never create duplicate code").
+String weekdayLabel(AppLocalizations l10n, String day) {
+  return switch (day) {
+    'monday' => l10n.weekdayMonday,
+    'tuesday' => l10n.weekdayTuesday,
+    'wednesday' => l10n.weekdayWednesday,
+    'thursday' => l10n.weekdayThursday,
+    'friday' => l10n.weekdayFriday,
+    'saturday' => l10n.weekdaySaturday,
+    _ => l10n.weekdaySunday,
+  };
+}
+
 /// A generic, reusable weekly operating-hours editor -- factored out of
 /// PRO-001's `BusinessDetailsScreen` (`_OperatingHoursRow`) so PRO-002's
 /// Storefront Availability section can reuse the exact same per-weekday
@@ -123,18 +141,6 @@ class WeeklyHoursEditor extends StatelessWidget {
     );
   }
 
-  String _dayLabel(AppLocalizations l10n, String day) {
-    return switch (day) {
-      'monday' => l10n.weekdayMonday,
-      'tuesday' => l10n.weekdayTuesday,
-      'wednesday' => l10n.weekdayWednesday,
-      'thursday' => l10n.weekdayThursday,
-      'friday' => l10n.weekdayFriday,
-      'saturday' => l10n.weekdaySaturday,
-      _ => l10n.weekdaySunday,
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -144,7 +150,7 @@ class WeeklyHoursEditor extends StatelessWidget {
         for (final day in weeklyHoursOrderedDays)
           _WeeklyHoursRow(
             key: ValueKey('weekly-hours-row-$day'),
-            dayLabel: _dayLabel(l10n, day),
+            dayLabel: weekdayLabel(l10n, day),
             value: _valueFor(day),
             showEmergencyToggle: showEmergencyToggle,
             onOpenChanged: (isOpen) =>

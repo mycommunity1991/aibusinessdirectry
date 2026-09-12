@@ -1,7 +1,8 @@
 # Checkpoint — Story CON-001 (Contact a Matched Provider Directly)
 
-**Owner of this checkpoint:** `backend` (this update)
-**Status:** Backend implementation complete, all tests green. Frontend has not started.
+**Owner of this checkpoint:** `frontend` (this update)
+**Status:** Backend and frontend implementation both complete, all tests green (192 passed, 0 failed --
+169 baseline + 23 new). Not yet reviewed by `tester`/`architect`.
 
 ---
 
@@ -83,23 +84,69 @@ file this story touched (two pre-existing, unrelated files elsewhere in the repo
   what to raise if it's ever `None`. Mirrors `apply_verification_outcome`'s identical defensive-404 precedent for
   a similarly-should-never-happen missing row.
 
+## Frontend implementation (this update)
+
+Plan's Frontend Proposed Changes items 1–12 are all done, including the Call/WhatsApp launch behavior
+(`url_launcher` added to `pubspec.yaml`, pre-approved per the orchestrator's own instructions this session).
+
+- **New feature `mobile/lib/features/provider_profile/`**: domain models (`provider_profile.dart`,
+  `provider_profile_args.dart` -- a record typedef `{providerId, searchRequestId}`, `contact_reveal.dart`,
+  `provider_profile_exception.dart`, `contact_exception.dart`), `data/provider_profile_repository.dart`
+  (`getProviderProfile`, `createContactView`), two separate Riverpod controllers
+  (`state/provider_profile_controller.dart`, `state/contact_reveal_controller.dart`),
+  `presentation/screens/provider_profile_screen.dart` (S-09 -- name, category, description, primary photo,
+  rating+count together, read-only weekly hours, subtype service-area field, the shared `UnclaimedBanner`/new
+  `VerifiedBadge` per Decision 8's three-state precedence, sticky bottom Contact CTA),
+  `presentation/widgets/contact_reveal_sheet.dart` (loading/phone-number/Call `tel:`/WhatsApp `wa.me` (only if
+  present)/AC6 outside-the-app note), `presentation/utils/contact_launcher.dart` (an injectable `ContactLauncher`
+  interface wrapping `url_launcher`, mirroring `PortfolioImagePicker`/`LocationService`'s testable-plugin
+  pattern), plus error-copy utils.
+- **`mobile/lib/shared/widgets/unclaimed_banner.dart`** (Decision 9) -- extracted byte-for-byte from
+  `ProviderResultCard`'s former private `_UnclaimedBanner`; `ProviderResultCard` updated to use it (no
+  visual/behavioral change, confirmed by its own pre-existing tests still passing unmodified).
+- **`mobile/lib/shared/widgets/verified_badge.dart`** (Decision 8) -- `badge-verified` tokens; added
+  `AppColors.successContainer`/`onSuccessContainer` and `AppRadius.full` to the theme files (DESIGN.md-derived
+  hex/token values that didn't exist yet).
+- **`mobile/lib/shared/utils/rating_label.dart`** -- extracted the "No reviews yet" / "{rating} ({count}
+  reviews)" formatting out of `ProviderResultCard` so the Provider Profile screen doesn't duplicate it.
+- Routing: `AppRoutes.providerProfile` + a new `GoRoute` requiring `ProviderProfileArgs` via `extra`.
+- Rewired both former "coming soon" call sites: `SearchResultsScreen._onCardTap` (`searchRequestId: null`) and
+  `AiConversationScreen._ResolvedResultsView._onResultTap` (threaded `ConversationSession.searchRequestId` down
+  through `_ActiveView`). `providerProfileComingSoonMessage` removed from both arb files (confirmed unused via
+  repo-wide grep first).
+- l10n: new keys added to both `app_en.arb`/`app_ar.arb` for the profile screen, the sheet (including the AC6
+  note, verbatim), the Verified badge, hours/service-area labels, and error copy (including a specific message
+  for the 403 self-dealing rejection).
+
+### Tests (all passing)
+
+- `mobile/test/features/provider_profile/provider_profile_screen_test.dart` (11 cases: load error+retry, all
+  three Decision 8 badge states plus the claim-tap navigation, rating+count together with/without a rating,
+  weekly hours rendered, Business vs. Freelancer service-area fields, Contact CTA opening the sheet).
+- `mobile/test/features/provider_profile/contact_reveal_sheet_test.dart` (6 cases: phone+Call button on
+  success, WhatsApp button present/absent, the AC6 outside-the-app note, the self-dealing 403 mapped to a clear
+  message, a generic failure with a working retry).
+- `mobile/test/shared/widgets/unclaimed_banner_test.dart` (new, moved/adapted) and
+  `provider_result_card_test.dart` (existing, re-run unmodified) both pass -- no regression from the extraction.
+- `mobile/test/shared/widgets/verified_badge_test.dart` (new, 1 case).
+- `search_results_screen_test.dart`/`ai_conversation_screen_test.dart` extended with real-navigation assertions
+  (via each feature's local test-router stubs) replacing the old snackbar behavior, which itself had no prior
+  test coverage to update (confirmed by grep before writing new assertions instead of editing non-existent ones).
+
+Full suite: **192 passed, 0 failed** (169 baseline + 23 new). `flutter analyze`: 0 issues. `dart format
+--set-exit-if-changed`: clean.
+
 ## What's explicitly next
 
-1. **frontend** — Plan's Frontend Proposed Changes items 1–12 (the new `provider_profile` feature, the Contact
-   Reveal sheet, the shared `UnclaimedBanner`/`VerifiedBadge` widgets, wiring the two existing "coming soon" tap
-   handlers). Not started. Backend's two new endpoints (`POST /contact-views`, `GET /providers/{provider_id}`)
-   and response shapes are stable and ready to integrate against. **Do not implement the Call/WhatsApp launch
-   behavior** until Open Question 1 (`url_launcher` dependency approval) is resolved — per the orchestrator's own
-   instructions this session, it is already approved; flag to `frontend` directly rather than re-asking.
-2. **tester** — verify all 8 verbatim ACs per the Plan's Verification Plan table, once frontend's screens exist
-   (AC2/AC5/AC6 need the mobile UI; AC1/AC3/AC4/AC7/AC8 are already fully covered by this session's backend
-   tests, but tester should still verify independently, not just trust this checkpoint).
-3. **architect** — review Decision 1's guard, Decision 2's route-registration-order reasoning, Decision 4's
-   ownership-validation posture, Decision 8's badge precedence, and the `contact` module's cross-module edge
-   count, per the Plan's own Delegation section item 4.
+1. **tester** — verify all 8 verbatim ACs per the Plan's Verification Plan table, now that both backend and
+   frontend are complete (AC2/AC5/AC6 now have real mobile UI to verify against; AC1/AC3/AC4/AC7/AC8 are already
+   covered by backend tests, but tester should still verify independently, not just trust this checkpoint).
+2. **architect** — review Decision 1's guard, Decision 2's route-registration-order reasoning, Decision 4's
+   ownership-validation posture, Decision 8's badge precedence (now implemented client-side exactly as
+   specified), and the `contact` module's cross-module edge count, per the Plan's own Delegation section item 4.
 
 ## Open questions / blockers
 
-None for backend. All three of the Plan's Open Questions were pre-resolved by the orchestrator before this
-session started (see the task prompt): `url_launcher` approved, no `is_discoverable` requirement confirmed
-(Decision 7 as built), 403 for self-dealing confirmed (Decision 10 as built).
+None. All three of the Plan's Open Questions were pre-resolved by the orchestrator before backend's session
+started: `url_launcher` approved (now added and used), no `is_discoverable` requirement confirmed (Decision 7 as
+built), 403 for self-dealing confirmed (Decision 10 as built, and mapped to a specific client-side message).

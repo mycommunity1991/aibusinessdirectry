@@ -803,11 +803,6 @@
       "km": {"type": "String", "example": "2.4"}
     }
   },
-  "providerProfileComingSoonMessage": "Provider profiles are coming soon.",
-  "@providerProfileComingSoonMessage": {
-    "description": "Snackbar shown when tapping a provider search result card -- the real Provider Profile screen (S-09) doesn't exist yet (DIR-001, Mobile item 20)."
-  },
-
   "unclaimedBannerLabel": "Unclaimed — Is this your business? Claim it",
   "@unclaimedBannerLabel": {
     "description": "CLM-001, Decision 8 -- the exact, locked copy for the full-width Warning-color banner on an unclaimed Google-seeded provider card (16_UX_GUIDELINES.md, verbatim -- do not reword)."
@@ -1004,5 +999,72 @@
   "aiConversationNoMatchesMessage": "We couldn't find a match for this request. Start a new request to try again.",
   "@aiConversationNoMatchesMessage": {
     "description": "Empty-state copy shown once a session's search request resolves to `unmatched` with zero matched providers (AI-002, Decision 6) -- deliberately distinct from the pending-state copy (aiConversationCompletionMessage) and from search's own zero-results copy (searchZeroResultsMessage), and never names 'manual matching'/'Wizard-of-Oz' per 16_UX_GUIDELINES.md's invisibility rule (AC3)."
+  },
+
+  "verifiedBadgeLabel": "Verified",
+  "@verifiedBadgeLabel": {
+    "description": "The `badge-verified` component's text label (CON-001, AC5, Decision 8) -- shown on the Provider Profile screen only when is_claimed is true and verification_status is approved; always paired with the checkmark icon, never shown alone (DESIGN.md)."
+  },
+  "providerProfileTitle": "Provider Profile",
+  "@providerProfileTitle": {
+    "description": "App bar title on the Provider Profile screen (S-09, CON-001)."
+  },
+  "providerProfileContactButtonLabel": "Contact",
+  "@providerProfileContactButtonLabel": {
+    "description": "The Provider Profile screen's sticky bottom CTA (CON-001, AC2) -- opens the Contact Reveal sheet."
+  },
+  "providerProfileHoursLabel": "Hours",
+  "@providerProfileHoursLabel": {
+    "description": "Section heading above the read-only weekly-hours list on the Provider Profile screen (CON-001, AC5)."
+  },
+  "providerProfileServiceAreaLabel": "Service area",
+  "@providerProfileServiceAreaLabel": {
+    "description": "Section heading above the subtype-specific service-area field on the Provider Profile screen (CON-001, AC5)."
+  },
+  "providerProfileDeliveryRadiusLabel": "Delivers within {km} km",
+  "@providerProfileDeliveryRadiusLabel": {
+    "description": "A Business provider's delivery radius on the Provider Profile screen (CON-001, AC5).",
+    "placeholders": {
+      "km": {"type": "String", "example": "5.0"}
+    }
+  },
+  "providerProfileServiceRadiusLabel": "Travels up to {km} km",
+  "@providerProfileServiceRadiusLabel": {
+    "description": "A Freelancer provider's service/travel radius on the Provider Profile screen (CON-001, AC5).",
+    "placeholders": {
+      "km": {"type": "String", "example": "10.0"}
+    }
+  },
+  "providerProfileNotFoundMessage": "This provider is no longer available.",
+  "@providerProfileNotFoundMessage": {
+    "description": "Plain-language message for the backend's 404 ProviderNotFoundError from GET /providers/{id} (CON-001)."
+  },
+  "contactSheetTitle": "Contact",
+  "@contactSheetTitle": {
+    "description": "Heading on the Contact Reveal bottom sheet (CON-001, AC2)."
+  },
+  "contactSheetCallLabel": "Call",
+  "@contactSheetCallLabel": {
+    "description": "The Contact Reveal sheet's Call button label -- launches the device dialer via a tel: URL (CON-001, AC2)."
+  },
+  "contactSheetWhatsAppLabel": "WhatsApp",
+  "@contactSheetWhatsAppLabel": {
+    "description": "The Contact Reveal sheet's WhatsApp button label -- only shown when the provider has a WhatsApp number on record (CON-001, AC2)."
+  },
+  "contactSheetOutsideAppNote": "You'll be leaving the app to contact them directly.",
+  "@contactSheetOutsideAppNote": {
+    "description": "The Contact Reveal sheet's required note that contact happens outside the app (CON-001, AC6, verbatim requirement -- do not remove)."
+  },
+  "contactSheetNoPhoneNumberMessage": "No phone number on record.",
+  "@contactSheetNoPhoneNumberMessage": {
+    "description": "Defensive fallback shown in place of the phone number if a Contact Reveal response is somehow missing both phone_country_code and phone_number (CON-001) -- should be unreachable in practice."
+  },
+  "contactSelfDealingMessage": "You can't contact your own listing.",
+  "@contactSelfDealingMessage": {
+    "description": "Plain-language message for the backend's 403 SelfDealingContactError from POST /contact-views (CON-001, AC3/AC4, Decision 10)."
+  },
+  "contactProviderNotFoundMessage": "This provider is no longer available.",
+  "@contactProviderNotFoundMessage": {
+    "description": "Plain-language message for the backend's 404 from POST /contact-views -- the provider doesn't exist, or a supplied search_request_id doesn't exist or doesn't belong to the calling customer (CON-001, Decision 4)."
   }
 }

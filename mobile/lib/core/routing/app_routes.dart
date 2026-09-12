@@ -116,4 +116,12 @@ class AppRoutes {
   /// AI-mediated intake flow (guided free-text + follow-up questions),
   /// alongside [searchFilters]'s existing structured (non-AI) browse path.
   static const String aiConversation = '/ai-conversation';
+
+  /// S-09 -- Provider Profile (CON-001, AC5). Always reached via
+  /// `push(..., extra: ProviderProfileArgs(...))` -- a plain record, never
+  /// a bare deep link, mirroring [otpEntry]/[addressForm]'s `extra`-required
+  /// pattern. Reachable from [searchResults]'s card tap (structured search,
+  /// `searchRequestId: null`) and from the AI Conversation results view's
+  /// card tap (`searchRequestId` threaded from the session).
+  static const String providerProfile = '/provider-profile';
 }

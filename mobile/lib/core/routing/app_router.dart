@@ -21,6 +21,8 @@ import '../../features/provider/presentation/screens/freelancer_details_screen.d
 import '../../features/provider/presentation/screens/provider_basic_info_screen.dart';
 import '../../features/provider/presentation/screens/provider_intro_screen.dart';
 import '../../features/provider/presentation/screens/storefront_screen.dart';
+import '../../features/provider_profile/domain/models/provider_profile_args.dart';
+import '../../features/provider_profile/presentation/screens/provider_profile_screen.dart';
 import '../../features/search/domain/models/search_filters_args.dart';
 import '../../features/search/presentation/screens/search_filters_screen.dart';
 import '../../features/search/presentation/screens/search_results_screen.dart';
@@ -178,6 +180,19 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
       GoRoute(
         path: AppRoutes.aiConversation,
         builder: (context, state) => const AiConversationScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.providerProfile,
+        // Provider Profile always needs its `ProviderProfileArgs` --
+        // reachable only via `push(..., extra: ...)`, never a bare deep
+        // link, mirroring `otpEntry`/`addressForm`'s own `extra`-required
+        // redirect.
+        redirect: (context, state) =>
+            state.extra is ProviderProfileArgs ? null : AppRoutes.searchResults,
+        builder: (context, state) {
+          final args = state.extra as ProviderProfileArgs;
+          return ProviderProfileScreen(args: args);
+        },
       ),
     ],
   );

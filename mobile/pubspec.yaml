@@ -85,6 +85,16 @@ dependencies:
   # `PortfolioImagePicker`'s pattern).
   file_picker: ^11.0.3
 
+  # Contact Reveal sheet's Call/WhatsApp buttons (CON-001, AC2,
+  # `Plan_S08_CON-001.md` Open Question 1 -- user-approved new dependency).
+  # The standard, Flutter-team-maintained package for launching `tel:`/
+  # `https://wa.me/...` URLs; Flutter's SDK has no built-in mechanism for
+  # this. Automated tests never depend on real plugin/platform-channel
+  # behavior -- `ContactRevealSheet` depends on an injectable
+  # `ContactLauncher` interface for tests, mirroring `PortfolioImagePicker`/
+  # `LocationService`'s exact pattern.
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

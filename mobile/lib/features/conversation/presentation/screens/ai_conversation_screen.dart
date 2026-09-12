@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
+import '../../../../features/provider_profile/domain/models/provider_profile_args.dart';
 import '../../../../l10n/generated/app_localizations.dart';
 import '../../../../shared/widgets/app_error_message.dart';
 import '../../../../shared/widgets/app_text_field.dart';
@@ -238,7 +239,10 @@ class _ActiveView extends StatelessWidget {
     if (session.isTerminal &&
         searchResults != null &&
         searchResults.isResolved) {
-      return _ResolvedResultsView(searchResults: searchResults);
+      return _ResolvedResultsView(
+        searchResults: searchResults,
+        searchRequestId: session.searchRequestId,
+      );
     }
 
     return Column(
@@ -529,21 +533,30 @@ class _CompletionBanner extends StatelessWidget {
 /// result came from the automated matcher or an admin (AC4). Never renders
 /// anything that distinguishes the two origins.
 class _ResolvedResultsView extends StatelessWidget {
-  const _ResolvedResultsView({required this.searchResults});
+  const _ResolvedResultsView({
+    required this.searchResults,
+    required this.searchRequestId,
+  });
 
   final SearchRequestResult searchResults;
 
-  void _onResultTap(BuildContext context) {
-    // S-09 (the real Provider Profile screen) doesn't exist yet -- the
-    // same "coming soon" acknowledgment `SearchResultsScreen` (S-08) uses
-    // for this identical not-yet-built downstream screen.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          AppLocalizations.of(context).providerProfileComingSoonMessage,
-        ),
-      ),
+  /// The session's real, already-known `search_request_id` (AI-002) --
+  /// threaded down from `ConversationSession.searchRequestId`, non-`null`
+  /// by construction whenever this view is reachable at all (only rendered
+  /// once `session.isTerminal` with a resolved `searchResults`, and a
+  /// session only ever reaches a terminal state alongside a non-`null`
+  /// `search_request_id`, per `ConversationController._syncResultsPolling`).
+  /// Passed through to the Provider Profile screen (CON-001, Decision 4)
+  /// so a Contact View created from here records its true originating
+  /// search request.
+  final String? searchRequestId;
+
+  void _onResultTap(BuildContext context, String providerId) {
+    final ProviderProfileArgs args = (
+      providerId: providerId,
+      searchRequestId: searchRequestId,
     );
+    context.push(AppRoutes.providerProfile, extra: args);
   }
 
   void _onClaimTap(BuildContext context, String providerId) {
@@ -578,7 +591,7 @@ class _ResolvedResultsView extends StatelessWidget {
         Expanded(
           child: RankedProviderResultsList(
             results: matches,
-            onTap: (_) => _onResultTap(context),
+            onTap: (providerId) => _onResultTap(context, providerId),
             onClaimTap: (providerId) => _onClaimTap(context, providerId),
           ),
         ),

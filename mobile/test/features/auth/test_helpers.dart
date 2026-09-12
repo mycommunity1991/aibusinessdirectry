@@ -2,6 +2,7 @@ import 'package:ai_marketplace_app/core/routing/app_router.dart';
 import 'package:ai_marketplace_app/core/routing/app_routes.dart';
 import 'package:ai_marketplace_app/core/storage/secure_token_storage.dart';
 import 'package:ai_marketplace_app/core/theme/app_theme.dart';
+import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile_args.dart';
 import 'package:ai_marketplace_app/l10n/generated/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -85,6 +86,25 @@ Future<void> pumpScreen(
         path: AppRoutes.addFirstAddress,
         builder: (context, state) =>
             const Scaffold(body: Text('add-first-address-stub')),
+      ),
+      GoRoute(
+        path: AppRoutes.claimOtp,
+        builder: (context, state) {
+          final providerId = state.extra as String? ?? 'unknown-provider';
+          return Scaffold(body: Text('claim-otp-stub-$providerId'));
+        },
+      ),
+      GoRoute(
+        path: AppRoutes.providerProfile,
+        builder: (context, state) {
+          final args = state.extra as ProviderProfileArgs?;
+          return Scaffold(
+            body: Text(
+              'provider-profile-stub-${args?.providerId ?? 'unknown'}-'
+              '${args?.searchRequestId ?? 'no-search-request'}',
+            ),
+          );
+        },
       ),
     ],
   );
