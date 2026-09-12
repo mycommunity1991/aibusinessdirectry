@@ -150,3 +150,49 @@ Full suite: **192 passed, 0 failed** (169 baseline + 23 new). `flutter analyze`:
 None. All three of the Plan's Open Questions were pre-resolved by the orchestrator before backend's session
 started: `url_launcher` approved (now added and used), no `is_discoverable` requirement confirmed (Decision 7 as
 built), 403 for self-dealing confirmed (Decision 10 as built, and mapped to a specific client-side message).
+
+---
+
+## `tester` update (post-frontend)
+
+Verified all 8 verbatim ACs with real evidence (real DB, real HTTP round trips, real widget tests). Closed one
+test-coverage gap: the AC6 "outside the app" note test only ever pumped under the default English locale: added
+a locale-parameterized Arabic case (commit `259218a`). Confirmed the implementation already rendered correctly
+in Arabic — a coverage gap, not a functional bug. No functional bugs found. 195/195 mobile tests pass, 702/702
+backend tests pass, `flutter analyze`/`ruff check .` both clean.
+
+## `architect` review (this update)
+
+**Status: reviewed, verdict APPROVED WITH RECOMMENDATIONS.** Full findings relayed to the top-level session/user
+directly (not duplicated here) — see that response for the ranked list. Summary for continuity:
+
+- Independently re-verified (not just trusted) all items the orchestrator asked for: the self-dealing guard's
+  line-by-line ordering (airtight — guard fires before `search_request_id` validation and before any write),
+  the `contact` module's four cross-module edges (`customer`/`provider`/`search`/`notification` — confirmed via
+  grep that none of the four import back from `contact`, no cycle), `PublicProviderProfileResponse`'s schema
+  (no phone/whatsapp field anywhere in it or its nested types), the migration (matches `04_DATABASE.md` exactly,
+  reversible), `AvailabilityService`'s extraction (byte-for-byte behavior-preserving, read the diff directly),
+  the mobile `UnclaimedBanner` extraction (no leftover private duplicate) and `ContactLauncher`'s pattern
+  (genuinely mirrors `PortfolioImagePicker`/`LocationService`'s abstract-interface + `Device*`-impl +
+  Riverpod-provider shape).
+- Independently re-ran both suites fresh: backend 702 passed (`uv run pytest -q`), mobile 195 passed
+  (`flutter test`), `ruff check .` clean, `flutter analyze` clean (0 issues).
+- One real finding, not blocking: `ContactService` is wired with three raw cross-module *Repositories*
+  (`CustomerProfileRepository`, `ProviderRepository`, `SearchRequestRepository`) rather than those modules'
+  *Service* classes, and `contact/dependencies.py`'s own docstring inaccurately claims this "mirrors
+  `search.SearchRequestService`'s own multi-module wiring shape" — `SearchRequestService` actually only takes
+  cross-module *Services* (`ProviderService`, `CustomerService`, `SavedAddressService`, etc.), never a raw
+  cross-module Repository. Concretely, this also produces one small duplicate-logic instance: `ContactService`'s
+  inline provider-lookup-plus-404 block (`get_by_id` + `is_active` check + `ProviderNotFoundError`) duplicates
+  `ProviderService.get_for_public_profile`'s identical logic instead of calling it. Recommended fix: have
+  `ContactService` depend on `ProviderService` (call `get_for_public_profile`) instead of `ProviderRepository`
+  directly, and correct/remove the inaccurate docstring claim. The `CustomerProfileRepository`/
+  `SearchRequestRepository` raw-repository uses are more defensible (neither `CustomerService` nor
+  `SearchRequestService` expose an equivalent raw-lookup primitve today) but are still worth a short ADR note
+  at closeout establishing the convention going forward, since this is the first module with this shape of
+  wiring.
+- No MVP-scope violation, no undocumented architecture drift beyond the one noted item above, no security gap
+  found.
+
+Next: pause for user sign-off per standing process (do not write the Walkthrough or touch
+`docs/CHANGELOG.md`/tracker yet).
