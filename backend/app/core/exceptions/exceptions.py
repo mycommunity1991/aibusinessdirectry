@@ -381,6 +381,41 @@ class VerificationDocumentTooLargeError(BusinessException):
         super().__init__(message=message, status_code=422)
 
 
+class CustomerProfileNotFoundError(BusinessException):
+    """
+    Raised defensively by `ContactService.create_contact_view` (CON-001,
+    Decision 1, `Plan_S08_CON-001.md`) if the calling, already-
+    authenticated user somehow has no `customer_profiles` row. Not
+    expected to occur in practice -- `AuthService` provisions a
+    `customer_profiles` row for every account at registration
+    (CUS-001) -- but this method never silently no-ops on a missing
+    row, mirroring `apply_verification_outcome`'s identical defensive
+    posture for a similarly-should-never-happen missing `Provider` row.
+    """
+
+    def __init__(self, message: str = "Customer profile not found."):
+        super().__init__(message=message, status_code=404)
+
+
+class SelfDealingContactError(BusinessException):
+    """
+    Raised by `ContactService.create_contact_view` (CON-001, AC3/AC4,
+    Decision 10, `Plan_S08_CON-001.md`) when the requesting Customer's
+    Account is the same Account that owns the target Provider -- i.e.
+    `provider.user_id == current_user_id`. Enforced before any
+    `contact_views` row is written.
+
+    403, not 409 -- this is not a race or a timing issue, it is a
+    permanent, identity-based authorization rule: this specific caller
+    may never create this specific write, regardless of retry timing.
+    No information-leakage concern applies (unlike claim-flow's masked
+    404s) since the caller already knows they own the target listing.
+    """
+
+    def __init__(self, message: str = "You can't contact your own listing."):
+        super().__init__(message=message, status_code=403)
+
+
 class VerificationDocumentInvalidTypeError(BusinessException):
     """
     Raised by `document_validation.validate_verification_document_upload`

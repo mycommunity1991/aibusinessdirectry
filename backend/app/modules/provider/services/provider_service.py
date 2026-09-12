@@ -118,6 +118,25 @@ class ProviderService:
         """
         return await self.provider_repository.get_by_user_id(user_id)
 
+    async def get_for_public_profile(self, provider_id: uuid.UUID) -> Provider:
+        """
+        Resolves an arbitrary Provider for the customer-facing Provider
+        Profile screen (CON-001, Decision 2/7, `Plan_S08_CON-001.md`) --
+        `GET /providers/{provider_id}`'s and `ContactService.
+        create_contact_view`'s shared lookup.
+
+        Requires only that the row exist and be `is_active=True` (not
+        soft-deleted) -- deliberately does **not** additionally require
+        `is_discoverable=True` (Decision 7): a customer who already has
+        a specific `provider_id` (a prior search result, a deep link, a
+        re-opened screen) should not hit a confusing 404 purely because
+        the provider's discoverability flag changed after the fact.
+        """
+        provider = await self.provider_repository.get_by_id(provider_id)
+        if provider is None or not provider.is_active:
+            raise ProviderNotFoundError()
+        return provider
+
     async def get_subtype_profiles(
         self, provider: Provider
     ) -> tuple[BusinessProfile | None, FreelancerProfile | None]:

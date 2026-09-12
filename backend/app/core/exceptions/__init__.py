@@ -12,6 +12,7 @@ from app.core.exceptions.exceptions import (
     ClaimTargetNotFoundError,
     ConversationSessionNotActiveError,
     ConversationSessionNotFoundError,
+    CustomerProfileNotFoundError,
     ExpiredTokenError,
     InsufficientRoleError,
     InvalidCategoryLabelsError,
@@ -34,6 +35,7 @@ from app.core.exceptions.exceptions import (
     RateLimitExceededError,
     SavedAddressNotFoundError,
     SearchRequestNotFoundError,
+    SelfDealingContactError,
     SessionNotFoundError,
     SubtypeDetailsMismatchError,
     VerificationDocumentInvalidTypeError,
@@ -86,4 +88,6 @@ __all__ = [
     "ManualMatchAssignmentAlreadyResolvedError",
     "SearchRequestNotFoundError",
     "InvalidManualMatchProviderIdsError",
+    "CustomerProfileNotFoundError",
+    "SelfDealingContactError",
 ]

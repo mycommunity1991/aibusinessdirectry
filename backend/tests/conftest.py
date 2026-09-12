@@ -93,6 +93,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
     import app.modules.administration.models  # noqa: F401 - registers admin_action_log
     import app.modules.audit.models  # noqa: F401 - registers the audit_logs table
     import app.modules.category.models  # noqa: F401 - registers category tables
+    import app.modules.contact.models  # noqa: F401 - registers contact tables
     import app.modules.conversation.models  # noqa: F401 - registers conversation tables
     import app.modules.customer.models  # noqa: F401 - registers customer tables
     import app.modules.identity.models  # noqa: F401 - registers identity tables
@@ -108,6 +109,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS identity"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS audit"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS category"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS contact"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS conversation"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS customer"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS provider"))
@@ -124,6 +126,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("DROP SCHEMA IF EXISTS identity CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS audit CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS category CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS contact CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS conversation CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS customer CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS provider CASCADE"))
@@ -152,6 +155,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         CategoryQuestionTemplate,
         ProviderCategory,
     )
+    from app.modules.contact.models import ContactView
     from app.modules.conversation.models import (
         ConfidenceScore,
         ConversationSession,
@@ -201,6 +205,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             ClaimReviewRequest,
             ManualMatchAssignment,
             Notification,
+            ContactView,
             ProviderMatch,
             SearchEventLog,
             SearchRequest,

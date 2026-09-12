@@ -5,10 +5,13 @@ generated for this user." No real WhatsApp/SMS/Email delivery
 mechanism exists yet (Decision 3, `Plan_S05_VER-002.md`); this module
 does not pretend otherwise.
 
-Exposes one explicit method, `notify_verification_status_change`, with
-**hardcoded, plain-language copy** -- never simply interpolating the
-raw `VerificationStatus` enum member into `title`/`body` (AC5's literal
-"never exposing internal status enum values").
+Exposes `notify_verification_status_change`, with **hardcoded,
+plain-language copy** -- never simply interpolating the raw
+`VerificationStatus` enum member into `title`/`body` (AC5's literal
+"never exposing internal status enum values") -- and
+`notify_new_contact_view` (CON-001, AC7, Decision 3,
+`Plan_S08_CON-001.md`), the same hardcoded-copy/same-shape pattern
+applied to a claimed provider's new Contact View.
 """
 
 import uuid
@@ -27,6 +30,11 @@ _BODY_APPROVED = (
     "now visible to customers."
 )
 _TITLE_REJECTED = "Verification update"
+
+_TYPE_NEW_CONTACT_VIEW = "new_contact_view"
+_RELATED_ENTITY_TYPE_CONTACT_VIEW = "contact_view"
+_TITLE_NEW_CONTACT_VIEW = "You have a new lead"
+_BODY_NEW_CONTACT_VIEW = "A customer just viewed your contact details."
 
 
 def _rejected_body(rejection_reason: str | None) -> str:
@@ -74,5 +82,35 @@ class NotificationService:
                 "body": body,
                 "related_entity_type": _RELATED_ENTITY_TYPE_VERIFICATION_RECORD,
                 "related_entity_id": verification_record_id,
+            }
+        )
+
+    async def notify_new_contact_view(
+        self,
+        *,
+        user_id: uuid.UUID,
+        contact_view_id: uuid.UUID,
+    ) -> Notification:
+        """
+        Records a plain-language "new lead" notification for a claimed
+        provider's Account (CON-001, AC7) -- called once, synchronously,
+        from `ContactService.create_contact_view`, only when the
+        contacted provider has an owning Account (`provider.user_id is
+        not None`; a still-unclaimed listing has no Account to notify).
+
+        `contact_view_id` becomes `related_entity_id`, mirroring
+        `notify_verification_status_change`'s identical
+        `related_entity_id` convention. This story only emits the
+        in-app record -- real delivery (push/SMS/email) is ENG-001's
+        own, later scope.
+        """
+        return await self.repository.create(
+            {
+                "user_id": user_id,
+                "type": _TYPE_NEW_CONTACT_VIEW,
+                "title": _TITLE_NEW_CONTACT_VIEW,
+                "body": _BODY_NEW_CONTACT_VIEW,
+                "related_entity_type": _RELATED_ENTITY_TYPE_CONTACT_VIEW,
+                "related_entity_id": contact_view_id,
             }
         )

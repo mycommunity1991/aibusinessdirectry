@@ -237,3 +237,58 @@ class TestUpdateMyAvailability:
 
         second_result = await service.get_my_availability(second_user.id)
         assert all(e.open_time is None for e in second_result)
+
+
+class TestGetAvailabilityForProvider:
+    """
+    CON-001, Decision 6, `Plan_S08_CON-001.md` -- the same seven-day
+    synthesis, keyed by an arbitrary `provider_id` rather than the
+    caller's own `user_id`, no ownership check.
+    """
+
+    @pytest.mark.anyio
+    async def test_returns_seven_synthesized_closed_entries_for_a_fresh_provider(
+        self, db_session
+    ) -> None:
+        user = await _create_user(db_session, "506000008")
+        provider = await _create_provider(db_session, user)
+        service = _availability_service(db_session)
+
+        entries = await service.get_availability_for_provider(provider.id)
+
+        assert len(entries) == 7
+        assert {e.weekday for e in entries} == set(Weekday)
+        assert all(e.open_time is None and e.close_time is None for e in entries)
+
+    @pytest.mark.anyio
+    async def test_matches_get_my_availability_for_an_equivalent_fixture(
+        self, db_session
+    ) -> None:
+        """Arbitrary-target lookup produces byte-for-byte the same
+        entries `get_my_availability` would for its own caller."""
+        user = await _create_user(db_session, "506000009")
+        provider = await _create_provider(db_session, user)
+        service = _availability_service(db_session)
+        await service.update_my_availability(user.id, [_monday_open_entry()])
+
+        via_owner = await service.get_my_availability(user.id)
+        via_arbitrary_target = await service.get_availability_for_provider(provider.id)
+
+        assert via_owner == via_arbitrary_target
+
+    @pytest.mark.anyio
+    async def test_requires_no_ownership_and_is_called_by_a_different_caller(
+        self, db_session
+    ) -> None:
+        """No `ProviderNotFoundError`/ownership check exists for this
+        method at all -- any resolved `provider_id` works, regardless of
+        who is asking."""
+        owner = await _create_user(db_session, "506000010")
+        provider = await _create_provider(
+            db_session, owner, display_name="Someone Else"
+        )
+        service = _availability_service(db_session)
+
+        entries = await service.get_availability_for_provider(provider.id)
+
+        assert len(entries) == 7

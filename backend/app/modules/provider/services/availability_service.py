@@ -8,6 +8,15 @@ a "closed, not yet configured" entry (both times `None`).
 `update_my_availability` upserts up to seven entries in one call/flush --
 Create+Read+Update collapsed into `GET`+`PUT`, never a per-weekday
 `PATCH`.
+
+`_synthesize` (CON-001, Decision 6, `Plan_S08_CON-001.md`) is the same
+seven-day synthesis loop extracted into a private, provider-id-keyed
+helper, shared by `get_my_availability` (owner-scoped, resolves its own
+`Provider` by `user_id`) and the new `get_availability_for_provider`
+(arbitrary target, no ownership check -- the caller has already resolved
+and authorized viewing that `provider_id` via `ProviderService.
+get_for_public_profile`). `get_my_availability`'s own behavior is
+byte-for-byte unchanged by this extraction.
 """
 
 import uuid
@@ -65,8 +74,30 @@ class AvailabilityService:
         """Returns exactly 7 entries, synthesizing "closed" for any
         weekday without a saved row yet (AC3)."""
         provider = await self._get_provider_or_404(user_id)
+        return await self._synthesize(provider.id)
+
+    async def get_availability_for_provider(
+        self, provider_id: uuid.UUID
+    ) -> list[WeekdayAvailabilityEntry]:
+        """
+        Returns exactly 7 entries for an arbitrary `provider_id` (CON-
+        001, AC5, Decision 6, `Plan_S08_CON-001.md`) -- the Provider
+        Profile screen's read path. No ownership check: the caller has
+        already resolved and authorized viewing this `provider_id` via
+        `ProviderService.get_for_public_profile` before calling this.
+        """
+        return await self._synthesize(provider_id)
+
+    async def _synthesize(
+        self, provider_id: uuid.UUID
+    ) -> list[WeekdayAvailabilityEntry]:
+        """
+        Shared seven-day synthesis loop (Decision 6) -- any weekday
+        without a saved row becomes a "closed, not yet configured"
+        entry (both times `None`).
+        """
         rows = await self.provider_availability_repository.list_for_provider(
-            provider.id
+            provider_id
         )
         by_weekday = {row.weekday: row for row in rows}
 

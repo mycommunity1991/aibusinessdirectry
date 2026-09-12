@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -464,3 +465,50 @@ class RejectClaimReviewRequest(BaseModel):
     """Request payload for `POST /admin/claims/{request_id}/reject`."""
 
     resolution_notes: str | None = Field(None, max_length=2000)
+
+
+class PublicProviderProfileResponse(BaseModel):
+    """
+    Response payload for `GET /providers/{provider_id}` (CON-001, AC5,
+    Decision 2, `Plan_S08_CON-001.md`) -- the customer-facing Provider
+    Profile screen's data.
+
+    `average_rating`/`review_count` are the raw, honestly-nullable
+    `providers` columns as stored, mirroring `SearchResultProviderResponse`'s
+    identical "never alone" pairing (AC5) -- `average_rating` is `None`
+    for every provider today (no Review domain exists yet).
+
+    `is_claimed`/`verification_status` are both returned as raw,
+    unmodified fields (Decision 8) -- the client renders exactly one of
+    three trust-badge states off them (`is_claimed` checked first, since
+    a still-unclaimed, Google-seeded listing can have
+    `verification_status=approved` too); the server never pre-computes a
+    single display enum.
+
+    `delivery_radius_meters` is populated only for a `provider_type=
+    business` provider; `service_radius_meters` only for `freelancer`.
+    `city`/`region` are Business-only (Freelancer has neither field on
+    `freelancer_profiles`).
+
+    Deliberately excludes `phone_number`/`whatsapp_number`/
+    `phone_country_code` -- those are only ever revealed via the Contact
+    Reveal flow (`POST /contact-views`), never on this profile read, so
+    a customer cannot obtain the number without a real Contact View
+    being recorded (AC2).
+    """
+
+    id: uuid.UUID
+    provider_type: ProviderType
+    display_name: str
+    category_labels: list[CategoryLabelResponse] = Field(default_factory=list)
+    description: str | None = None
+    primary_photo_url: str | None = None
+    average_rating: Decimal | None = None
+    review_count: int
+    is_claimed: bool
+    verification_status: VerificationStatus
+    weekly_availability: list[WeekdayAvailabilityResponse]
+    city: str | None = None
+    region: str | None = None
+    delivery_radius_meters: int | None = None
+    service_radius_meters: int | None = None

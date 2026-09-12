@@ -131,6 +131,17 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
     `administration`, since `admin_action_log`/`claim_review_requests`
     (the schema's other two tables) have no such cross-schema FK and are
     still needed, unmodified, by tests elsewhere in this fixture's scope.
+
+    `contact` (CON-001) is excluded the same way `conversation`/`search`
+    are -- `contact.contact_views` has its own real FK into the excluded
+    `search.search_requests`, so it cannot be created here either, and
+    (unlike `administration.manual_match_assignments`) it is `contact`'s
+    *only* table, so excluding the whole schema (rather than a single
+    fully-qualified table name) is simpler and has no other-tests-still-
+    need-it downside. No namespace-only `CREATE SCHEMA` is needed for it
+    (unlike `conversation`/`search`): `contact_views` declares no native
+    Postgres ENUM column, so it has no schema-wide `before_create`/
+    `after_drop` DDL event to satisfy.
     """
     import app.modules.administration.models  # noqa: F401
     import app.modules.audit.models  # noqa: F401
@@ -141,7 +152,7 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
     import app.modules.verification.models  # noqa: F401
     from app.database.base import Base
 
-    _excluded_schemas = {"category", "conversation", "search"}
+    _excluded_schemas = {"category", "contact", "conversation", "search"}
     _excluded_table_names = {"administration.manual_match_assignments"}
     non_category_tables = [
         t
