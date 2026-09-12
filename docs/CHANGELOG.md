@@ -11,6 +11,35 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Contact a matched provider directly (Story CON-001, completes Sprint 8 / Milestone ML8 in full): a new `contact`
+  domain module and migration create `contact.contact_views` exactly per `04_DATABASE.md`'s pre-existing spec —
+  no deviation. `ContactService.create_contact_view` implements the platform's most safety-critical rule, the
+  self-dealing guard: a direct `provider.user_id == current_user_id` comparison, checked before any row write,
+  skipped only when `provider.user_id IS NULL` for a still-unclaimed listing, raising a new
+  `SelfDealingContactError` (**HTTP 403**, a permanent identity-based authorization rule, not a timing conflict —
+  **ADR-044**). A new customer-facing `GET /providers/{id}` public profile endpoint (a sibling router registered
+  *after* the existing owner-scoped `/me` router, so path-parameter matching doesn't shadow it) exposes rating +
+  review count together, hours/service-area, and a Verified/Unclaimed badge — deliberately **not** gated on
+  `is_discoverable` (only `is_active`), so a customer with an existing reference to a provider doesn't hit a
+  confusing 404 purely because a search-visibility flag changed (**ADR-045**). The Verified/Unclaimed badge is a
+  raw-field precedence pattern computed client-side (`is_claimed` first, `verification_status` second, never a
+  fabricated server-computed enum — **ADR-046**), reusable for future trust-badge stories (e.g. Reviews). Every
+  Contact View creation for a claimed provider emits an in-app Notification (`notify_new_contact_view`, mirroring
+  VER-002's existing pattern) — full delivery remains `ENG-001`'s job. On mobile, this story ships the real
+  Provider Profile screen (S-09) and a Contact Reveal sheet with genuine Call (`tel:`) and WhatsApp (`wa.me`)
+  launch via a new, CTO-approved dependency, `url_launcher` — wrapped behind an injectable, testable
+  `ContactLauncher` interface. Both former "coming soon" search-result tap targets now navigate to this real
+  screen. **One real, non-blocking `architect` finding, fixed and re-confirmed clean:** `ContactService` was
+  wired with a raw `ProviderRepository` instead of `ProviderService` — a `02_ARCHITECTURE.md`
+  cross-module-services-only violation that also produced a duplicate-logic instance (an inline provider lookup
+  duplicating `ProviderService.get_for_public_profile`). Fixed at commit `bed63e8`; `architect` independently
+  re-verified the fix against the diff with zero regressions (702/702 backend tests unchanged) — now recorded as
+  **ADR-047**, the concrete precedent for this cross-module wiring convention. **Tester-found coverage
+  addition, no functional bug:** the Contact Reveal sheet's required "contact happens outside the app" note (AC6)
+  had only ever been tested under the English locale; a new Arabic-locale test confirmed it was already rendering
+  correctly. `architect` final verdict: **PASS, fully APPROVED.** See
+  `docs/implementation/walkthroughs/Walkthrough_S08_CON-001.md` for the full account. **This completes Sprint 8
+  and Milestone ML8 in full** (`MAT-001` + `CON-001`, both Done).
 - Merit-based provider ranking — see ranked providers for my request (Story MAT-001): a new bounded `[0, 1]`
   composite ranking formula (proximity + rating + review volume, five new `Settings`-driven weights —
   `RANKING_WEIGHT_PROXIMITY=0.6`, `RANKING_WEIGHT_RATING=0.3`, `RANKING_WEIGHT_REVIEW_VOLUME=0.1`,

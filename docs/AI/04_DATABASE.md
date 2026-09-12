@@ -747,6 +747,8 @@ Basis for: provider visibility analytics, future pay-per-lead billing (post-MVP,
 
 **Self-dealing guard (service-layer, not a DB constraint):** since one `identity.users` row may own both a `customer_profiles` row and a `providers` row (see `03_DOMAIN_MODEL.md` Identity & Access), the Contact View creation service must reject the write if `customer_profiles.user_id` (via `customer_id`) equals `providers.user_id` (via `provider_id`) — i.e. a Provider cannot generate a Contact View against their own listing. This can't be a table-level `CHECK` because it requires joining across `customer_profiles` and `providers` through `users`; it must be validated where the row is inserted. Because `outcome_tags` and `reviews` both anchor to `contact_views`, blocking it here transitively blocks self-tagging and self-reviewing too.
 
+**Shipped (`CON-001`, 12 September 2026):** built exactly per the spec above, no deviation — migration `contact_domain` (on top of `f3a1c9d47b02`), the new `contact.contact_views` table with all three named indexes, and a real `ContactService.create_contact_view` enforcing the self-dealing guard exactly as described (a direct `provider.user_id == current_user_id` comparison, before any write, skipped only when `provider.user_id IS NULL` for a still-unclaimed listing) — see `docs/AI/09_DECISIONS.md` ADR-044 and `docs/implementation/walkthroughs/Walkthrough_S08_CON-001.md`.
+
 ## outcome_tags
 
 The platform's only conversion signal.

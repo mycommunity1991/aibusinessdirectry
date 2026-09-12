@@ -3339,6 +3339,338 @@ paths") for the automated path only, by design.
 
 ---
 
+# ADR-044
+
+## Title
+
+Self-Dealing Contact Guard (`CON-001`): Direct `provider.user_id == current_user_id` Comparison Inside `ContactService`, Skipped Only for a Still-Unclaimed Listing; HTTP 403, Not 409
+
+**Date**
+
+2026-09-12
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`CON-001` ("contact a matched provider directly") implements this platform's most safety-critical rule: because
+one `identity.users` Account may hold both a `customer_profiles` row and a `providers` row simultaneously
+(`03_DOMAIN_MODEL.md`'s dual-role Account rule), a Contact View must be rejected outright if the requesting
+Customer's Account is the same Account that owns the target Provider — otherwise a provider could inflate their
+own lead/contact/review numbers by contacting themselves. AC3 requires this enforced at the point of write, not
+merely documented; AC4 requires an automated test asserting the row is never created. Since
+`customer_profile.user_id` is definitionally equal to the authenticated caller's own `current_user.id` (the
+customer profile is resolved via `CustomerProfileRepository.get_by_user_id(current_user.id)` in the first place),
+the exact comparison needed is `provider.user_id == current_user.id` — no redundant re-read of the just-fetched
+customer row required. Separately, no existing exception class fit "a well-formed, correctly authenticated
+request, blocked purely because of who the caller is relative to the target resource" — every existing 409 in
+this codebase (e.g. `ClaimAlreadyClaimedError`) represents a state-timing conflict, not a permanent identity rule.
+
+### Decision
+
+`ContactService.create_contact_view` runs the guard **before any row is written**: if
+`provider.user_id is not None and provider.user_id == current_user_id`, it raises a new
+`SelfDealingContactError(BusinessException)`, `status_code=403`, with a plain-language message ("You can't
+contact your own listing."). `provider.user_id is None` (a still-unclaimed, Google-seeded listing) can never
+self-deal by construction — there is no owning Account yet — so the guard is skipped and Contact View creation
+proceeds normally, mirroring `CLM-001`'s own existing design (an unclaimed listing is fully contactable, exactly
+as it is fully claimable by anyone). 403 was chosen over 409 because this is not a race or a timing issue — it is
+a permanent, identity-based authorization rule: this specific caller may never create this specific write,
+regardless of retry timing. No information-leakage concern applies (unlike claim-flow's masked 404s), since the
+caller already knows they own the target listing.
+
+The guard is enforced entirely inside the service layer, not a database constraint or trigger, since the
+comparison spans two tables (`customer_profiles`, `providers`) joined through a third (`identity.users`) — a
+single-table `CHECK` cannot express it, and a cross-table trigger would hide a security-critical business rule
+inside opaque DB logic, contrary to this codebase's established pattern (every other business rule enforced in a
+`*Service`, e.g. `ClaimService`, `AdminVerificationService`).
+
+### Alternatives Considered
+
+- **A database `CHECK` constraint or trigger.** Rejected — cannot express a cross-table join in a single-table
+  `CHECK`, and a trigger would obscure a safety-critical rule outside the codebase's service-layer convention.
+- **Enforcing the guard only in the mobile client** (e.g. hiding the Contact button on your own listing).
+  Rejected outright as the sole mechanism — trivially bypassable by calling the API directly; AC3's literal
+  wording ("enforced at the point of Contact View creation, not just documented as a rule") rules this out.
+- **409 Conflict**, matching `ClaimAlreadyClaimedError`'s precedent. Rejected — this is not a race/timing
+  conflict; it is a permanent, identity-based authorization rule with no retry that would ever succeed for the
+  same caller/provider pair.
+
+### Consequences
+
+- `AC3`/`AC4` are satisfied by construction: `test_contact_service.py`'s self-dealing fixture (the same
+  `user_id` owning both a `customer_profiles` and a `providers` row) asserts `SelfDealingContactError` is raised
+  **and** directly queries `contact_views` to confirm the row count is unchanged — not merely that an exception
+  was thrown.
+- Since `outcome_tags` and `reviews` both anchor to `contact_views` (`04_DATABASE.md`), blocking self-dealing here
+  transitively blocks self-tagging and self-reviewing too, once those domains ship.
+- `architect` review independently re-verified the guard's line-by-line ordering (fires before
+  `search_request_id` validation and before any write) and confirmed no bypass path exists.
+- This is a new precedent: the first 403 in this codebase for a permanent identity-based authorization rule,
+  distinct from the existing 409-for-timing-conflict and masked-404-for-information-leakage precedents. Future
+  stories with a similarly permanent "this caller may never do this to this resource" rule should cite this ADR,
+  not force-fit a 409 or a 404.
+
+### Related Documents
+
+- 03_DOMAIN_MODEL.md (the dual-role Account rule; the Contact View self-dealing restriction's exact wording)
+- 04_DATABASE.md (`contact.contact_views`'s Self-dealing guard note)
+- 09_DECISIONS.md (ADR-030 — `CLM-001`'s claim-finalization `user_id`-comparison precedent this guard mirrors, in
+  the opposite direction)
+- docs/implementation/plans/Plan_S08_CON-001.md (Decision 1, Decision 10)
+- docs/implementation/walkthroughs/Walkthrough_S08_CON-001.md
+- backend/app/modules/contact/services/contact_service.py
+- backend/app/core/exceptions/exceptions.py (`SelfDealingContactError`)
+
+---
+
+# ADR-045
+
+## Title
+
+Customer-Facing `GET /providers/{id}` Public Profile Endpoint (`CON-001`): Sibling Router Registered After the Owner-Scoped `/me` Router; Not Gated on `is_discoverable`
+
+**Date**
+
+2026-09-12
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`CON-001`'s AC5 (Provider Profile screen) needed a real, customer-facing detail endpoint; none existed —
+`backend/app/modules/provider/api.py` was entirely `/me`-scoped (owner-only). A new, separate, arbitrary-
+`provider_id` read is a different concern with different authorization (any `ROLE_CUSTOMER` caller, any target
+provider) than the owner-only file. Separately, `03_DOMAIN_MODEL.md`/`04_DATABASE.md` distinguish
+`is_discoverable` (a search-visibility flag) from eligibility to view/contact a provider a customer already has a
+direct reference to (e.g. from a previous search result, a deep link, or re-opening the screen after results
+refreshed) — no AC or domain text restricts profile viewing/contact to only-currently-discoverable providers.
+
+### Decision
+
+A new sibling file `backend/app/modules/provider/public_api.py` (mirrors this module's own existing
+`claim_api.py`/`admin_claim_api.py` sibling-router convention), one route: `GET /{provider_id}`, gated by
+`require_role(ROLE_CUSTOMER)`. Registered in `app/api/v1/api.py` as a **second**
+`v1_router.include_router(provider_public_router, prefix="/providers")` call, placed **after** the existing
+owner-scoped `provider_router` registration — Starlette matches routes in registration order, so
+`/me`/`/me/portfolio`/`/me/availability` (registered first) continue to match their literal paths before the new
+`/{provider_id}` path-parameter route is ever reached. This ordering requirement was independently re-verified by
+`architect` as provably correct (not merely "tests happen to pass"), and a dedicated regression test
+(`test_public_provider_api.py`) proves `/me` still resolves to the owner-only router.
+
+`ProviderService.get_for_public_profile(provider_id)` only requires the row to exist and be `is_active=True` (not
+soft-deleted) — it deliberately does **not** additionally require `is_discoverable=True`. `Contact View` creation
+(`ContactService`, ADR-044) uses the same provider lookup and inherits the same posture. The response
+(`PublicProviderProfileResponse`) deliberately excludes `phone_number`/`whatsapp_number` — those are revealed
+only via the Contact Reveal flow, never on the profile screen itself, so a customer cannot obtain the number
+without a real Contact View being recorded.
+
+### Alternatives Considered
+
+- **Extending `SearchResultProviderResponse`/`MatchedProviderResponse` with the extra profile fields** instead of
+  a new endpoint. Rejected — those are paginated list-row shapes; adding hours/service-area/badge fields to every
+  row of every search result would bloat a hot, frequently-paginated response for data only needed once a
+  customer taps into one specific provider.
+- **Adding the route directly into the existing `provider_router` object**, ordered after the `/me...` routes in
+  the same file. Considered and viable, but a separate file/router was chosen for clearer separation of
+  "self-service, owner-only" vs. "public, customer-facing" concerns, consistent with this module's own
+  `claim_api.py`/`admin_claim_api.py` split.
+- **Require `is_discoverable=True`, mirroring the search results' own filter.** Rejected as an unrequested,
+  stricter-than-specified restriction — `is_discoverable` gates *search visibility*, not contact eligibility for
+  a listing the customer already has a direct reference to. CTO-confirmed as the intended posture before
+  implementation began.
+
+### Consequences
+
+- A customer who already holds a specific `provider_id` (from a prior search, a deep link, or a stale results
+  list) can always open the Provider Profile screen and contact the provider, as long as the listing is still
+  `is_active`, regardless of its current `is_discoverable` value — proven by a dedicated regression test.
+- Any future endpoint needing a similar "owner-scoped `/me`-family router already exists, add a public
+  arbitrary-id read" shape should follow the same sibling-file, registered-after pattern, not interleave a new
+  route into the existing owner-only router.
+- `PublicProviderProfileResponse` never exposes contact details — verified by `architect` directly against the
+  schema (no phone/whatsapp field anywhere in it or its nested types).
+
+### Related Documents
+
+- 03_DOMAIN_MODEL.md / 04_DATABASE.md (`providers.is_discoverable` vs. `is_active`; Provider Domain)
+- 09_DECISIONS.md (ADR-015 — the `{id}`-addressable-collection-always-404 convention this endpoint's 404 posture
+  follows)
+- docs/implementation/plans/Plan_S08_CON-001.md (Decision 2, Decision 7)
+- docs/implementation/walkthroughs/Walkthrough_S08_CON-001.md
+- backend/app/modules/provider/public_api.py
+- backend/app/modules/provider/services/provider_service.py (`get_for_public_profile`)
+- backend/app/api/v1/api.py (registration order)
+
+---
+
+# ADR-046
+
+## Title
+
+Trust-Badge Precedence Pattern (`CON-001`): Raw `is_claimed`/`verification_status` Fields, Client-Computed Precedence — Never a Server-Computed Enum
+
+**Date**
+
+2026-09-12
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`CON-001`'s AC5 requires the Provider Profile screen to show "a Verified badge (or Unclaimed label) as
+applicable" — but `is_claimed=false` and `verification_status=approved` can both be true simultaneously for a
+Google-seeded listing (`CLM-001`'s own design: a still-unclaimed listing is marked `verification_status=APPROVED`
+purely so it is searchable). Checking the two fields independently would produce a contradictory "Verified"
+badge on a listing nobody has claimed yet — a direct anti-fabrication violation (`00_PROJECT_CONTEXT.md` §3).
+
+### Decision
+
+The server returns the two raw fields unchanged — `is_claimed: bool`, `verification_status: enum` — never a
+pre-computed `trust_badge` enum. The mobile client renders exactly one of three states, in strict precedence
+order:
+
+1. `is_claimed == false` → the shared `UnclaimedBanner` widget, regardless of `verification_status`.
+2. `is_claimed == true && verification_status == approved` → the new `VerifiedBadge` widget.
+3. Otherwise (claimed, but `pending`/`under_review`/`rejected`) → neither badge is shown.
+
+This mirrors `ProviderResultCard`'s own existing precedent (`CLM-001`, ADR-030-adjacent) of computing its
+unclaimed-banner visibility client-side off a server-driven boolean, never inferring from other signals.
+
+### Alternatives Considered
+
+- **Have the backend compute and return a single `trust_badge: "verified" | "unclaimed" | "none"` enum field.**
+  Rejected — this codebase's established precedent (`SearchResultProviderResponse.is_claimed`) is to expose the
+  raw, honest boolean and let the client render off it, not to pre-compute a display-only enum server-side; a new
+  enum here would be the first inconsistent departure from that pattern for no functional gain.
+
+### Consequences
+
+- No contradictory or fabricated trust signal can ever be shown — `is_claimed` is checked first and always wins,
+  by construction, confirmed by three explicit badge-precedent fixtures (`test_public_provider_api.py`) and
+  mirrored widget tests on mobile.
+- **This is a reusable precedent for future stories that display more than one raw trust-related field together**
+  (e.g. a future Review domain's "Verified Visit" badge, `03_DOMAIN_MODEL.md`) — cite this ADR rather than
+  re-deriving a precedence rule from scratch, and keep computing precedence client-side off raw server booleans,
+  never a server-computed enum, unless a future ADR explicitly supersedes this one.
+
+### Related Documents
+
+- 00_PROJECT_CONTEXT.md §3 (anti-fabrication principle)
+- 09_DECISIONS.md (ADR-029/030 — `CLM-001`'s Google-seeded `is_claimed=false`/`verification_status=approved`
+  combination that drives this pattern)
+- docs/implementation/plans/Plan_S08_CON-001.md (Decision 8, Decision 9)
+- docs/implementation/walkthroughs/Walkthrough_S08_CON-001.md
+- mobile/lib/shared/widgets/unclaimed_banner.dart, verified_badge.dart
+- mobile/lib/features/provider_profile/presentation/screens/provider_profile_screen.dart
+
+---
+
+# ADR-047
+
+## Title
+
+Cross-Module Wiring Convention: Services Only, Never Raw Repositories (`CON-001`'s `ContactService`/`ProviderService` Fix, Commit `bed63e8`, as the Concrete Precedent)
+
+**Date**
+
+2026-09-12
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`02_ARCHITECTURE.md` already states that cross-module communication must go through constructor-injected
+**Services** only, never a raw Repository from another module. `CON-001`'s new `contact` module was the first
+module with four cross-module edges (`customer`, `provider`, `search`, `notification`) in one service. During
+`architect`'s first review, `ContactService` was found wired with three raw cross-module *Repositories*
+(`CustomerProfileRepository`, `ProviderRepository`, `SearchRequestRepository`) rather than those modules'
+*Service* classes, and `contact/dependencies.py`'s own docstring inaccurately claimed this "mirrors
+`SearchRequestService`'s own multi-module wiring shape" — `SearchRequestService` in fact only takes cross-module
+*Services* (`ProviderService`, `CustomerService`, `SavedAddressService`, etc.), never a raw cross-module
+Repository. Concretely, the `provider` edge also produced a duplicate-logic instance: `ContactService`'s inline
+provider-lookup-plus-404 block (`get_by_id` + `is_active` check + `ProviderNotFoundError`) duplicated
+`ProviderService.get_for_public_profile`'s identical logic (ADR-045) instead of calling it.
+
+### Decision
+
+`ContactService` is fixed (commit `bed63e8`) to depend on `ProviderService` (calling
+`get_for_public_profile(provider_id)`) instead of `ProviderRepository` directly — eliminating the duplicate logic
+entirely, not relocating it. The `customer`/`search` raw-repository edges
+(`CustomerProfileRepository`/`SearchRequestRepository`) are **left as-is**, since neither `CustomerService` nor
+`SearchRequestService` expose an equivalent raw-lookup primitive today — a documented, deliberate exception, not
+an oversight. `contact/dependencies.py`'s docstring was corrected to state the `provider` edge is a Service
+specifically because of the "modules communicate through services only" rule, while explicitly flagging that
+`customer`/`search` remain raw Repositories for this documented reason.
+
+**Established convention going forward**: when a new module's service needs data from another module, prefer
+that module's Service class. A raw cross-module Repository dependency is only acceptable when the target
+module's Service genuinely exposes no equivalent read primitive — and that gap should be named explicitly in the
+new module's own `dependencies.py` docstring (not silently assumed acceptable), so a future architect review can
+evaluate whether to add the missing Service method instead.
+
+### Alternatives Considered
+
+- **Leave `ContactService` depending on all three raw Repositories, treating this as pre-existing acceptable
+  practice.** Rejected — `02_ARCHITECTURE.md`'s rule already existed; this would have let a first violation of it
+  stand uncorrected and duplicate logic remain in two places at once.
+- **Add a new `ProviderService` passthrough method instead of reusing `get_for_public_profile`.** Rejected as
+  needless duplication — `get_for_public_profile` already does exactly the lookup `ContactService` needs
+  (existence + `is_active` check + `ProviderNotFoundError`), with no ownership-check side effect that would be
+  inappropriate for `ContactService`'s use.
+- **Also force `CustomerProfileRepository`/`SearchRequestRepository` into new `CustomerService`/
+  `SearchRequestService` passthrough methods for symmetry.** Rejected for this story — no equivalent primitive
+  exists today, and inventing one purely for wiring symmetry (with no other caller) would be an unrequested,
+  unjustified new abstraction. Flagged as a documented exception instead, revisitable if a future module needs
+  the same primitive.
+
+### Consequences
+
+- `contact → provider` is now a genuine Service-to-Service edge, same direction as before, just through the
+  correct layer — no new cross-module cycle introduced, confirmed by `architect` re-checking the diff directly.
+- Zero regressions: the full backend suite (702/702) passed unchanged before and after the fix; no test
+  assertions changed, consistent with a pure refactor.
+- **This is now the concrete, citable example** for `02_ARCHITECTURE.md`'s pre-existing services-only rule — any
+  future module's `dependencies.py` review should check against this precedent, not merely the abstract rule
+  text, when deciding whether a new cross-module Repository dependency is acceptable.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md (the pre-existing "modules communicate through services only" cross-module rule this ADR
+  gives a concrete violation-and-fix example for)
+- 08_CODING_STANDARDS.md
+- docs/implementation/plans/Plan_S08_CON-001.md
+- docs/implementation/plans/Checkpoint_S08_CON-001.md (architect's first review and re-check, full account)
+- docs/implementation/walkthroughs/Walkthrough_S08_CON-001.md
+- backend/app/modules/contact/services/contact_service.py, dependencies.py (commit `bed63e8`)
+- backend/app/modules/provider/services/provider_service.py (`get_for_public_profile`, ADR-045)
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

@@ -6,70 +6,65 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 11 September 2026, immediately after Story MAT-001 closeout, tracker synced.
+**Last updated:** 12 September 2026, immediately after Story CON-001 closeout. **Tracker sync still pending** —
+see the explicit note in Section 1 below; do not trust the old Dashboard numbers until the orchestrator re-syncs.
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `ee1e94b` (tracker sync marking MAT-001 Done)
+**Last commit at time of writing:** `bed63e8` (CON-001's architect-required cross-module wiring fix) — this
+closeout pass (tech-lead, docs-only, no git access) has not committed anything itself; the orchestrator commits
+this documentation update separately.
 
 ---
 
 ## 1. Where things stand
 
 - **Sprints 1–7 are fully complete.** Milestones ML1 through **ML7 are all Done.**
-- **Sprint 8 / Milestone ML8 has started, 1 of 2 stories done: `MAT-001` is Done.** Shipped and signed off 11
-  September 2026 — see `docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md`. `architect` review
-  returned **APPROVED, zero findings** — the cleanest review this project has had. Independently re-confirmed:
-  669/669 backend tests passing.
-- **Dashboard numbers (confirmed as of commit `ee1e94b`):** Overall Progress **51.6%** | Completed Milestones
-  **7/24** | Completed Epics **14/23** | Completed Stories **34/47** | Current Phase **PH2** | Current Milestone
-  **ML8** (1/2 stories done, In Progress) | Current Sprint **SP08** (1/2 done, In Progress) | Upcoming Sprint
-  **SP09**.
-- **`CON-001` is the sole remaining Sprint 8 / Milestone ML8 story.** Detailed in full below (Section 2) —
-  everything needed to start is already here, no tracker read required. **Do NOT start it without the CTO's
-  explicit "Start CON-001" (or equivalent) instruction.** Standing practice throughout this project: no
-  engineering agent plans or starts a story unprompted.
+- **Sprint 8 / Milestone ML8 is now fully complete — both stories Done: `MAT-001` and `CON-001`.**
+  `MAT-001` shipped and was signed off 11 September 2026 — see
+  `docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md` (`architect`: APPROVED, zero findings).
+  `CON-001` ("contact a matched provider directly") has since shipped and was signed off 12 September 2026, on
+  top of `MAT-001` — see `docs/implementation/walkthroughs/Walkthrough_S08_CON-001.md`. It built the new
+  `contact` domain module (`contact.contact_views`), the self-dealing guard (ADR-044), a new customer-facing
+  `GET /providers/{id}` public profile endpoint (ADR-045), a client-computed trust-badge precedence pattern
+  (ADR-046), and the real mobile Provider Profile screen (S-09) plus Contact Reveal sheet (`url_launcher`,
+  CTO-approved). `architect`'s one real finding — `ContactService` wired to a raw `ProviderRepository` instead
+  of `ProviderService` — was fixed (commit `bed63e8`) and re-confirmed clean (ADR-047, the concrete precedent
+  for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
+  test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
+  PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
+- **TRACKER SYNC PENDING — do not trust the following numbers until the orchestrator re-syncs
+  `Project_Tracker.xlsx` for `CON-001`:** the Dashboard numbers below are stale as of `MAT-001`'s closeout
+  (commit `ee1e94b`) and have **not** been updated for `CON-001` yet: Overall Progress **51.6%** | Completed
+  Milestones **7/24** | Completed Epics **14/23** | Completed Stories **34/47** | Current Phase **PH2** |
+  Current Milestone **ML8** (shown as 1/2 done — now stale, should read 2/2, Done) | Current Sprint **SP08**
+  (shown as 1/2 done — now stale, should read 2/2, Done) | Upcoming Sprint **SP09**. **The orchestrator must
+  run the raw-XML tracker sync procedure (Section 5) for `CON-001`, rolling up through ML8-EP02 → ML8 → SP08 →
+  the Phase Tracker → the Dashboard, before these numbers can be trusted or recorded here as confirmed.**
+- **TODO — next story not yet identified.** With Sprint 8/Milestone ML8 now fully complete, the next story is
+  **Sprint 9's first story** — this session does not have tracker access and has **not** looked it up. **The
+  orchestrator must look up Sprint 9's first story in `Project_Tracker.xlsx` and replace this TODO with its full
+  verbatim description (mirroring Section 2's old CON-001 entry) before the next session can skip the tracker
+  read.** Do not guess, infer, or fabricate a plausible-sounding Sprint 9 story here — leave this exact
+  placeholder until the real lookup happens.
 - Full narrative history of every story shipped so far (Sprints 1–8) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
-  historical context on a specific earlier decision; it's ~1100 lines.
+  historical context on a specific earlier decision; it's over 1100 lines.
 
-## 2. Next story — `CON-001` (Sprint 8 / Milestone ML8, the only one left)
+## 2. Next story — TODO: Sprint 9's first story (not yet looked up)
 
-**Do NOT start without the CTO's explicit "Start CON-001" (or equivalent) instruction.**
-Standing practice throughout this project: no engineering agent plans or starts a story unprompted.
+**This section is an explicit placeholder, not a story ready to start.** Sprint 8 and Milestone ML8 are both
+now fully complete (`MAT-001` + `CON-001`, both Done). This closeout session had no `Project_Tracker.xlsx`
+access, so Sprint 9's first story has **not** been identified — do not fabricate one.
 
-**`MAT-001` ("see ranked providers for my request") has shipped** — its dependency requirement for `CON-001`
-is satisfied. Key things `CON-001` should know about what `MAT-001` built: `SearchService.
-search_providers_ranked(...)` is now the shared entry point behind both `GET /search/providers` and the
-AI-conversation automated-match path; `provider_matches.match_score` is real for automated matches, `NULL` for
-manual ones; ranking reads `providers.average_rating`/`review_count`, not `provider_rating_summaries` (still
-unbuilt, tracked at `13_OPEN_DECISIONS.md` item 14) — none of this should require `CON-001` to change anything
-about how it reads a matched provider, since the response shape MAT-001 exposes is unchanged from AI-002's.
+**Before the next session starts any new story, the orchestrator must:**
+1. Open `docs/AI/Project_Tracker.xlsx` and identify Sprint 9's first story (its ID, epic, priority, dependencies,
+   and verbatim description/acceptance criteria).
+2. Replace this entire Section 2 with that story's full detail, in the same format the old `CON-001` entry used
+   (see git history / `docs/implementation/plans/Plan_S08_CON-001.md`'s own header for the expected shape).
+3. Only then may `tech-lead` plan it — and only on the CTO's explicit "Start X" instruction, per Section 3's
+   standing process below.
 
-### CON-001 — "Contact a matched provider directly"
-- Sprint: SP08 | Epic: ML8-EP02 | Milestone: ML8 | Phase: PH2 | Priority: **Critical** | Depends On: **MAT-001**
-- **Description:** As a customer, I want to see a matched provider's phone number immediately when I tap
-  Contact, with no quote or approval step in between, so that reaching out feels as simple as getting a number
-  from a friend. This story implements the platform's growth-first, direct-contact model and its most
-  safety-critical rule: **the self-dealing guard.** Because one Account may hold both Customer and Provider
-  roles, a Contact View must be rejected outright if the requesting Customer's Account is the same Account
-  that owns the target Provider — otherwise a provider could inflate their own lead/contact/review numbers by
-  contacting themselves. **Scope boundary:** does not include the Outcome Tag prompt or reviews (REV-001/002)
-  — this story ends at the phone number being shown.
-- **Acceptance Criteria (verbatim):**
-  1. `contact_views` table exists via migration, referencing the customer, the provider, and optionally the
-     originating search request.
-  2. Tapping Contact on a matched provider immediately shows the phone number and Call/WhatsApp buttons in a
-     bottom sheet — no quote request, approval wait, or in-app messaging step exists anywhere in this flow.
-  3. A Contact View is rejected if the requesting Customer Account is the same Account that owns the target
-     Provider — this is enforced at the point of Contact View creation, not just documented as a rule.
-  4. The rejection in the self-dealing case is tested explicitly with an automated test asserting the Contact
-     View row is never created.
-  5. Provider Profile screen shows rating together with review count (never rating alone), a Verified badge
-     (or Unclaimed label) as applicable, and hours/service-area information.
-  6. The Contact Reveal sheet includes a brief note that contact happens outside the app.
-  7. Every Contact View creation is a candidate trigger for provider-lead notifications (wired fully in
-     ENG-001, but the event itself must be emitted here).
-  8. Automated tests cover the happy path (successful contact reveal) and the self-dealing rejection as
-     separate, explicit test cases.
+**Do NOT start any Sprint 9 story without the CTO's explicit instruction.** Standing practice throughout this
+project: no engineering agent plans or starts a story unprompted.
 
 ## 3. Standing process (do not skip steps)
 
@@ -156,6 +151,29 @@ well-precedented, not a reason to expect it every time.
   and needs zero further code change once real rating data exists — `REV-001`'s job is only to become the first
   real writer of those columns (and to decide `13_OPEN_DECISIONS.md` item 14 — whether `provider_rating_summaries`
   is still needed as a separate table).
+- **Cross-module wiring: Services only, never a raw Repository from another module** (ADR-047, `CON-001`) —
+  `02_ARCHITECTURE.md`'s rule now has a concrete violation-and-fix example to cite: `ContactService` was
+  initially wired to a raw `ProviderRepository` instead of `ProviderService`, duplicating logic already in
+  `ProviderService.get_for_public_profile`; fixed at commit `bed63e8`. When a new module's service needs data
+  from another module, prefer that module's Service class; a raw cross-module Repository dependency is only
+  acceptable when the target module's Service genuinely exposes no equivalent read primitive — and that gap
+  should be named explicitly in the new module's own `dependencies.py` docstring, not silently assumed
+  acceptable.
+- **A permanent, identity-based authorization rejection is 403, not 409** (ADR-044, `CON-001`) — the
+  self-dealing contact guard (`provider.user_id == current_user_id`, checked before any write) uses a new
+  `SelfDealingContactError` (403), distinct from this codebase's existing 409-for-timing-conflict precedent
+  (`ClaimAlreadyClaimedError`) since there is no race/retry window that would ever change the outcome for the
+  same caller/provider pair.
+- **A public, arbitrary-`{id}` customer-facing detail endpoint sibling to an existing `/me`-scoped router**
+  (ADR-045, `CON-001`) — register the new router *after* the existing owner-scoped one so Starlette's
+  registration-order route matching resolves `/me...` literal paths before the new `/{id}` path-parameter route
+  is ever reached; don't gate a customer's ability to view/contact a resource they already have a direct
+  reference to on a search-visibility flag like `is_discoverable` unless explicitly required.
+- **Trust-badge precedence: raw fields, client-computed, never a server-computed enum** (ADR-046, `CON-001`) —
+  when more than one raw trust-related boolean/enum must be shown together (e.g. `is_claimed` +
+  `verification_status`), return both raw and let the client compute a strict precedence order client-side;
+  never invent a single pre-computed `trust_badge` enum server-side. Reusable for a future Review domain's
+  "Verified Visit" badge.
 
 ## 5. Tracker editing method (raw XML — never openpyxl `.save()`)
 
@@ -211,20 +229,22 @@ item's full history/reasoning.
 
 ## 7. ADR numbering
 
-Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-043**. Next new ADR starts at **ADR-044**.
+Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-047** (ADR-044/045/046/047, all recorded at `CON-001`'s
+closeout). Next new ADR starts at **ADR-048**.
 
 ## 8. Environment notes
 
-- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of MAT-001's closeout, independently
-  re-run by the orchestrator (not just trusted from a subagent report): **669/669 backend tests passing**
-  (665 after backend's implementation + 4 more from tester's adversarial/end-to-end coverage). `ruff check .`
-  clean. `mypy` is configured in `pyproject.toml` but is **not installed** in this sandbox's venv — cannot be
-  run here; this is a known, pre-existing environment gap, not a regression to chase.
-- Mobile: Flutter/Riverpod. **169 mobile tests passing** as of AI-002's closeout (MAT-001 needed zero mobile
-  changes beyond one stale code comment). Flutter SDK is not preinstalled in a fresh container — a prior
-  session cloned `flutter/stable` to `/root/.flutter_sdk` to run `flutter analyze`/`flutter test`/`gen-l10n`;
-  this is outside the repo and won't persist across containers, so a fresh session may need to redo this setup
-  step once, before running any mobile agent.
+- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `CON-001`'s closeout, independently
+  re-run/re-confirmed at each review stage: **702/702 backend tests passing** (unchanged across both the
+  pre-fix and post-fix (`bed63e8`) `architect` review passes — the fix was a pure refactor, no test assertions
+  changed). `ruff check .` clean. `mypy` is configured in `pyproject.toml` but is **not installed** in this
+  sandbox's venv — cannot be run here; this is a known, pre-existing environment gap, not a regression to chase.
+- Mobile: Flutter/Riverpod. **195 mobile tests passing** as of `CON-001`'s closeout (192 after backend+frontend
+  implementation + 3 more from `tester`'s coverage additions, including the Arabic-locale AC6 case).
+  `flutter analyze` clean. Flutter SDK is not preinstalled in a fresh container — a prior session cloned
+  `flutter/stable` to `/root/.flutter_sdk` to run `flutter analyze`/`flutter test`/`gen-l10n`; this is outside
+  the repo and won't persist across containers, so a fresh session may need to redo this setup step once,
+  before running any mobile agent.
 - `Project_Tracker.xlsx` is readable by direct `openpyxl`/shell access in this orchestrating session, but the
   specialist agents (tech-lead, tester, architect, backend, frontend) do **not** have Bash/openpyxl tools —
   always relay verbatim tracker text to them directly in the task prompt rather than asking them to read the
@@ -232,5 +252,7 @@ Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-043**. Next new ADR starts 
 
 ---
 
-**End of handoff. When resuming: read this file, confirm the CTO wants to proceed with `CON-001` (or a
-different story), then follow Section 3's cycle starting with `tech-lead`.**
+**End of handoff. Sprint 8 / Milestone ML8 is fully complete. When resuming: read this file, note Section 1's
+tracker-sync-pending flag and Section 2's TODO (Sprint 9's first story has not yet been looked up — the
+orchestrator must do that lookup first), confirm the CTO wants to proceed with whatever story is identified,
+then follow Section 3's cycle starting with `tech-lead`.**
