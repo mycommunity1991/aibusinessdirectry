@@ -6,12 +6,9 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 12 September 2026, immediately after Story CON-001 closeout. **Tracker sync still pending** —
-see the explicit note in Section 1 below; do not trust the old Dashboard numbers until the orchestrator re-syncs.
+**Last updated:** 12 September 2026, immediately after Story CON-001 closeout, tracker synced.
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `bed63e8` (CON-001's architect-required cross-module wiring fix) — this
-closeout pass (tech-lead, docs-only, no git access) has not committed anything itself; the orchestrator commits
-this documentation update separately.
+**Last commit at time of writing:** `1eacb4a` (tracker sync marking CON-001 Done)
 
 ---
 
@@ -31,40 +28,69 @@ this documentation update separately.
   for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
   test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
   PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
-- **TRACKER SYNC PENDING — do not trust the following numbers until the orchestrator re-syncs
-  `Project_Tracker.xlsx` for `CON-001`:** the Dashboard numbers below are stale as of `MAT-001`'s closeout
-  (commit `ee1e94b`) and have **not** been updated for `CON-001` yet: Overall Progress **51.6%** | Completed
-  Milestones **7/24** | Completed Epics **14/23** | Completed Stories **34/47** | Current Phase **PH2** |
-  Current Milestone **ML8** (shown as 1/2 done — now stale, should read 2/2, Done) | Current Sprint **SP08**
-  (shown as 1/2 done — now stale, should read 2/2, Done) | Upcoming Sprint **SP09**. **The orchestrator must
-  run the raw-XML tracker sync procedure (Section 5) for `CON-001`, rolling up through ML8-EP02 → ML8 → SP08 →
-  the Phase Tracker → the Dashboard, before these numbers can be trusted or recorded here as confirmed.**
-- **TODO — next story not yet identified.** With Sprint 8/Milestone ML8 now fully complete, the next story is
-  **Sprint 9's first story** — this session does not have tracker access and has **not** looked it up. **The
-  orchestrator must look up Sprint 9's first story in `Project_Tracker.xlsx` and replace this TODO with its full
-  verbatim description (mirroring Section 2's old CON-001 entry) before the next session can skip the tracker
-  read.** Do not guess, infer, or fabricate a plausible-sounding Sprint 9 story here — leave this exact
-  placeholder until the real lookup happens.
+- **Dashboard numbers (confirmed as of commit `1eacb4a`):** Overall Progress **54.2%** | Completed Milestones
+  **8/24** | Completed Epics **15/23** | Completed Stories **35/47** | Current Phase **PH2** | Current Milestone
+  **ML9** | Current Sprint **SP09** | Upcoming Sprint **SP10**.
+- **Sprint 9 / Milestone ML9 ("Outcome & Reviews") has not been started.** Its first story is **`REV-001`**,
+  detailed in full below (Section 2) — everything needed to start is already here, no tracker read required.
 - Full narrative history of every story shipped so far (Sprints 1–8) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
   historical context on a specific earlier decision; it's over 1100 lines.
 
-## 2. Next story — TODO: Sprint 9's first story (not yet looked up)
+## 2. Next story — Sprint 9 / Milestone ML9 ("Outcome & Reviews")
 
-**This section is an explicit placeholder, not a story ready to start.** Sprint 8 and Milestone ML8 are both
-now fully complete (`MAT-001` + `CON-001`, both Done). This closeout session had no `Project_Tracker.xlsx`
-access, so Sprint 9's first story has **not** been identified — do not fabricate one.
+**Do NOT start without the CTO's explicit "Start REV-001" (or equivalent) instruction.**
+Standing practice throughout this project: no engineering agent plans or starts a story unprompted.
 
-**Before the next session starts any new story, the orchestrator must:**
-1. Open `docs/AI/Project_Tracker.xlsx` and identify Sprint 9's first story (its ID, epic, priority, dependencies,
-   and verbatim description/acceptance criteria).
-2. Replace this entire Section 2 with that story's full detail, in the same format the old `CON-001` entry used
-   (see git history / `docs/implementation/plans/Plan_S08_CON-001.md`'s own header for the expected shape).
-3. Only then may `tech-lead` plan it — and only on the CTO's explicit "Start X" instruction, per Section 3's
-   standing process below.
+**`CON-001` ("contact a matched provider directly") has shipped** — its dependency requirement for `REV-001`
+is satisfied. `REV-001` is the first of two stories in this milestone; `REV-002` (below, for context) depends
+on `REV-001` and is not yet startable on its own.
 
-**Do NOT start any Sprint 9 story without the CTO's explicit instruction.** Standing practice throughout this
-project: no engineering agent plans or starts a story unprompted.
+### REV-001 — "Tell the platform whether I hired a provider"
+- Sprint: SP09 | Epic: ML9-EP01 | Milestone: ML9 | Phase: PH2 | Priority: **High** | Depends On: **CON-001**
+- **Description:** As a customer who contacted a provider, I want to quickly confirm whether I hired them, so
+  that the platform has a real signal of what actually happened without tracking payment details it has no
+  visibility into. The Outcome Tag is the platform's only conversion signal given the offline-payment reality
+  of the direct-contact model. It is deliberately minimal — a yes/no tied to a specific Contact View — and only
+  the Customer who generated that Contact View may submit it. **Scope boundary:** does not include the review
+  itself (`REV-002`), which requires a "Yes" outcome tag as its anchor.
+- **Acceptance Criteria (verbatim):**
+  1. `outcome_tags` table exists via migration, with a unique constraint on `contact_view_id` (one outcome tag
+     per Contact View).
+  2. Only the Customer who owns the underlying Contact View can submit an outcome tag for it — attempting to
+     submit for someone else's Contact View is rejected.
+  3. The prompt ("Did you hire them?") is triggered after a Contact View, via a notification, and is
+     dismissible ("Maybe later") without penalty.
+  4. The outcome tag does not attempt to capture payment amount, job completion detail, or scheduling.
+  5. A "No" or absent outcome tag is still retained as a signal (not discarded) — it is not required to be
+     "Yes" for the tag itself to exist, only for a Review to follow.
+  6. Automated tests cover the ownership restriction and the uniqueness-per-Contact-View constraint.
+
+### REV-002 — "Leave a verified review after a successful hire" (for context only — depends on REV-001, not yet startable)
+- Sprint: SP09 | Epic: ML9-EP01 | Milestone: ML9 | Phase: PH2 | Priority: **High** | Depends On: **REV-001**
+- **Description:** As a customer who confirmed a hire, I want to rate and review the provider, so that future
+  customers can trust the provider's track record — and so that reviews can never be submitted by someone who
+  didn't actually go through a real Contact View and a positive outcome. This is the anchor-verified review
+  model: a Review can only exist against a Contact View carrying a "Yes" outcome tag from `REV-001`. Because
+  `CON-001`'s self-dealing guard already blocks a provider from generating a Contact View against their own
+  listing, this story's anchor requirement transitively blocks self-reviews too, without needing a second
+  explicit check. **Scope boundary:** does not include provider-side display of reviews beyond the rating
+  summary recalculation. **This is also the story that finally builds `provider_rating_summaries`** — resolving
+  `13_OPEN_DECISIONS.md` item 14's open question in the affirmative (the table is needed after all).
+- **Acceptance Criteria (verbatim):**
+  1. `reviews` and `provider_rating_summaries` tables exist via migration; `reviews.contact_view_id` is unique,
+     enforcing one review per Contact View.
+  2. Submitting a review is only possible when the anchoring Contact View has an `outcome_tags.hired=true` row
+     — attempting otherwise (no outcome tag, or `hired=false`) is rejected.
+  3. Rating is constrained to 1–5; a comment field is optional free text.
+  4. `provider_rating_summaries` (average rating, review count) is recalculated in the same transaction as the
+     review write — never left stale.
+  5. Because the anchoring Contact View was already rejected for self-dealing in `CON-001`, an automated test
+     confirms a provider cannot end up with a review pointing back at their own listing via this path.
+  6. Write-a-Review screen is only reachable after a "Yes" outcome tag — there is no direct navigation path to
+     it otherwise.
+  7. Automated tests cover the anchor-verification rejection case and the rating-summary recalculation
+     correctness.
 
 ## 3. Standing process (do not skip steps)
 
@@ -252,7 +278,6 @@ closeout). Next new ADR starts at **ADR-048**.
 
 ---
 
-**End of handoff. Sprint 8 / Milestone ML8 is fully complete. When resuming: read this file, note Section 1's
-tracker-sync-pending flag and Section 2's TODO (Sprint 9's first story has not yet been looked up — the
-orchestrator must do that lookup first), confirm the CTO wants to proceed with whatever story is identified,
-then follow Section 3's cycle starting with `tech-lead`.**
+**End of handoff. Sprint 8 / Milestone ML8 is fully complete, tracker synced. When resuming: read this file,
+confirm the CTO wants to proceed with `REV-001` (Sprint 9's first story, detailed in Section 2), then follow
+Section 3's cycle starting with `tech-lead`.**
