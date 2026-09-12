@@ -16,6 +16,10 @@ from app.modules.customer.repositories.customer_profile_repository import (
     CustomerProfileRepository,
 )
 from app.modules.identity.models import AuthProvider, User
+from app.modules.identity.repositories.role_repository import RoleRepository
+from app.modules.identity.services.role_assignment_service import (
+    RoleAssignmentService,
+)
 from app.modules.notification.repositories.notification_repository import (
     NotificationRepository,
 )
@@ -26,17 +30,50 @@ from app.modules.provider.models import (
     ProviderType,
     VerificationStatus,
 )
+from app.modules.provider.repositories.business_profile_repository import (
+    BusinessProfileRepository,
+)
+from app.modules.provider.repositories.freelancer_profile_repository import (
+    FreelancerProfileRepository,
+)
+from app.modules.provider.repositories.portfolio_repository import PortfolioRepository
+from app.modules.provider.repositories.provider_category_label_repository import (
+    ProviderCategoryLabelRepository,
+)
 from app.modules.provider.repositories.provider_repository import ProviderRepository
+from app.modules.provider.repositories.provider_search_repository import (
+    ProviderSearchRepository,
+)
+from app.modules.provider.repositories.service_area_repository import (
+    ServiceAreaRepository,
+)
+from app.modules.provider.services.provider_service import ProviderService
 from app.modules.search.repositories.search_request_repository import (
     SearchRequestRepository,
 )
+
+
+def make_provider_service(db_session) -> ProviderService:
+    """Mirrors `tests/modules/search/_helpers.py`'s identical
+    `make_provider_service` -- the real thing, no mocks."""
+    role_assignment_service = RoleAssignmentService(RoleRepository(db_session))
+    return ProviderService(
+        provider_repository=ProviderRepository(db_session),
+        business_profile_repository=BusinessProfileRepository(db_session),
+        freelancer_profile_repository=FreelancerProfileRepository(db_session),
+        provider_category_label_repository=ProviderCategoryLabelRepository(db_session),
+        service_area_repository=ServiceAreaRepository(db_session),
+        role_assignment_service=role_assignment_service,
+        provider_search_repository=ProviderSearchRepository(db_session),
+        portfolio_repository=PortfolioRepository(db_session),
+    )
 
 
 def make_contact_service(db_session) -> ContactService:
     return ContactService(
         contact_view_repository=ContactViewRepository(db_session),
         customer_profile_repository=CustomerProfileRepository(db_session),
-        provider_repository=ProviderRepository(db_session),
+        provider_service=make_provider_service(db_session),
         search_request_repository=SearchRequestRepository(db_session),
         notification_service=NotificationService(NotificationRepository(db_session)),
     )

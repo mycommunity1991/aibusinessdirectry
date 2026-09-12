@@ -15,11 +15,16 @@ database `CHECK` constraint (it requires joining `customer_profiles` and
 point of write, exactly per AC3's literal wording.
 
 Cross-module edges: `customer.CustomerProfileRepository`, `provider.
-ProviderRepository`, `search.SearchRequestRepository`, `notification.
+ProviderService`, `search.SearchRequestRepository`, `notification.
 NotificationService` -- a lot of edges for one module, but each is
 required (Decision 1's own "Alternatives considered and rejected"
 section): `contact_views` is its own aggregate root, and the future
 `outcome_tags`/`visit_verifications`/`reviews` domains all anchor to it.
+The `provider` edge is `ProviderService`, never `ProviderRepository`
+directly, per `02_ARCHITECTURE.md`'s "modules communicate through
+services only" rule -- `get_for_public_profile` (added by this same
+story for `GET /providers/{provider_id}`) is reused here rather than
+duplicating its "missing or inactive -> 404" lookup inline.
 """
 
 import uuid
@@ -27,7 +32,6 @@ import uuid
 from app.core.authorization import ensure_owner_or_not_found
 from app.core.exceptions import (
     CustomerProfileNotFoundError,
-    ProviderNotFoundError,
     SearchRequestNotFoundError,
     SelfDealingContactError,
 )
@@ -40,7 +44,7 @@ from app.modules.customer.repositories.customer_profile_repository import (
 )
 from app.modules.notification.services.notification_service import NotificationService
 from app.modules.provider.models import Provider
-from app.modules.provider.repositories.provider_repository import ProviderRepository
+from app.modules.provider.services.provider_service import ProviderService
 from app.modules.search.repositories.search_request_repository import (
     SearchRequestRepository,
 )
@@ -53,13 +57,13 @@ class ContactService:
         self,
         contact_view_repository: ContactViewRepository,
         customer_profile_repository: CustomerProfileRepository,
-        provider_repository: ProviderRepository,
+        provider_service: ProviderService,
         search_request_repository: SearchRequestRepository,
         notification_service: NotificationService,
     ) -> None:
         self.contact_view_repository = contact_view_repository
         self.customer_profile_repository = customer_profile_repository
-        self.provider_repository = provider_repository
+        self.provider_service = provider_service
         self.search_request_repository = search_request_repository
         self.notification_service = notification_service
 
@@ -80,7 +84,8 @@ class ContactService:
         1. Resolve the caller's `customer_profiles` row -- expected to
            always succeed (every account gets one at registration,
            CUS-001), but checked defensively.
-        2. Resolve the target Provider -- 404 if missing or soft-deleted.
+        2. Resolve the target Provider via `ProviderService.
+           get_for_public_profile` -- 404 if missing or soft-deleted.
         3. **Self-dealing guard**: 403 if `provider.user_id ==
            current_user_id`. A still-unclaimed listing
            (`provider.user_id is None`) can never self-deal by
@@ -103,9 +108,7 @@ class ContactService:
         if customer_profile is None:
             raise CustomerProfileNotFoundError()
 
-        provider = await self.provider_repository.get_by_id(provider_id)
-        if provider is None or not provider.is_active:
-            raise ProviderNotFoundError()
+        provider = await self.provider_service.get_for_public_profile(provider_id)
 
         if provider.user_id is not None and provider.user_id == current_user_id:
             raise SelfDealingContactError()
