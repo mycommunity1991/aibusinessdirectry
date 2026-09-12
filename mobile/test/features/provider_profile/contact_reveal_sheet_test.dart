@@ -23,12 +23,14 @@ void main() {
   Future<void> pumpSheet(
     WidgetTester tester, {
     required List<Override> overrides,
+    Locale? locale,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: overrides,
         child: MaterialApp(
           theme: AppTheme.light(),
+          locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
@@ -148,6 +150,33 @@ void main() {
       );
       expect(
         find.text("You'll be leaving the app to contact them directly."),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'always includes the "contact happens outside the app" note in Arabic '
+    'too, not only English (AC6, Plan_S08_CON-001.md Verification Plan)',
+    (tester) async {
+      final fakeRepository = FakeProviderProfileRepository(
+        contactReveal: reveal,
+      );
+
+      await pumpSheet(
+        tester,
+        locale: const Locale('ar'),
+        overrides: [
+          providerProfileRepositoryProvider.overrideWithValue(fakeRepository),
+        ],
+      );
+
+      expect(
+        find.byKey(const ValueKey('contact-reveal-outside-app-note')),
+        findsOneWidget,
+      );
+      expect(
+        find.text('ستغادر التطبيق للتواصل معهم مباشرة.'),
         findsOneWidget,
       );
     },
