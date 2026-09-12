@@ -196,3 +196,42 @@ directly (not duplicated here) — see that response for the ranked list. Summar
 
 Next: pause for user sign-off per standing process (do not write the Walkthrough or touch
 `docs/CHANGELOG.md`/tracker yet).
+
+## `architect` re-check (fix verification, commit `bed63e8`)
+
+**Status: verified. Fix is correct and complete — CON-001 now stands as fully APPROVED, no remaining findings.**
+
+Re-checked the one finding from the prior review against `bed63e8` directly (read the diff, not just the commit
+message):
+
+- `ContactService.__init__` (`backend/app/modules/contact/services/contact_service.py`) now takes
+  `provider_service: ProviderService`; no leftover `provider_repository` parameter or attribute anywhere. Both
+  call sites — `backend/app/modules/contact/dependencies.py`'s `get_contact_service` and
+  `backend/tests/modules/contact/_helpers.py`'s `make_contact_service` — construct it with the new keyword only.
+  Grepped the whole repo for `ContactService(` to confirm these are the only two construction sites.
+- Duplicate logic is genuinely eliminated, not relocated: `create_contact_view` now calls
+  `await self.provider_service.get_for_public_profile(provider_id)` and the old inline
+  `provider_repository.get_by_id(...)` + `if provider is None or not provider.is_active: raise
+  ProviderNotFoundError()` block is gone from `contact_service.py` entirely (confirmed via `git show bed63e8`
+  diff). Compared byte-for-byte against `ProviderService.get_for_public_profile`
+  (`backend/app/modules/provider/services/provider_service.py:121-138`): identical `provider_repository.get_by_id`
+  call, identical `is None or not provider.is_active` condition, identical `ProviderNotFoundError()` raise, same
+  return value. The "byte-for-byte behavioral equivalence" claim in the fix commit is accurate, independently
+  verified by reading both code paths rather than trusting the claim.
+- No new cross-module cycle: `contact -> provider` is now a service-to-service edge (`ContactService ->
+  ProviderService`) instead of `ContactService -> ProviderRepository` — same direction as before, just through
+  the correct layer per `02_ARCHITECTURE.md`. `CustomerProfileRepository`/`SearchRequestRepository` were left as
+  raw cross-module repositories, consistent with the prior review's guidance (neither `CustomerService` nor an
+  equivalent exposes a matching primitive yet).
+- `get_contact_service`'s docstring in `dependencies.py` no longer makes the inaccurate
+  "mirrors `SearchRequestService`'s wiring shape" claim; it now correctly states the `provider` edge is a Service
+  specifically because of the "modules communicate through services only" rule, while explicitly flagging that
+  `customer`/`search` remain raw Repositories for a documented reason. Accurate.
+- `tests/modules/contact/_helpers.py`'s new `make_provider_service` is a byte-for-byte match of
+  `tests/modules/search/_helpers.py`'s `make_provider_service`, confirming the "mirrors" claim there too. No test
+  assertions changed, consistent with a pure refactor.
+- Independently re-ran the full backend suite fresh (`uv run pytest -q`): **702 passed**, unchanged from before
+  the fix. Independently re-ran `uv run ruff check .`: **all checks passed**, clean.
+
+No new findings. This was the only real finding from the prior review, and it is now resolved with no
+regressions introduced. CON-001 is ready to proceed to CTO sign-off.
