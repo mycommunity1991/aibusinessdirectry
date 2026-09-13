@@ -4,13 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/models/contact_exception.dart';
 import '../domain/models/contact_reveal.dart';
+import '../domain/models/outcome_tag.dart';
+import '../domain/models/outcome_tag_exception.dart';
 import '../domain/models/provider_profile.dart';
 import '../domain/models/provider_profile_exception.dart';
 
-/// Wraps the Provider Profile screen's (S-09) and Contact Reveal sheet's
-/// two backend endpoints (CON-001): `GET /providers/{provider_id}`
-/// (`backend/app/modules/provider/public_api.py`) and
-/// `POST /contact-views` (`backend/app/modules/contact/api.py`).
+/// Wraps the Provider Profile screen's (S-09), Contact Reveal sheet's, and
+/// Outcome Tag Prompt sheet's backend endpoints (CON-001/REV-001):
+/// `GET /providers/{provider_id}`
+/// (`backend/app/modules/provider/public_api.py`),
+/// `POST /contact-views`, and
+/// `POST /contact-views/{contact_view_id}/outcome-tag`
+/// (`backend/app/modules/contact/api.py`).
 ///
 /// Every failure is mapped to a plain-language exception -- callers (the
 /// state controllers/screens) never see a [DioException], an HTTP status
@@ -67,6 +72,29 @@ class ProviderProfileRepository {
     }
   }
 
+  /// `POST /contact-views/{contact_view_id}/outcome-tag` (REV-001, AC1) --
+  /// records a minimal yes/no "did you hire them?" signal against a
+  /// specific Contact View. Carries no payment amount, job-completion
+  /// detail, or scheduling information (AC4).
+  Future<OutcomeTag> submitOutcomeTag({
+    required String contactViewId,
+    required bool hired,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/contact-views/$contactViewId/outcome-tag',
+        data: {'hired': hired},
+      );
+      final data = response.data?['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw const OutcomeTagException(type: OutcomeTagErrorType.unknown);
+      }
+      return OutcomeTag.fromJson(data);
+    } on DioException catch (error) {
+      throw _mapOutcomeTagError(error);
+    }
+  }
+
   ProviderProfileException _mapProfileError(DioException error) {
     if (error.response == null) {
       return const ProviderProfileException(
@@ -91,6 +119,17 @@ class ProviderProfileRepository {
       403 => const ContactException(type: ContactErrorType.selfDealing),
       404 => const ContactException(type: ContactErrorType.notFound),
       _ => const ContactException(type: ContactErrorType.unknown),
+    };
+  }
+
+  OutcomeTagException _mapOutcomeTagError(DioException error) {
+    if (error.response == null) {
+      return const OutcomeTagException(type: OutcomeTagErrorType.network);
+    }
+    return switch (error.response!.statusCode) {
+      404 => const OutcomeTagException(type: OutcomeTagErrorType.notFound),
+      409 => const OutcomeTagException(type: OutcomeTagErrorType.alreadyExists),
+      _ => const OutcomeTagException(type: OutcomeTagErrorType.unknown),
     };
   }
 }

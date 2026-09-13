@@ -281,5 +281,10 @@
   "contactSheetOutsideAppNote": "ستغادر التطبيق للتواصل معهم مباشرة.",
   "contactSheetNoPhoneNumberMessage": "لا يوجد رقم هاتف مسجَّل.",
   "contactSelfDealingMessage": "لا يمكنك التواصل مع إدراجك الخاص.",
-  "contactProviderNotFoundMessage": "لم يعد مزود الخدمة هذا متاحاً."
+  "contactProviderNotFoundMessage": "لم يعد مزود الخدمة هذا متاحاً.",
+  "outcomeTagPromptTitle": "هل قمت بتوظيفه؟",
+  "outcomeTagPromptYesLabel": "نعم",
+  "outcomeTagPromptNoLabel": "لا",
+  "outcomeTagPromptMaybeLaterLabel": "ربما لاحقاً",
+  "outcomeTagPromptThanksMessage": "شكراً لإخبارنا!"
 }

@@ -18,9 +18,11 @@ import '../../../provider/domain/models/weekday_availability.dart';
 import '../../domain/models/provider_profile.dart';
 import '../../domain/models/provider_profile_args.dart';
 import '../../domain/models/provider_profile_exception.dart';
+import '../../state/contact_reveal_controller.dart';
 import '../../state/provider_profile_controller.dart';
 import '../utils/provider_profile_error_copy.dart';
 import '../widgets/contact_reveal_sheet.dart';
+import '../widgets/outcome_tag_prompt_sheet.dart';
 
 /// S-09 -- Provider Profile (CON-001, AC5). Name, category, description,
 /// primary photo, rating+review-count together (never rating alone),
@@ -28,7 +30,10 @@ import '../widgets/contact_reveal_sheet.dart';
 /// [UnclaimedBanner]/[VerifiedBadge] as applicable (Decision 8), and a
 /// sticky bottom Contact CTA that opens the [ContactRevealSheet] (AC2) --
 /// no quote request, approval wait, or in-app messaging step exists
-/// anywhere between tapping Contact and seeing the phone number.
+/// anywhere between tapping Contact and seeing the phone number. Once the
+/// Contact Reveal sheet closes on a real reveal, the [OutcomeTagPromptSheet]
+/// (REV-001) opens next, in the same session (Decision 6,
+/// `Plan_S09_REV-001.md`).
 class ProviderProfileScreen extends ConsumerWidget {
   const ProviderProfileScreen({super.key, required this.args});
 
@@ -41,8 +46,28 @@ class ProviderProfileScreen extends ConsumerWidget {
     context.push(AppRoutes.claimOtp, extra: providerId);
   }
 
-  void _onContactTap(BuildContext context) {
-    ContactRevealSheet.show(context, args);
+  /// Awaits the Contact Reveal sheet's close (by any means), then -- only
+  /// if a real reveal happened (`status == loaded`, not merely an error
+  /// state the customer backed out of) -- opens the Outcome Tag Prompt
+  /// sheet with the just-created `contact_view_id` (REV-001, Decision 6).
+  Future<void> _onContactTap(
+    BuildContext context,
+    WidgetRef ref,
+    String? providerPhotoUrl,
+  ) async {
+    await ContactRevealSheet.show(context, args);
+    if (!context.mounted) return;
+
+    final revealState = ref.read(contactRevealControllerProvider(args));
+    if (revealState.status != ContactRevealStatus.loaded) return;
+    final reveal = revealState.reveal!;
+
+    await OutcomeTagPromptSheet.show(
+      context,
+      contactViewId: reveal.id,
+      providerDisplayName: reveal.providerDisplayName,
+      providerPhotoUrl: providerPhotoUrl,
+    );
   }
 
   @override
@@ -78,7 +103,11 @@ class ProviderProfileScreen extends ConsumerWidget {
                 child: PrimaryButton(
                   key: const ValueKey('provider-profile-contact-button'),
                   label: l10n.providerProfileContactButtonLabel,
-                  onPressed: () => _onContactTap(context),
+                  onPressed: () => _onContactTap(
+                    context,
+                    ref,
+                    state.profile?.primaryPhotoUrl,
+                  ),
                 ),
               ),
             )

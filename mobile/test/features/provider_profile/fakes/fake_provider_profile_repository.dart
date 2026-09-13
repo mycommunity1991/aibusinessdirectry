@@ -1,6 +1,8 @@
 import 'package:ai_marketplace_app/features/provider_profile/data/provider_profile_repository.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/contact_exception.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/contact_reveal.dart';
+import 'package:ai_marketplace_app/features/provider_profile/domain/models/outcome_tag.dart';
+import 'package:ai_marketplace_app/features/provider_profile/domain/models/outcome_tag_exception.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile_exception.dart';
 import 'package:dio/dio.dart';
@@ -14,6 +16,8 @@ class FakeProviderProfileRepository extends ProviderProfileRepository {
     this.getProviderProfileError,
     this.contactReveal,
     this.createContactViewError,
+    this.outcomeTag,
+    this.submitOutcomeTagError,
   }) : super(Dio());
 
   /// The [ProviderProfile] a successful `getProviderProfile` call returns.
@@ -28,11 +32,19 @@ class FakeProviderProfileRepository extends ProviderProfileRepository {
   /// The failure `createContactView` throws, if any.
   final ContactException? createContactViewError;
 
+  /// The [OutcomeTag] a successful `submitOutcomeTag` call returns.
+  final OutcomeTag? outcomeTag;
+
+  /// The failure `submitOutcomeTag` throws, if any.
+  final OutcomeTagException? submitOutcomeTagError;
+
   int getProviderProfileCallCount = 0;
   int createContactViewCallCount = 0;
+  int submitOutcomeTagCallCount = 0;
 
   String? lastGetProviderProfileId;
   ({String providerId, String? searchRequestId})? lastCreateContactViewArgs;
+  ({String contactViewId, bool hired})? lastSubmitOutcomeTagArgs;
 
   @override
   Future<ProviderProfile> getProviderProfile(String providerId) async {
@@ -58,5 +70,18 @@ class FakeProviderProfileRepository extends ProviderProfileRepository {
       throw createContactViewError!;
     }
     return contactReveal!;
+  }
+
+  @override
+  Future<OutcomeTag> submitOutcomeTag({
+    required String contactViewId,
+    required bool hired,
+  }) async {
+    submitOutcomeTagCallCount++;
+    lastSubmitOutcomeTagArgs = (contactViewId: contactViewId, hired: hired);
+    if (submitOutcomeTagError != null) {
+      throw submitOutcomeTagError!;
+    }
+    return outcomeTag!;
   }
 }

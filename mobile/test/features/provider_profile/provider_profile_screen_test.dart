@@ -1,5 +1,6 @@
 import 'package:ai_marketplace_app/features/provider/domain/models/weekday_availability.dart';
 import 'package:ai_marketplace_app/features/provider_profile/data/provider_profile_repository.dart';
+import 'package:ai_marketplace_app/features/provider_profile/domain/models/contact_exception.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/contact_reveal.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile_args.dart';
@@ -351,4 +352,91 @@ void main() {
       expect(fakeRepository.createContactViewCallCount, 1);
     },
   );
+
+  testWidgets(
+    'after a successful Contact Reveal closes, the Outcome Tag Prompt '
+    'sheet is shown next, in the same session (REV-001, Decision 6)',
+    (tester) async {
+      final fakeRepository = FakeProviderProfileRepository(
+        profile: businessProfile(
+          isClaimed: true,
+          verificationStatus: 'approved',
+        ),
+        contactReveal: const ContactReveal(
+          id: 'contact-view-1',
+          providerId: 'provider-1',
+          providerDisplayName: 'Al Noor Plumbing Services LLC',
+          phoneCountryCode: '+971',
+          phoneNumber: '501234567',
+        ),
+      );
+
+      await pumpProviderProfileScreen(
+        tester,
+        child: const ProviderProfileScreen(args: args),
+        overrides: [
+          providerProfileRepositoryProvider.overrideWithValue(fakeRepository),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Contact'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('contact-reveal-phone-number')),
+        findsOneWidget,
+      );
+
+      // Close the Contact Reveal sheet by tapping outside it (the modal
+      // barrier) -- mirrors a real swipe-down/tap-outside dismissal, which
+      // this codebase's own convention already treats as a valid close.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('outcome-tag-prompt-provider-name')),
+        findsOneWidget,
+      );
+      expect(find.text('Did you hire them?'), findsOneWidget);
+    },
+  );
+
+  testWidgets('after an error Contact Reveal (never reached loaded) closes, no '
+      'Outcome Tag Prompt sheet appears (REV-001, Decision 6)', (tester) async {
+    final fakeRepository = FakeProviderProfileRepository(
+      profile: businessProfile(isClaimed: true, verificationStatus: 'approved'),
+      createContactViewError: const ContactException(
+        type: ContactErrorType.network,
+      ),
+    );
+
+    await pumpProviderProfileScreen(
+      tester,
+      child: const ProviderProfileScreen(args: args),
+      overrides: [
+        providerProfileRepositoryProvider.overrideWithValue(fakeRepository),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Contact'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        "We couldn't connect. Check your internet connection and try again.",
+      ),
+      findsOneWidget,
+    );
+
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('outcome-tag-prompt-provider-name')),
+      findsNothing,
+    );
+    expect(find.text('Did you hire them?'), findsNothing);
+  });
 }

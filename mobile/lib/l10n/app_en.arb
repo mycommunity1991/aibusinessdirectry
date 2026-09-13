@@ -1066,5 +1066,25 @@
   "contactProviderNotFoundMessage": "This provider is no longer available.",
   "@contactProviderNotFoundMessage": {
     "description": "Plain-language message for the backend's 404 from POST /contact-views -- the provider doesn't exist, or a supplied search_request_id doesn't exist or doesn't belong to the calling customer (CON-001, Decision 4)."
+  },
+  "outcomeTagPromptTitle": "Did you hire them?",
+  "@outcomeTagPromptTitle": {
+    "description": "Heading on the Outcome Tag Prompt bottom sheet (REV-001, AC1/AC3, verbatim requirement)."
+  },
+  "outcomeTagPromptYesLabel": "Yes",
+  "@outcomeTagPromptYesLabel": {
+    "description": "The Outcome Tag Prompt sheet's Yes button label -- submits hired=true (REV-001, AC1)."
+  },
+  "outcomeTagPromptNoLabel": "No",
+  "@outcomeTagPromptNoLabel": {
+    "description": "The Outcome Tag Prompt sheet's No button label -- submits hired=false, retained as a real signal, not discarded (REV-001, AC1/AC5)."
+  },
+  "outcomeTagPromptMaybeLaterLabel": "Maybe later",
+  "@outcomeTagPromptMaybeLaterLabel": {
+    "description": "The Outcome Tag Prompt sheet's dismiss action -- closes the sheet with zero network calls and no penalty (REV-001, AC3, Decision 7)."
+  },
+  "outcomeTagPromptThanksMessage": "Thanks for letting us know!",
+  "@outcomeTagPromptThanksMessage": {
+    "description": "Brief confirmation copy shown for a moment after a successful Yes/No submission, before the Outcome Tag Prompt sheet auto-closes (REV-001, not itself an AC requirement -- minor UX completeness)."
   }
 }
