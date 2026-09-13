@@ -6,10 +6,12 @@ assertions, not merely an exception check: AC2's ownership rejection
 (Decision 2) and AC1/AC6's atomic uniqueness enforcement (Decision 3).
 """
 
+import asyncio
 import uuid
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import (
     ContactViewNotFoundError,
@@ -192,6 +194,76 @@ class TestUniquenessPerContactView:
         rows = result.scalars().all()
         assert len(rows) == 1
         assert rows[0].hired is True
+
+
+class TestConcurrentSubmissionRace:
+    """
+    AC1/AC6, Decision 3 -- the genuine concurrency proof QA holds this
+    story to, mirroring `test_manual_match_assignment_service.py`'s
+    `TestTryResolveAtomicity.
+    test_two_concurrent_resolve_calls_on_the_same_assignment_only_one_wins`
+    and `test_admin_claim_service.py`'s `TestConcurrentClaimRace`: two
+    truly concurrent `submit_outcome_tag` calls against the *same*
+    `contact_view_id`, each via its own independent `AsyncSession`/
+    transaction (never the same session -- that would only prove the
+    Python-level sequencing works, not that the database-level `ON
+    CONFLICT` predicate itself closes the race), must result in exactly
+    one winner and exactly one persisted row -- never both silently
+    succeeding (which would violate `uq_outcome_tags_contact_view_id`
+    in spirit even if the unique index itself happened to catch it).
+    """
+
+    @pytest.mark.anyio
+    async def test_two_concurrent_submissions_for_the_same_contact_view_only_one_wins(
+        self, db_engine: AsyncEngine, db_session
+    ) -> None:
+        customer_user = await create_user(db_session, "601000016")
+        await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "601000017")
+        provider = await create_provider(db_session, user=provider_owner)
+        contact_view = await _create_contact_view(
+            db_session, customer_user_id=customer_user.id, provider_id=provider.id
+        )
+
+        session_factory = async_sessionmaker(bind=db_engine, expire_on_commit=False)
+
+        async def _attempt(hired: bool) -> str:
+            async with session_factory() as attempt_session:
+                attempt_service = OutcomeTagService(
+                    outcome_tag_repository=OutcomeTagRepository(attempt_session),
+                    contact_view_repository=ContactViewRepository(attempt_session),
+                    customer_profile_repository=CustomerProfileRepository(
+                        attempt_session
+                    ),
+                )
+                try:
+                    await attempt_service.submit_outcome_tag(
+                        customer_user.id,
+                        contact_view_id=contact_view.id,
+                        hired=hired,
+                    )
+                    await attempt_session.commit()
+                    return "submitted"
+                except OutcomeTagAlreadyExistsError:
+                    await attempt_session.rollback()
+                    return "conflict"
+
+        results = await asyncio.gather(_attempt(True), _attempt(False))
+
+        # Exactly one winner, exactly one conflict -- never both
+        # "submitted" (which would mean the atomic INSERT genuinely
+        # raced) and never both "conflict" (which would mean neither
+        # attempt's write actually landed).
+        assert sorted(results) == ["conflict", "submitted"]
+
+        async with session_factory() as verify_session:
+            result = await verify_session.execute(
+                select(OutcomeTag).where(
+                    OutcomeTag.contact_view_id == contact_view.id
+                )
+            )
+            rows = result.scalars().all()
+        assert len(rows) == 1
 
 
 class TestNoOutcomeTagIsAValidState:
