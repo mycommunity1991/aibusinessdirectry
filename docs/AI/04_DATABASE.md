@@ -761,6 +761,8 @@ The platform's only conversion signal.
 
 **Constraints:** `uq_outcome_tags_contact_view_id`. Service-layer rule: only the Customer who owns the parent Contact View may submit this row.
 
+**Shipped (`REV-001`, 13 September 2026):** built exactly per the spec above, no deviation — migration `outcome_tags_domain` (on top of `024bcc0fbaf8`), the new `contact.outcome_tags` table (extending the existing `contact` module alongside `contact_views`, not a new module) with `uq_outcome_tags_contact_view_id` enforced atomically via `INSERT ... ON CONFLICT DO NOTHING ... RETURNING` (never a read-then-write check), and the ownership rule enforced as a 404 (`ContactViewNotFoundError`, via `ensure_owner_or_not_found`) — see `docs/AI/09_DECISIONS.md` ADR-048/ADR-049 and `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md`.
+
 ## visit_verifications
 
 Backs the "Verified Visit" tag (Section 9 of `00_PROJECT_CONTEXT.md`) — a provider-optional, OTP-based confirmation that they physically attended a job tied to a specific Contact View. Reuses `identity.otp_verifications` rather than a parallel OTP mechanism.

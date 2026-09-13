@@ -3671,6 +3671,282 @@ evaluate whether to add the missing Service method instead.
 
 ---
 
+# ADR-048
+
+## Title
+
+`outcome_tags` Module Placement and Immutability (`REV-001`): Extends the Existing `contact` Module In Place; No Edit/Resubmission Path
+
+**Date**
+
+2026-09-13
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`REV-001` ("tell the platform whether I hired a provider") needed a new `outcome_tags` table, already fully
+spec'd in `04_DATABASE.md`'s Contact Domain section (`contact_view_id` unique FK, `hired` boolean,
+`submitted_at`). Two questions needed settling before implementation: where should the new
+`OutcomeTag` model/repository/service/schemas/route live, and should a customer ever be able to change a
+previously-submitted "Yes"/"No" answer.
+
+### Decision
+
+**Module placement:** `outcome_tags` is added to the existing `backend/app/modules/contact/` module in place — a
+new `OutcomeTag` class in the existing `models.py` alongside `ContactView`, a new
+`repositories/outcome_tag_repository.py`, a new `services/outcome_tag_service.py`, new schemas added to the
+existing `schemas.py`, and a new route added to the existing `api.py`'s router (same `/contact-views` prefix,
+same `["Contact"]` tag) — never a new standalone `outcome` module. This mirrors the `administration` module's own
+established precedent exactly: `AdminActionLog` (`VER-002`), `ClaimReviewRequest` (`CLM-001`), and
+`ManualMatchAssignment` (`AI-002`) are three separate aggregate roots, shipped by three different stories, all
+living in one Postgres schema and one Python module. `outcome_tags` shares `contact_views`' own Postgres schema
+(`04_DATABASE.md`'s `# Contact Domain (\`contact\` schema)` heading already covers both), and a new
+`OutcomeTagService` would need `ContactViewRepository` as a cross-module dependency anyway to resolve the parent
+Contact View for the ownership check — an avoidable new cross-module edge for no isolation benefit.
+
+**Immutability:** `OutcomeTagService` exposes only `submit_outcome_tag` (a single create); a second attempt
+against the same `contact_view_id` is rejected with `OutcomeTagAlreadyExistsError` (ADR-049), never silently
+updated. No AC asks for an edit/resubmit affordance, and an Outcome Tag is meant to be an honest, point-in-time
+signal — allowing revision after the fact would need product rules this story was never asked to design (e.g.,
+can it be changed after a Review already exists against it once `REV-002` ships?), for no requested benefit.
+
+### Alternatives Considered
+
+- **A new standalone `outcome` module.** Rejected — no isolation benefit, and would introduce an avoidable new
+  cross-module edge to `contact` purely to resolve the parent Contact View for the ownership check.
+- **Allow resubmission to overwrite the previous `hired` value.** Rejected — unrequested scope, and would
+  complicate `REV-002`'s future anchor-verification read (which reads `outcome_tags.hired` at Review-submission
+  time) with a mutability question that has no product answer yet.
+
+### Consequences
+
+- `contact` is now the second module in this codebase (after `administration`) to hold more than one aggregate
+  root by deliberate, precedented design, not accretion by accident.
+- `REV-002`'s anchor-verification read (`outcome_tags.hired = true`) can rely on the row being a stable,
+  point-in-time fact once it exists — no future "was this edited after the anchor check?" race to reason about.
+- A future story wanting to allow revision (if ever requested) would need its own explicit design pass and ADR —
+  this one deliberately does not pre-build that door.
+
+### Related Documents
+
+- 03_DOMAIN_MODEL.md (Outcome Tag domain)
+- 04_DATABASE.md (Contact Domain — `outcome_tags`, now marked shipped)
+- 09_DECISIONS.md (the `administration` module's own multi-aggregate-root precedent this decision mirrors)
+- docs/implementation/plans/Plan_S09_REV-001.md (Decision 1, Decision 4)
+- docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md
+- backend/app/modules/contact/models.py, repositories/outcome_tag_repository.py,
+  services/outcome_tag_service.py
+
+---
+
+# ADR-049
+
+## Title
+
+Outcome Tag Ownership Shape (`REV-001`): 404 via `ensure_owner_or_not_found`, Never a 403; Uniqueness via Atomic `INSERT ... ON CONFLICT DO NOTHING ... RETURNING`
+
+**Date**
+
+2026-09-13
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`REV-001`'s two safety-critical mechanisms both needed a correct, precedented shape. AC2 requires that only the
+Customer who owns the underlying Contact View can submit an outcome tag for it, without specifying a status code
+— this codebase has two genuinely different existing shapes for "the caller shouldn't get this" (`CON-001`'s
+permanent, identity-based 403 self-dealing guard, or a non-revealing 404 for an ordinary `{id}`-addressable
+resource), and picking the right one here is a real question. Separately, AC1/AC6 require the "one outcome tag
+per Contact View" uniqueness constraint to be genuinely race-safe — two concurrent submission attempts for the
+same `contact_view_id` (e.g. a double-tap) must never both succeed — and no existing atomic-conditional-write
+precedent in this codebase (`try_claim_for_account`/`try_claim_for_review`/`try_resolve`) covers an INSERT-shaped
+uniqueness race; all three are UPDATE-shaped (`UPDATE ... WHERE id = :id AND status = 'pending'`).
+
+### Decision
+
+**Ownership shape:** `ContactViewNotFoundError` (404), raised via `ensure_owner_or_not_found(contact_view.
+customer_id if contact_view is not None else None, customer_profile.id,
+not_found_exc=ContactViewNotFoundError())` — the exact same helper and non-revealing-404 posture `CON-001`'s
+Decision 4 already uses for `search_request_id` ownership (ADR-015's own convention). This is deliberately
+**different** from `CON-001`'s self-dealing 403 (ADR-044): self-dealing is a permanent, identity-based
+authorization rule with no race/retry window ("this specific caller may never create this specific write,
+regardless of retry timing"), whereas AC2's check is an ordinary `{id}`-addressable-resource ownership check over
+a caller-supplied `contact_view_id`, which this codebase always resolves as a non-revealing 404, never a 403.
+
+**Uniqueness shape:** `OutcomeTagRepository.try_create(values: dict) -> OutcomeTag | None` builds a single atomic
+statement — `postgresql.insert(OutcomeTag).values(**values).on_conflict_do_nothing(index_elements=
+["contact_view_id"]).returning(OutcomeTag.id)` — executed once. If `RETURNING` yields no row (the conflict path),
+the method returns `None` and `OutcomeTagService.submit_outcome_tag` raises a new `OutcomeTagAlreadyExistsError`
+(409 — a genuine timing conflict, mirroring `ClaimAlreadyClaimedError`'s existing 409 shape, not the self-dealing
+guard's 403 shape). This extends the atomic-conditional-write family with its first INSERT-shaped member, reusing
+the exact `on_conflict_do_nothing` mechanism already proven in this codebase (`seed_roles`, the `category_domain`
+migration's seed step) — applied here to reject a genuine conflict instead of silently no-opping a duplicate
+seed. `tester` independently proved this mechanism correct under genuine two-independent-session concurrency (not
+a synthetic ordering assertion) — exactly one row was ever written, the second session's call genuinely raised
+`OutcomeTagAlreadyExistsError`.
+
+### Alternatives Considered
+
+- **A 403 for AC2, mirroring `CON-001`'s `SelfDealingContactError`.** Rejected — ADR-044's own reasoning for
+  choosing 403 there was specifically that self-dealing is a *permanent, identity-based* authorization rule with
+  no race/retry window. AC2's check is the opposite shape: an ordinary `{id}`-addressable-resource ownership
+  check (ADR-015's own named category), which this codebase always resolves as a non-revealing 404.
+- **`SELECT` for an existing row, then `INSERT` if none found.** Rejected outright — this is precisely the
+  read-then-write race shape this codebase's own established principle (`docs/AI/SESSION_HANDOFF.md` §4) already
+  forbids: two concurrent requests can both pass the `SELECT` check before either `INSERT` commits.
+- **A plain `INSERT`, catching the resulting `IntegrityError` from the DB's own unique constraint.** Considered as
+  functionally equivalent in outcome, but rejected in favor of `ON CONFLICT DO NOTHING` — catching an
+  `IntegrityError` mid-request requires an explicit `session.rollback()` before the request-scoped session can be
+  used for anything else, a heavier recovery step than a single statement that never raises in the conflict case.
+
+### Consequences
+
+- AC1/AC2/AC6 are satisfied by construction and independently proven, not merely asserted: a genuine
+  two-independent-session concurrency test (`tester`-added) confirms exactly one row is ever written for a given
+  `contact_view_id`, and a separate ownership-rejection fixture confirms a nonexistent-or-not-owned
+  `contact_view_id` 404s with zero rows written.
+- The atomic-conditional-write family now has a documented INSERT-shaped member alongside its three existing
+  UPDATE-shaped ones — future INSERT-time uniqueness races should cite this ADR rather than re-deriving the
+  `ON CONFLICT DO NOTHING ... RETURNING` pattern from scratch.
+- `REV-002`'s own `reviews.contact_view_id` uniqueness constraint (a structurally identical INSERT-time race) is a
+  direct candidate to reuse this exact mechanism.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-015 — the `{id}`-addressable-collection-always-404 convention this ownership check reuses;
+  ADR-044 — the self-dealing 403 shape this deliberately does not reuse)
+- docs/AI/SESSION_HANDOFF.md §4 (the "never a read-then-write check" principle)
+- docs/implementation/plans/Plan_S09_REV-001.md (Decision 2, Decision 3)
+- docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md
+- backend/app/core/authorization.py (`ensure_owner_or_not_found`)
+- backend/app/modules/contact/repositories/outcome_tag_repository.py (`try_create`)
+- backend/app/modules/contact/services/outcome_tag_service.py
+
+---
+
+# ADR-050
+
+## Title
+
+Outcome Tag Prompt Delivery (`REV-001`): A New, Additive Touch-Point on `CON-001`'s Shipped `ContactService`, Fired Synchronously; Mobile Sheet Chained After Contact Reveal, Not a Notifications-Inbox Tap-Through
+
+**Date**
+
+2026-09-13
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+AC3 requires the "Did you hire them?" prompt to be "triggered after a Contact View, via a notification," and to
+be dismissible ("Maybe later") without penalty. No such notification existed before this story —
+`CON-001`'s `ContactService.create_contact_view` only ever notified the *provider* (`notify_new_contact_view`),
+never the customer. Separately, no scheduling/background-job infrastructure exists anywhere in this codebase (no
+Celery, no APScheduler, no cron), and no customer-facing Notifications Inbox (S-13) or any notification-listing
+endpoint exists on mobile — the same gap `CON-001`'s own AC7 had already named and worked around. Finally, AC3's
+"no penalty" for dismissal needed a concrete mechanical meaning.
+
+### Decision
+
+**Notification touch-point:** a new `NotificationService.notify_outcome_tag_prompt(*, user_id, contact_view_id)`
+— same hardcoded-copy, same-shape pattern as `notify_new_contact_view` (`type="outcome_tag_prompt"`, the exact
+value `04_DATABASE.md`'s own `notifications.type` column documentation already named as an example;
+`related_entity_type="contact_view"`). Called once, synchronously, from `ContactService.create_contact_view` — a
+small, **additive** change to `CON-001`'s already-shipped code: after the `contact_views` row is created, one new
+unconditional call is added alongside (not replacing) the existing conditional provider-lead notification.
+Unconditional, unlike the provider notification, because the calling customer always has an owning Account (they
+are authenticated) — there is no "unclaimed listing" equivalent gap on the customer side. Fired **immediately**,
+in the same request/transaction as Contact View creation, not after a genuine time delay, since no scheduling
+infrastructure exists anywhere in this codebase and AC3's own verbatim wording only requires "triggered after a
+Contact View," which an immediate emission satisfies literally (flagged to the CTO as Open Question 1 during
+planning, confirmed as "fire immediately," not a blocker).
+
+**Mobile delivery:** `ProviderProfileScreen._onContactTap` now `await`s `ContactRevealSheet.show(context, args)`
+(previously fire-and-forget); once that `Future<void>` resolves and `contactRevealControllerProvider(args)`'s
+state is `loaded` (a real reveal happened), it opens the new `OutcomeTagPromptSheet` with the just-created
+`contact_view_id`, the provider's display name, and its photo — a same-session chain directly after the Contact
+Reveal sheet closes, not via any Notifications-Inbox tap-through. This mirrors `CON-001`'s own AC7 scope trim
+exactly: the honest backend record exists now, ready for a future Notifications Inbox to tap through to later,
+while this story's own mobile scope uses the one delivery mechanism that is genuinely buildable and testable
+today.
+
+**"No penalty" mechanics:** the sheet's "Maybe later" action (and any other dismiss path — swipe-down,
+tap-outside) simply closes the sheet; no API call is made, no row of any kind is written. This is the natural
+absence of an action, not a special case requiring backend support — AC5 already establishes that an absent
+outcome tag is a fine, honestly-retained-by-omission state.
+
+### Alternatives Considered
+
+- **Building a real delayed/scheduled trigger**, matching `14_USER_FLOWS.md`'s "some time after the Contact View"
+  narrative framing literally. Rejected for this story — it would require introducing new scheduling
+  infrastructure that no AC actually asks for, mirroring this codebase's existing discipline against inventing
+  unrequested mechanisms.
+- **Firing the notification from a new endpoint the mobile client calls itself**, on the Provider Profile
+  screen's own timeline, instead of from `ContactService`. Rejected — the Contact View's creation is the one
+  moment this event is unambiguously and reliably known to have happened; a second, separate client-triggered
+  call would create a window where a client that crashes/backgrounds after Contact View creation never gets the
+  record at all.
+- **Building a minimal Notifications Inbox screen/endpoint now**, just so the prompt has a "real"
+  notification-driven entry point end to end. Rejected as unrequested scope creep — no AC asks for a
+  Notifications Inbox, and `15_SCREEN_INVENTORY.md`'s S-13 is a separate, larger screen with its own
+  filter/grouping requirements.
+- **Showing the Outcome Tag Prompt sheet immediately, in parallel with (or instead of) the Contact Reveal
+  sheet.** Rejected — a customer who hasn't even seen the phone number yet cannot meaningfully answer "did you
+  hire them," and stacking two sheets at once has no precedent in this codebase's UI conventions.
+- **Recording a "dismissed" marker** (a fourth `hired` state, or a separate dismissal timestamp column).
+  Rejected — no AC asks for this, `04_DATABASE.md`'s spec has no such column, and AC4's minimalism principle
+  extends naturally to not inventing a new tracked event for a no-op.
+
+### Consequences
+
+- A real, honest `notification.notifications` row (`type="outcome_tag_prompt"`) is created for the customer at
+  every Contact View creation, independently verified by `tester` (a direct row assertion, plus confirmation that
+  the existing self-dealing/unclaimed-listing/search-request-id regression tests in `test_contact_service.py`
+  remain unaffected).
+- **This notification's "immediate, not delayed" timing remains a documented, CTO-acknowledged open item** — a
+  one-line future change (moving the call to a scheduled job) whenever real scheduling infrastructure exists in
+  this codebase; no action is needed now.
+- "Maybe later"/dismiss is independently verified (via a mock-repository-never-called assertion) to make zero
+  network calls — the mechanical proof behind AC3's "no penalty" wording.
+- A future Notifications Inbox (`S-13`, ENG-001-adjacent work) can tap through to this same honest backend record
+  without any change to how it's written today.
+
+### Related Documents
+
+- 04_DATABASE.md (Notifications Domain — the `outcome_tag_prompt` `type` value)
+- 14_USER_FLOWS.md (Flow 4 steps 12–14, the Notification Triggers table)
+- 15_SCREEN_INVENTORY.md (the Outcome Tag Prompt sheet row)
+- docs/implementation/plans/Plan_S08_CON-001.md / Walkthrough_S08_CON-001.md (AC7's identical scope-trim
+  precedent this decision mirrors)
+- docs/implementation/plans/Plan_S09_REV-001.md (Decision 5, Decision 6, Decision 7; Open Question 1)
+- docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md
+- backend/app/modules/contact/services/contact_service.py (the additive touch-point)
+- backend/app/modules/notification/services/notification_service.py (`notify_outcome_tag_prompt`)
+- mobile/lib/features/provider_profile/presentation/screens/provider_profile_screen.dart
+- mobile/lib/features/provider_profile/presentation/widgets/outcome_tag_prompt_sheet.dart
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

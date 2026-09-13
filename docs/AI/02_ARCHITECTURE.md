@@ -75,9 +75,9 @@ No implementation should assume that every module will always execute within the
 | Category                                                       |
 | Conversation / AI Intake (LLM-API, RAG-grounded)               |
 | Search Request & Matching                                     |
-| Contact View                                                  |
+| Contact View / Outcome Tag                                    |
 | Verification                                                  |
-| Review & Outcome Tag                                          |
+| Review                                                         |
 | Notifications                                                 |
 | Administration                                                 |
 +------------------------+--------------------------------------+
@@ -89,6 +89,8 @@ No implementation should assume that every module will always execute within the
  PostgreSQL                         Redis
  Primary Database              Cache / Queue / Sessions
 ```
+
+**Note on the "Contact View / Outcome Tag" bubble (added at `REV-001`'s closeout, per an `architect`-review clarification):** `outcome_tags` is implemented inside the `contact` backend module (alongside `contact_views`), not the `Review` module — the two bubbles are shown separately above specifically so this isn't mis-read as Outcome Tag belonging conceptually with the future Review module. See `04_DATABASE.md`'s Contact Domain section and `09_DECISIONS.md` ADR-048 for the authoritative module-ownership record.
 
 There is no landing website in this architecture and no Community, Feed, Events, or Messaging module — see `03_DOMAIN_MODEL.md` for the authoritative domain boundaries. The product is a directory/AI-intake/contact utility, not a social platform.
 

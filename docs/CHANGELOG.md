@@ -11,6 +11,32 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Tell the platform whether I hired a provider (Story REV-001, Sprint 9 / Milestone ML9's first story): a new
+  `outcome_tags` table, added via migration to the existing `contact` domain module (alongside `contact_views`,
+  not a new module — mirroring the `administration` module's own multi-aggregate-root precedent — **ADR-048**),
+  exactly per `04_DATABASE.md`'s pre-existing spec, no deviation. `OutcomeTagService.submit_outcome_tag`
+  implements this story's two safety-critical mechanisms: an ownership check reusing the existing
+  `ensure_owner_or_not_found` helper, rejecting another customer's Contact View with a new
+  `ContactViewNotFoundError` (**HTTP 404** — deliberately distinct from `CON-001`'s permanent-identity 403
+  self-dealing guard, since this is an ordinary `{id}`-addressable-resource ownership check, not a permanent
+  identity-based block), and an atomic `INSERT ... ON CONFLICT DO NOTHING ... RETURNING` uniqueness guard on
+  `contact_view_id` — this codebase's first INSERT-shaped member of the `try_claim_for_account`/
+  `try_claim_for_review`/`try_resolve` atomic-conditional-write family, raising a new
+  `OutcomeTagAlreadyExistsError` (**HTTP 409**) on a genuine conflict (**ADR-049**). An outcome tag is immutable
+  once submitted — no edit/resubmission path is exposed. A flagged, additive touch-point on `CON-001`'s
+  already-shipped `ContactService.create_contact_view` adds one new unconditional
+  `NotificationService.notify_outcome_tag_prompt` call, fired immediately/synchronously since no scheduling
+  infrastructure exists anywhere in this codebase (**ADR-050**). On mobile, a new Outcome Tag Prompt sheet
+  (provider name/photo, Yes/No, and a "Maybe later" dismiss that makes zero network calls and creates no row) is
+  chained directly after a successful Contact Reveal sheet closes, not via a Notifications-Inbox tap-through
+  (mirroring `CON-001`'s own AC7 scope trim). **No bugs of any kind were found during this story's review cycle**
+  — `tester`'s only addition was a genuine, real two-independent-session concurrency test proving (not fixing)
+  that the atomic uniqueness mechanism already worked correctly; `architect`'s only finding was a minor,
+  non-blocking documentation note (a `02_ARCHITECTURE.md` System Overview diagram label that could be misread as
+  implying Outcome Tag belongs with the future Review module rather than Contact), fixed by relabeling the
+  diagram's bubbles at this closeout. **`REV-001` and `MAT-001` are now the only two stories in this project's
+  history to ship with zero real bugs found during review.** `architect` final verdict: **APPROVED.** See
+  `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md` for the full account.
 - Contact a matched provider directly (Story CON-001, completes Sprint 8 / Milestone ML8 in full): a new `contact`
   domain module and migration create `contact.contact_views` exactly per `04_DATABASE.md`'s pre-existing spec —
   no deviation. `ContactService.create_contact_view` implements the platform's most safety-critical rule, the
