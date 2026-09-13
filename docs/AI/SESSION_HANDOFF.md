@@ -6,12 +6,9 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 13 September 2026, immediately after Story REV-001 closeout. **Tracker sync still pending** —
-the orchestrator has not yet run the raw-XML tracker-sync procedure (Section 5) for `REV-001`; treat the Dashboard
-numbers below as stale by one story until that sync happens.
+**Last updated:** 13 September 2026, immediately after Story REV-001 closeout, tracker synced.
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `d33e8c2` (head at `REV-001`'s closeout; tracker sync not yet committed on
-top of this)
+**Last commit at time of writing:** `7a50561` (tracker sync marking REV-001 Done)
 
 ---
 
@@ -31,11 +28,10 @@ top of this)
   for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
   test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
   PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
-- **Dashboard numbers (confirmed as of commit `1eacb4a`, i.e. BEFORE `REV-001`'s tracker sync):** Overall
-  Progress **54.2%** | Completed Milestones **8/24** | Completed Epics **15/23** | Completed Stories **35/47** |
-  Current Phase **PH2** | Current Milestone **ML9** | Current Sprint **SP09** | Upcoming Sprint **SP10**. **These
-  numbers are now stale by one story** (`REV-001` shipped since) — the orchestrator must re-run the tracker-sync
-  procedure (Section 5) and refresh this line before trusting it for planning.
+- **Dashboard numbers (confirmed as of commit `7a50561`):** Overall Progress **56.8%** | Completed Milestones
+  **8/24** | Completed Epics **15/23** | Completed Stories **36/47** | Current Phase **PH2** | Current Milestone
+  **ML9** (1/2 stories done, In Progress) | Current Sprint **SP09** (1/2 done, In Progress) | Upcoming Sprint
+  **SP10**.
 - **Sprint 9 / Milestone ML9 ("Outcome & Reviews") has started — 1 of 2 stories done: `REV-001`.** It shipped
   and was signed off 13 September 2026 — see `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md`
   (`architect`: APPROVED, one minor non-blocking documentation finding, fixed at closeout; `tester`: all 6 ACs
@@ -292,13 +288,8 @@ starts at **ADR-051**.
   specialist agents (tech-lead, tester, architect, backend, frontend) do **not** have Bash/openpyxl tools —
   always relay verbatim tracker text to them directly in the task prompt rather than asking them to read the
   spreadsheet themselves (this was a repeated, avoidable source of wasted planning rounds in Sprints 6–7).
-- **`REV-001`'s tracker sync is still pending** as of this update — the Dashboard numbers in Section 1 and the
-  `Last commit`/`Last updated` line at the top of this file both reflect the state **before** that sync. The
-  orchestrator must run the Section 5 procedure for `REV-001`'s row (and its ML9-EP01/ML9/SP09/Phase
-  Tracker/Dashboard rollups) separately from this documentation closeout.
-
 ---
 
-**End of handoff. Sprint 9 / Milestone ML9 has started — 1 of 2 stories done (`REV-001`), tracker sync still
-pending. When resuming: read this file, confirm the CTO wants to proceed with `REV-002` (the next startable
-story, detailed in Section 2), then follow Section 3's cycle starting with `tech-lead`.**
+**End of handoff. Sprint 9 / Milestone ML9 has started — 1 of 2 stories done (`REV-001`), tracker synced. When
+resuming: read this file, confirm the CTO wants to proceed with `REV-002` (the next startable story, detailed
+in Section 2), then follow Section 3's cycle starting with `tech-lead`.**
