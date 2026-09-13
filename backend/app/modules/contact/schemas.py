@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -37,3 +38,26 @@ class ContactViewRevealResponse(BaseModel):
     phone_country_code: str | None = None
     phone_number: str | None = None
     whatsapp_number: str | None = None
+
+
+class SubmitOutcomeTagRequest(BaseModel):
+    """
+    Request payload for `POST /contact-views/{contact_view_id}/
+    outcome-tag` (REV-001, AC1) -- the minimal "did you hire them?"
+    yes/no. Deliberately carries no payment amount, job-completion
+    detail, or scheduling field (AC4).
+    """
+
+    hired: bool = Field(..., description="Did the customer hire this provider?")
+
+
+class OutcomeTagResponse(BaseModel):
+    """
+    Response payload for a successfully submitted Outcome Tag
+    (REV-001, AC1).
+    """
+
+    id: uuid.UUID
+    contact_view_id: uuid.UUID
+    hired: bool
+    submitted_at: datetime

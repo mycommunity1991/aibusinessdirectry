@@ -1,0 +1,52 @@
+from typing import Any
+
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.modules.contact.models import OutcomeTag
+from app.repositories.base_repository import BaseRepository
+
+
+class OutcomeTagRepository(BaseRepository[OutcomeTag]):
+    """
+    Repository for the `contact.outcome_tags` table (REV-001). Adds one
+    custom method, `try_create`, the story's genuine INSERT-shaped
+    uniqueness race defense (Decision 3, `Plan_S09_REV-001.md`) --
+    `get_by_id` is already available for free (inherited from
+    `BaseRepository`).
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        super().__init__(model=OutcomeTag, session=session)
+
+    async def try_create(self, values: dict[str, Any]) -> OutcomeTag | None:
+        """
+        Atomically inserts a new `outcome_tags` row, but only if no row
+        already exists for `values["contact_view_id"]` (AC1/AC6) --
+        a single `INSERT ... ON CONFLICT (contact_view_id) DO NOTHING
+        ... RETURNING id` statement, never a read-then-write check
+        (Decision 3). This is the fourth application of this codebase's
+        "atomic conditional write" family
+        (`try_claim_for_account`/`try_claim_for_review`/`try_resolve`),
+        and the first INSERT-shaped member -- it reuses the exact
+        `on_conflict_do_nothing` mechanism `seed_roles` already proven
+        for idempotent seeding, applied here to reject a genuine
+        conflict instead of silently no-opping a duplicate.
+
+        Returns the new `OutcomeTag` if this call won the race (a row
+        was inserted), or `None` if a row for this `contact_view_id`
+        already existed -- the caller is expected to raise
+        `OutcomeTagAlreadyExistsError` in that case.
+        """
+        stmt = (
+            postgresql.insert(OutcomeTag)
+            .values(**values)
+            .on_conflict_do_nothing(index_elements=["contact_view_id"])
+            .returning(OutcomeTag.id)
+        )
+        result = await self.session.execute(stmt)
+        await self.session.flush()
+        new_id = result.scalar_one_or_none()
+        if new_id is None:
+            return None
+        return await self.get_by_id(new_id)

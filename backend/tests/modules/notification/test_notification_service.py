@@ -177,3 +177,46 @@ class TestNotifyNewContactView:
             select(Notification).where(Notification.type == "new_contact_view")
         )
         assert len(result.scalars().all()) == 1
+
+
+class TestNotifyOutcomeTagPrompt:
+    """REV-001, AC3, Decision 5, `Plan_S09_REV-001.md`."""
+
+    async def test_creates_the_expected_row_shape(self, db_session) -> None:
+        user = await _make_user(db_session, "901000007")
+        contact_view_id = uuid.uuid4()
+        service = NotificationService(NotificationRepository(db_session))
+
+        notification = await service.notify_outcome_tag_prompt(
+            user_id=user.id, contact_view_id=contact_view_id
+        )
+        await db_session.commit()
+
+        assert notification.user_id == user.id
+        assert notification.type == "outcome_tag_prompt"
+        assert notification.title == "Did you hire them?"
+        assert notification.body == (
+            "Let us know whether you hired the provider you just contacted."
+        )
+        assert notification.related_entity_type == "contact_view"
+        assert notification.related_entity_id == contact_view_id
+
+        result = await db_session.execute(
+            select(Notification).where(Notification.id == notification.id)
+        )
+        persisted = result.scalar_one()
+        assert persisted.type == "outcome_tag_prompt"
+
+    async def test_each_call_creates_exactly_one_row(self, db_session) -> None:
+        user = await _make_user(db_session, "901000008")
+        service = NotificationService(NotificationRepository(db_session))
+
+        await service.notify_outcome_tag_prompt(
+            user_id=user.id, contact_view_id=uuid.uuid4()
+        )
+        await db_session.commit()
+
+        result = await db_session.execute(
+            select(Notification).where(Notification.type == "outcome_tag_prompt")
+        )
+        assert len(result.scalars().all()) == 1

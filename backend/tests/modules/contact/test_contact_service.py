@@ -157,7 +157,17 @@ class TestUnclaimedListingContact:
         assert await _count_contact_views(db_session) == 1
 
     @pytest.mark.anyio
-    async def test_creates_no_notification(self, db_session) -> None:
+    async def test_creates_no_provider_lead_notification_but_still_prompts_the_customer(
+        self, db_session
+    ) -> None:
+        """
+        No provider-lead notification exists (no Account to notify),
+        but REV-001's unconditional Outcome Tag prompt to the calling
+        customer (Decision 5) still fires -- the "no notification at
+        all" behavior this test's name once asserted no longer holds,
+        by design (`Plan_S09_REV-001.md`, Backend Proposed Changes item
+        10).
+        """
         customer_user = await create_user(db_session, "501000006")
         await create_customer_profile(db_session, customer_user)
         unclaimed_provider = await create_provider(
@@ -167,14 +177,19 @@ class TestUnclaimedListingContact:
         )
         service = make_contact_service(db_session)
 
-        await service.create_contact_view(
+        contact_view, _provider = await service.create_contact_view(
             customer_user.id,
             provider_id=unclaimed_provider.id,
             search_request_id=None,
         )
         await db_session.commit()
 
-        assert await _count_notifications(db_session) == 0
+        result = await db_session.execute(select(Notification))
+        notifications = result.scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].type == "outcome_tag_prompt"
+        assert notifications[0].user_id == customer_user.id
+        assert notifications[0].related_entity_id == contact_view.id
 
 
 class TestClaimedProviderNotification:
@@ -196,12 +211,67 @@ class TestClaimedProviderNotification:
         )
         await db_session.commit()
 
-        result = await db_session.execute(select(Notification))
+        result = await db_session.execute(
+            select(Notification).where(Notification.type == "new_contact_view")
+        )
         notifications = result.scalars().all()
         assert len(notifications) == 1
         assert notifications[0].user_id == provider_owner.id
         assert notifications[0].related_entity_id == contact_view.id
         assert notifications[0].related_entity_type == "contact_view"
+
+
+class TestOutcomeTagPromptNotificationOnContactViewCreation:
+    """
+    REV-001, AC3, Decision 5, `Plan_S09_REV-001.md`: a flagged, additive
+    touch-point on CON-001's already-shipped `create_contact_view` --
+    the calling *customer* now also receives a `type=
+    "outcome_tag_prompt"` notification, alongside (never replacing) the
+    existing conditional provider-lead notification.
+    """
+
+    @pytest.mark.anyio
+    async def test_the_customer_receives_an_outcome_tag_prompt_notification(
+        self, db_session
+    ) -> None:
+        customer_user = await create_user(db_session, "501000023")
+        await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "501000024")
+        provider = await create_provider(db_session, user=provider_owner)
+        service = make_contact_service(db_session)
+
+        contact_view, _provider = await service.create_contact_view(
+            customer_user.id, provider_id=provider.id, search_request_id=None
+        )
+        await db_session.commit()
+
+        result = await db_session.execute(
+            select(Notification).where(Notification.type == "outcome_tag_prompt")
+        )
+        prompts = result.scalars().all()
+        assert len(prompts) == 1
+        assert prompts[0].user_id == customer_user.id
+        assert prompts[0].related_entity_id == contact_view.id
+        assert prompts[0].related_entity_type == "contact_view"
+
+    @pytest.mark.anyio
+    async def test_a_claimed_providers_contact_view_creates_both_notifications(
+        self, db_session
+    ) -> None:
+        """Exactly two rows -- the provider's lead notification AND the
+        customer's outcome tag prompt -- never one replacing the other."""
+        customer_user = await create_user(db_session, "501000025")
+        await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "501000026")
+        provider = await create_provider(db_session, user=provider_owner)
+        service = make_contact_service(db_session)
+
+        await service.create_contact_view(
+            customer_user.id, provider_id=provider.id, search_request_id=None
+        )
+        await db_session.commit()
+
+        assert await _count_notifications(db_session) == 2
 
 
 class TestSearchRequestIdValidation:

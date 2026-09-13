@@ -8,10 +8,12 @@ does not pretend otherwise.
 Exposes `notify_verification_status_change`, with **hardcoded,
 plain-language copy** -- never simply interpolating the raw
 `VerificationStatus` enum member into `title`/`body` (AC5's literal
-"never exposing internal status enum values") -- and
-`notify_new_contact_view` (CON-001, AC7, Decision 3,
-`Plan_S08_CON-001.md`), the same hardcoded-copy/same-shape pattern
-applied to a claimed provider's new Contact View.
+"never exposing internal status enum values") -- `notify_new_contact_view`
+(CON-001, AC7, Decision 3, `Plan_S08_CON-001.md`), the same
+hardcoded-copy/same-shape pattern applied to a claimed provider's new
+Contact View, and `notify_outcome_tag_prompt` (REV-001, AC3, Decision
+5, `Plan_S09_REV-001.md`), the same shape again, applied to prompting
+the *customer* to tag whether a Contact View led to a hire.
 """
 
 import uuid
@@ -35,6 +37,12 @@ _TYPE_NEW_CONTACT_VIEW = "new_contact_view"
 _RELATED_ENTITY_TYPE_CONTACT_VIEW = "contact_view"
 _TITLE_NEW_CONTACT_VIEW = "You have a new lead"
 _BODY_NEW_CONTACT_VIEW = "A customer just viewed your contact details."
+
+_TYPE_OUTCOME_TAG_PROMPT = "outcome_tag_prompt"
+_TITLE_OUTCOME_TAG_PROMPT = "Did you hire them?"
+_BODY_OUTCOME_TAG_PROMPT = (
+    "Let us know whether you hired the provider you just contacted."
+)
 
 
 def _rejected_body(rejection_reason: str | None) -> str:
@@ -110,6 +118,40 @@ class NotificationService:
                 "type": _TYPE_NEW_CONTACT_VIEW,
                 "title": _TITLE_NEW_CONTACT_VIEW,
                 "body": _BODY_NEW_CONTACT_VIEW,
+                "related_entity_type": _RELATED_ENTITY_TYPE_CONTACT_VIEW,
+                "related_entity_id": contact_view_id,
+            }
+        )
+
+    async def notify_outcome_tag_prompt(
+        self,
+        *,
+        user_id: uuid.UUID,
+        contact_view_id: uuid.UUID,
+    ) -> Notification:
+        """
+        Records a plain-language "did you hire them?" prompt
+        notification for the *customer* who just generated a Contact
+        View (REV-001, AC3, Decision 5, `Plan_S09_REV-001.md`) -- called
+        once, synchronously, unconditionally, from `ContactService.
+        create_contact_view`, immediately after the `contact_views` row
+        is created. Unconditional (unlike `notify_new_contact_view`)
+        because the calling customer always has an owning Account --
+        there is no "unclaimed listing" equivalent gap on this side.
+
+        `type="outcome_tag_prompt"`, already the exact value
+        `04_DATABASE.md`'s own `notifications.type` column documentation
+        names. `contact_view_id` becomes `related_entity_id`, mirroring
+        `notify_new_contact_view`'s identical convention. This story
+        only emits the in-app record -- real delivery (push/SMS/email)
+        remains ENG-001's own, later scope.
+        """
+        return await self.repository.create(
+            {
+                "user_id": user_id,
+                "type": _TYPE_OUTCOME_TAG_PROMPT,
+                "title": _TITLE_OUTCOME_TAG_PROMPT,
+                "body": _BODY_OUTCOME_TAG_PROMPT,
                 "related_entity_type": _RELATED_ENTITY_TYPE_CONTACT_VIEW,
                 "related_entity_id": contact_view_id,
             }

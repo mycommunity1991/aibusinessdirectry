@@ -8,18 +8,26 @@ identical reasoning -- every registered Account already holds
 `ROLE_CUSTOMER`, so this imposes no extra friction.
 """
 
+import uuid
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import CurrentUser, require_role
 from app.core.constants import ROLE_CUSTOMER
 from app.database.session import get_db
-from app.modules.contact.dependencies import get_contact_service
+from app.modules.contact.dependencies import (
+    get_contact_service,
+    get_outcome_tag_service,
+)
 from app.modules.contact.schemas import (
     ContactViewRevealResponse,
     CreateContactViewRequest,
+    OutcomeTagResponse,
+    SubmitOutcomeTagRequest,
 )
 from app.modules.contact.services.contact_service import ContactService
+from app.modules.contact.services.outcome_tag_service import OutcomeTagService
 from app.shared.schemas.response import SuccessResponse
 
 router = APIRouter(tags=["Contact"])
@@ -88,5 +96,72 @@ async def create_contact_view(
             phone_country_code=provider.phone_country_code,
             phone_number=provider.phone_number,
             whatsapp_number=provider.whatsapp_number,
+        ),
+    )
+
+
+@router.post(
+    "/{contact_view_id}/outcome-tag",
+    response_model=SuccessResponse[OutcomeTagResponse],
+    status_code=201,
+    responses={
+        201: {
+            "model": SuccessResponse[OutcomeTagResponse],
+            "description": "The Outcome Tag was submitted.",
+        },
+        401: {"description": "Authentication required."},
+        403: {"description": "The caller does not hold the customer role."},
+        404: {
+            "description": (
+                "`contact_view_id` doesn't exist, or doesn't belong to "
+                "the calling customer (REV-001, AC2, Decision 2 -- "
+                "collapsed into one non-revealing 404)."
+            ),
+        },
+        409: {
+            "description": (
+                "An Outcome Tag was already submitted for this Contact "
+                "View (REV-001, AC1/AC6 -- one outcome tag per Contact "
+                "View; immutable, one-shot -- Decision 4)."
+            ),
+        },
+    },
+    summary="Submit An Outcome Tag",
+    description=(
+        "Records a minimal yes/no ('did you hire them?') signal against "
+        "a specific Contact View (REV-001, AC1). Only the Customer who "
+        "generated that Contact View may submit it (AC2); a second "
+        "submission against the same Contact View is rejected (409, "
+        "AC1/AC6) -- immutable, one-shot, no edit path (Decision 4). "
+        "Carries no payment amount, job-completion detail, or "
+        "scheduling information (AC4)."
+    ),
+)
+async def submit_outcome_tag(
+    contact_view_id: uuid.UUID,
+    payload: SubmitOutcomeTagRequest,
+    current_user: CurrentUser = Depends(  # noqa: B008
+        require_role(ROLE_CUSTOMER)  # noqa: B008
+    ),
+    db: AsyncSession = Depends(get_db),  # noqa: B008
+    outcome_tag_service: OutcomeTagService = Depends(  # noqa: B008
+        get_outcome_tag_service
+    ),
+) -> SuccessResponse[OutcomeTagResponse]:
+    """Submit a yes/no Outcome Tag for a Contact View the caller owns."""
+    outcome_tag = await outcome_tag_service.submit_outcome_tag(
+        current_user.id,
+        contact_view_id=contact_view_id,
+        hired=payload.hired,
+    )
+    await db.commit()
+    return SuccessResponse[OutcomeTagResponse](
+        success=True,
+        message="Outcome tag submitted.",
+        data=OutcomeTagResponse(
+            id=outcome_tag.id,
+            contact_view_id=outcome_tag.contact_view_id,
+            hired=outcome_tag.hired,
+            submitted_at=outcome_tag.submitted_at,
         ),
     )

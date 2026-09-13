@@ -97,6 +97,11 @@ class ContactService:
         6. If the provider is claimed, emit a Notification (Decision 3)
            -- skipped for an unclaimed listing, since there is no
            account to notify.
+        7. Unconditionally emit an Outcome Tag prompt Notification to
+           the calling customer (REV-001, AC3, Decision 5,
+           `Plan_S09_REV-001.md`) -- flagged, additive touch-point on
+           this already-shipped method. Unconditional, unlike step 6,
+           because the calling customer always has an owning Account.
 
         Returns the new `ContactView` plus the full `Provider` row, so
         the API layer can build the Contact Reveal response (AC2)
@@ -138,5 +143,13 @@ class ContactService:
                 user_id=provider.user_id,
                 contact_view_id=contact_view.id,
             )
+
+        # REV-001, AC3, Decision 5: unconditional -- the calling
+        # customer always has an owning Account (they are authenticated),
+        # so there is no "unclaimed listing" equivalent gap here.
+        await self.notification_service.notify_outcome_tag_prompt(
+            user_id=current_user_id,
+            contact_view_id=contact_view.id,
+        )
 
         return contact_view, provider

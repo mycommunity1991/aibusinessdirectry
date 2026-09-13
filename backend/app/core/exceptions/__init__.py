@@ -10,6 +10,7 @@ from app.core.exceptions.exceptions import (
     ClaimPublicNumberUnavailableError,
     ClaimReviewRequestNotFoundError,
     ClaimTargetNotFoundError,
+    ContactViewNotFoundError,
     ConversationSessionNotActiveError,
     ConversationSessionNotFoundError,
     CustomerProfileNotFoundError,
@@ -28,6 +29,7 @@ from app.core.exceptions.exceptions import (
     ManualMatchAssignmentAlreadyResolvedError,
     ManualMatchAssignmentNotFoundError,
     OtpLockedError,
+    OutcomeTagAlreadyExistsError,
     PortfolioLimitExceededError,
     PortfolioPhotoNotFoundError,
     ProviderAlreadyExistsError,
@@ -90,4 +92,6 @@ __all__ = [
     "InvalidManualMatchProviderIdsError",
     "CustomerProfileNotFoundError",
     "SelfDealingContactError",
+    "ContactViewNotFoundError",
+    "OutcomeTagAlreadyExistsError",
 ]

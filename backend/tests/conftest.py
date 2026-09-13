@@ -155,7 +155,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         CategoryQuestionTemplate,
         ProviderCategory,
     )
-    from app.modules.contact.models import ContactView
+    from app.modules.contact.models import ContactView, OutcomeTag
     from app.modules.conversation.models import (
         ConfidenceScore,
         ConversationSession,
@@ -205,6 +205,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             ClaimReviewRequest,
             ManualMatchAssignment,
             Notification,
+            OutcomeTag,
             ContactView,
             ProviderMatch,
             SearchEventLog,

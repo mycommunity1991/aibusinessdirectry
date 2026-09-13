@@ -676,3 +676,40 @@ class InvalidSearchRadiusError(BusinessException):
         message: str = "The requested search radius is invalid.",
     ):
         super().__init__(message=message, status_code=422)
+
+
+class ContactViewNotFoundError(BusinessException):
+    """
+    Raised by `OutcomeTagService.submit_outcome_tag` (REV-001, AC2,
+    Decision 2, `Plan_S09_REV-001.md`) when the target `contact_view_id`
+    either doesn't exist at all, or exists but is not owned by the
+    calling customer -- collapses both cases into the same 404,
+    mirroring `SearchRequestNotFoundError`/`ConversationSessionNotFoundError`'s
+    identical non-revealing-404 design (ADR-015), via the same
+    `ensure_owner_or_not_found` helper CON-001's own `search_request_id`
+    ownership check already uses. Deliberately a 404, never a 403 --
+    a different shape from `SelfDealingContactError`, which is a
+    permanent, identity-based rule rather than an ordinary
+    `{id}`-addressable-resource ownership check.
+    """
+
+    def __init__(self, message: str = "Contact view not found."):
+        super().__init__(message=message, status_code=404)
+
+
+class OutcomeTagAlreadyExistsError(BusinessException):
+    """
+    Raised by `OutcomeTagService.submit_outcome_tag` (REV-001, AC1/AC6,
+    Decision 3, `Plan_S09_REV-001.md`) when `OutcomeTagRepository.
+    try_create`'s atomic `INSERT ... ON CONFLICT DO NOTHING ...
+    RETURNING` finds a row already exists for the target
+    `contact_view_id` -- a genuine timing conflict (e.g. a double-tap),
+    mirroring `ClaimAlreadyClaimedError`'s existing 409 shape, not the
+    self-dealing guard's 403 shape. An Outcome Tag is immutable and
+    one-shot (Decision 4) -- this is also the only response a second,
+    later, deliberate resubmission attempt will ever receive, since no
+    update/resubmission path exists.
+    """
+
+    def __init__(self, message: str = "An outcome tag was already submitted."):
+        super().__init__(message=message, status_code=409)
