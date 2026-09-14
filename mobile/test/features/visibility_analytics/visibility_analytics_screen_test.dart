@@ -262,8 +262,23 @@ void main() {
 
     testWidgets('does not render when only one of the two metrics is non-zero '
         '(hasSufficientData is true)', (tester) async {
+      // Deliberately asymmetric -- search appearances genuinely zero,
+      // contact views genuinely positive -- so this test actually
+      // exercises the "only one metric non-zero" case its name claims,
+      // not merely the (already-covered-elsewhere) both-non-zero default
+      // fixture.
       final fakeRepository = FakeVisibilityAnalyticsRepository(
-        result: buildVisibilityAnalytics(hasSufficientData: true),
+        result: buildVisibilityAnalytics(
+          hasSufficientData: true,
+          searchAppearances: const VisibilityMetric(
+            totalLast30Days: 0,
+            trend: TrendDirection.flat,
+          ),
+          contactViews: const VisibilityMetric(
+            totalLast30Days: 4,
+            trend: TrendDirection.up,
+          ),
+        ),
       );
       await pumpScreen(
         tester,

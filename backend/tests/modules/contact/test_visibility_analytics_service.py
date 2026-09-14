@@ -457,6 +457,74 @@ class TestHasSufficientDataBothNonZero:
         assert analytics.has_sufficient_data is True
 
 
+class TestDailySeriesHeadlineTotalDivergence:
+    """
+    Investigates the `_build_daily_series` anchoring deviation flagged in
+    the service module's own docstring (`Plan_S10_LEAD-002.md`, Decision
+    4): the chart's 30-day window is anchored on calendar dates ending
+    "today" (`window_start = today - (window_days - 1)` through `today`),
+    while the headline `total_last_30_days` is anchored on the exact
+    timestamp window `[current_start, now)`. Because `date(current_start)`
+    is always exactly one calendar day *before* `window_start` (both are
+    derived from the same `now` with a fixed `window_days`-day offset --
+    subtracting a whole number of days never changes the time-of-day, so
+    this holds regardless of what time of day the request happens to
+    land on), any row whose `created_at`/`viewed_at` falls on
+    `current_start`'s own calendar day is counted in the headline total
+    but never appears anywhere in the 30-entry chart series. This test
+    proves that divergence is real and reproducible, not merely
+    theoretical -- flagged for `backend` to decide how (or whether) to
+    reconcile it; not fixed here (test-only boundary).
+    """
+
+    @pytest.mark.anyio
+    async def test_a_row_on_current_starts_calendar_day_never_appears_in_the_chart(
+        self, db_session
+    ) -> None:
+        customer_user = await create_user(db_session, "605000023")
+        customer_profile = await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "605000024")
+        provider = await create_provider(db_session, user=provider_owner)
+        now = datetime.now(UTC)
+        current_start = now - timedelta(days=_WINDOW_DAYS)
+        # A small forward buffer past this test's own `current_start`:
+        # the service recomputes its own `now` (and therefore its own,
+        # very slightly later, `current_start`) at call time, so a row
+        # placed at exactly this test's `current_start` can otherwise
+        # land just *before* the service's actual boundary and be
+        # excluded from the headline count entirely, which would falsify
+        # this test for the wrong reason. Two seconds safely covers that
+        # gap without risking crossing into the next calendar day.
+        row_timestamp = current_start + timedelta(seconds=2)
+
+        # Squarely on the current window's own start boundary's calendar
+        # day (inclusive, per `count_for_provider_between`'s `>= start`
+        # semantics) -- the oldest possible calendar day still inside the
+        # headline window.
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider.id,
+            viewed_at=row_timestamp,
+        )
+
+        service = make_visibility_analytics_service(db_session)
+        analytics = await service.get_my_visibility_analytics(provider_owner.id)
+
+        chart_sum = sum(point.contact_views for point in analytics.daily_trend)
+        chart_days = {point.day for point in analytics.daily_trend}
+
+        # The headline total counts this row...
+        assert analytics.contact_views.total_last_30_days == 1
+        # ...but its own calendar day is never one of the chart's 30
+        # entries...
+        assert row_timestamp.date() not in chart_days
+        # ...so the chart's own 30-day sum silently diverges from the
+        # headline total a provider sees directly alongside it on screen.
+        assert chart_sum == 0
+        assert chart_sum != analytics.contact_views.total_last_30_days
+
+
 class TestDailySeriesZeroFill:
     """Decision 4: a fixture with events on only 2 of the 30 days
     asserts the returned series has exactly 30 ascending-date entries,
