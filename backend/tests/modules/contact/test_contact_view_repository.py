@@ -4,6 +4,11 @@ list_for_provider`/`count_for_provider` (LEAD-001, Backend Proposed
 Changes item 2, `Plan_S10_LEAD-001.md`) -- this repository's first
 custom methods (no prior test file existed for it, since it previously
 had none).
+
+Extended (LEAD-002, Backend Proposed Changes item 2, Tests item 10,
+`Plan_S10_LEAD-002.md`) with `count_for_provider_between`/
+`count_daily_for_provider_since` -- inclusive/exclusive window-boundary
+edge cases, cross-provider isolation, and zero-row cases.
 """
 
 import uuid
@@ -224,3 +229,220 @@ class TestCountForProvider:
         repository = ContactViewRepository(db_session)
 
         assert await repository.count_for_provider(provider.id) == 0
+
+
+class TestCountForProviderBetween:
+    @pytest.mark.anyio
+    async def test_start_boundary_is_inclusive(self, db_session) -> None:
+        customer_user = await create_user(db_session, "601100015")
+        customer_profile = await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "601100016")
+        provider = await create_provider(db_session, user=provider_owner)
+        start = datetime.now(UTC)
+        end = start + timedelta(days=1)
+
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider.id,
+            viewed_at=start,
+        )
+
+        repository = ContactViewRepository(db_session)
+
+        assert (
+            await repository.count_for_provider_between(provider.id, start, end) == 1
+        )
+
+    @pytest.mark.anyio
+    async def test_end_boundary_is_exclusive(self, db_session) -> None:
+        customer_user = await create_user(db_session, "601100017")
+        customer_profile = await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "601100018")
+        provider = await create_provider(db_session, user=provider_owner)
+        start = datetime.now(UTC)
+        end = start + timedelta(days=1)
+
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider.id,
+            viewed_at=end,
+        )
+
+        repository = ContactViewRepository(db_session)
+
+        assert (
+            await repository.count_for_provider_between(provider.id, start, end) == 0
+        )
+
+    @pytest.mark.anyio
+    async def test_rows_outside_the_window_are_never_counted(
+        self, db_session
+    ) -> None:
+        customer_user = await create_user(db_session, "601100019")
+        customer_profile = await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "601100020")
+        provider = await create_provider(db_session, user=provider_owner)
+        start = datetime.now(UTC)
+        end = start + timedelta(days=30)
+
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider.id,
+            viewed_at=start - timedelta(seconds=1),
+        )
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider.id,
+            viewed_at=end + timedelta(seconds=1),
+        )
+        in_window = await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider.id,
+            viewed_at=start + timedelta(days=15),
+        )
+
+        repository = ContactViewRepository(db_session)
+
+        assert (
+            await repository.count_for_provider_between(provider.id, start, end) == 1
+        )
+        assert in_window.id is not None
+
+    @pytest.mark.anyio
+    async def test_never_counts_another_providers_rows(self, db_session) -> None:
+        customer_user = await create_user(db_session, "601100021")
+        customer_profile = await create_customer_profile(db_session, customer_user)
+        provider_a_owner = await create_user(db_session, "601100022")
+        provider_a = await create_provider(db_session, user=provider_a_owner)
+        provider_b_owner = await create_user(db_session, "601100023")
+        provider_b = await create_provider(db_session, user=provider_b_owner)
+        start = datetime.now(UTC) - timedelta(days=1)
+        end = datetime.now(UTC) + timedelta(days=1)
+
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider_b.id,
+            viewed_at=datetime.now(UTC),
+        )
+
+        repository = ContactViewRepository(db_session)
+
+        assert (
+            await repository.count_for_provider_between(provider_a.id, start, end)
+            == 0
+        )
+
+    @pytest.mark.anyio
+    async def test_returns_zero_for_a_provider_with_no_rows_in_range(
+        self, db_session
+    ) -> None:
+        provider_owner = await create_user(db_session, "601100024")
+        provider = await create_provider(db_session, user=provider_owner)
+        start = datetime.now(UTC) - timedelta(days=1)
+        end = datetime.now(UTC) + timedelta(days=1)
+
+        repository = ContactViewRepository(db_session)
+
+        assert (
+            await repository.count_for_provider_between(provider.id, start, end) == 0
+        )
+
+
+class TestCountDailyForProviderSince:
+    @pytest.mark.anyio
+    async def test_returns_only_days_with_at_least_one_row(self, db_session) -> None:
+        customer_user = await create_user(db_session, "601100025")
+        customer_profile = await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "601100026")
+        provider = await create_provider(db_session, user=provider_owner)
+        since = datetime.now(UTC) - timedelta(days=10)
+        day_one = since + timedelta(days=1)
+        day_five = since + timedelta(days=5)
+
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider.id,
+            viewed_at=day_one,
+        )
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider.id,
+            viewed_at=day_one + timedelta(hours=2),
+        )
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider.id,
+            viewed_at=day_five,
+        )
+
+        repository = ContactViewRepository(db_session)
+        rows = await repository.count_daily_for_provider_since(provider.id, since)
+        counts_by_day = dict(rows)
+
+        assert len(counts_by_day) == 2
+        assert counts_by_day[day_one.date()] == 2
+        assert counts_by_day[day_five.date()] == 1
+
+    @pytest.mark.anyio
+    async def test_rows_before_since_are_excluded(self, db_session) -> None:
+        customer_user = await create_user(db_session, "601100027")
+        customer_profile = await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "601100028")
+        provider = await create_provider(db_session, user=provider_owner)
+        since = datetime.now(UTC)
+
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider.id,
+            viewed_at=since - timedelta(seconds=1),
+        )
+
+        repository = ContactViewRepository(db_session)
+        rows = await repository.count_daily_for_provider_since(provider.id, since)
+
+        assert rows == []
+
+    @pytest.mark.anyio
+    async def test_never_returns_another_providers_rows(self, db_session) -> None:
+        customer_user = await create_user(db_session, "601100029")
+        customer_profile = await create_customer_profile(db_session, customer_user)
+        provider_a_owner = await create_user(db_session, "601100030")
+        provider_a = await create_provider(db_session, user=provider_a_owner)
+        provider_b_owner = await create_user(db_session, "601100031")
+        provider_b = await create_provider(db_session, user=provider_b_owner)
+        since = datetime.now(UTC) - timedelta(days=1)
+
+        await _create_contact_view(
+            db_session,
+            customer_id=customer_profile.id,
+            provider_id=provider_b.id,
+            viewed_at=datetime.now(UTC),
+        )
+
+        repository = ContactViewRepository(db_session)
+        rows = await repository.count_daily_for_provider_since(provider_a.id, since)
+
+        assert rows == []
+
+    @pytest.mark.anyio
+    async def test_returns_empty_list_for_a_provider_with_no_rows(
+        self, db_session
+    ) -> None:
+        provider_owner = await create_user(db_session, "601100032")
+        provider = await create_provider(db_session, user=provider_owner)
+        since = datetime.now(UTC) - timedelta(days=1)
+
+        repository = ContactViewRepository(db_session)
+        rows = await repository.count_daily_for_provider_since(provider.id, since)
+
+        assert rows == []

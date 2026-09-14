@@ -17,6 +17,9 @@ from app.modules.contact.repositories.outcome_tag_repository import (
 from app.modules.contact.services.contact_service import ContactService
 from app.modules.contact.services.lead_service import LeadService
 from app.modules.contact.services.outcome_tag_service import OutcomeTagService
+from app.modules.contact.services.visibility_analytics_service import (
+    VisibilityAnalyticsService,
+)
 from app.modules.customer.dependencies import get_customer_profile_repository
 from app.modules.customer.repositories.customer_profile_repository import (
     CustomerProfileRepository,
@@ -25,7 +28,13 @@ from app.modules.notification.dependencies import get_notification_service
 from app.modules.notification.services.notification_service import NotificationService
 from app.modules.provider.dependencies import get_provider_service
 from app.modules.provider.services.provider_service import ProviderService
-from app.modules.search.dependencies import get_search_request_repository
+from app.modules.search.dependencies import (
+    get_provider_match_repository,
+    get_search_request_repository,
+)
+from app.modules.search.repositories.provider_match_repository import (
+    ProviderMatchRepository,
+)
 from app.modules.search.repositories.search_request_repository import (
     SearchRequestRepository,
 )
@@ -144,5 +153,38 @@ def get_lead_service(
         outcome_tag_repository=outcome_tag_repository,
         search_request_repository=search_request_repository,
         category_repository=category_repository,
+        provider_service=provider_service,
+    )
+
+
+def get_visibility_analytics_service(
+    contact_view_repository: Annotated[
+        ContactViewRepository, Depends(get_contact_view_repository)
+    ],
+    provider_match_repository: Annotated[
+        ProviderMatchRepository, Depends(get_provider_match_repository)
+    ],
+    provider_service: Annotated[ProviderService, Depends(get_provider_service)],
+) -> VisibilityAnalyticsService:
+    """
+    Provides a `VisibilityAnalyticsService` bound to the request-scoped
+    DB session (LEAD-002, Decision 1, `Plan_S10_LEAD-002.md`) -- wires
+    in the module's existing `ContactViewRepository` provider, plus
+    `provider.ProviderService` (already an existing cross-module edge
+    via `ContactService`/`LeadService`), and a new `search.
+    ProviderMatchRepository` edge.
+
+    `search.ProviderMatchRepository` is a raw Repository dependency,
+    not a Service, per ADR-047's exception -- **the second instance of
+    this exception recorded for the `contact` module**, alongside the
+    existing `search.SearchRequestRepository`/`category.
+    CategoryRepository` edges (`get_lead_service`, LEAD-001): no
+    `search`-module Service exposes a per-provider aggregation
+    primitive today, so there is no equivalent Service method to depend
+    on instead.
+    """
+    return VisibilityAnalyticsService(
+        contact_view_repository=contact_view_repository,
+        provider_match_repository=provider_match_repository,
         provider_service=provider_service,
     )

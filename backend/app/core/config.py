@@ -180,6 +180,20 @@ class Settings(BaseSettings):
     # volume term's normalization denominator.
     RANKING_REVIEW_VOLUME_CAP: int = 50
 
+    # Visibility Analytics (LEAD-002, Backend Proposed Changes item 1,
+    # `Plan_S10_LEAD-002.md`) -- config-driven, not code, mirroring
+    # `LEADS_MAX_PAGE_SIZE`/`AI_MATCH_MAX_RESULTS`'s established
+    # per-domain-constant pattern. The current-window length is also
+    # reused, unchanged, as the immediately preceding comparison
+    # window's length (Decision 5) -- both windows are always the same
+    # size.
+    VISIBILITY_ANALYTICS_WINDOW_DAYS: int = 30
+    # The +/- percentage-change band treated as `flat` rather than
+    # `up`/`down` when the previous window's total is greater than zero
+    # (Decision 5) -- never applied when the previous window is zero,
+    # which has its own dedicated zero-baseline handling instead.
+    VISIBILITY_ANALYTICS_TREND_FLAT_THRESHOLD_PCT: float = 10.0
+
     # Config dict to support loading from parent .env or current .env
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

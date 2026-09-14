@@ -3,6 +3,9 @@ from fastapi import APIRouter
 from app.api.v1.endpoints.health import router as health_router
 from app.modules.contact.api import router as contact_router
 from app.modules.contact.provider_lead_api import router as provider_lead_router
+from app.modules.contact.provider_visibility_api import (
+    router as provider_visibility_router,
+)
 from app.modules.conversation.api import router as conversation_router
 from app.modules.customer.api import router as customer_router
 from app.modules.identity.api import router as auth_router
@@ -28,6 +31,9 @@ v1_router.include_router(customer_router, prefix="/customers")
 v1_router.include_router(provider_router, prefix="/providers")
 v1_router.include_router(verification_router, prefix="/providers/me/verification")
 v1_router.include_router(provider_lead_router, prefix="/providers/me/leads")
+v1_router.include_router(
+    provider_visibility_router, prefix="/providers/me/visibility-analytics"
+)
 v1_router.include_router(admin_verification_router, prefix="/admin/verification")
 v1_router.include_router(search_router, prefix="/search")
 v1_router.include_router(claim_router, prefix="/claims")
