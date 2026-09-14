@@ -556,6 +556,10 @@
   "@changesSavedMessage": {
     "description": "Snackbar acknowledgment shown after any Storefront section successfully saves (S-25, PRO-002, `16_UX_GUIDELINES.md` acknowledgment rule)."
   },
+  "storefrontLeadsEntryLabel": "My Leads",
+  "@storefrontLeadsEntryLabel": {
+    "description": "Label on the Storefront screen's new tappable entry-point tile linking to the Leads screen (LEAD-001, Plan item 3) -- mirrors verificationStatusChipNotStartedLabel's tile shape."
+  },
   "providerListingNotFoundMessage": "We couldn't find your provider listing.",
   "@providerListingNotFoundMessage": {
     "description": "Plain-language message for a 404 on a Storefront sub-resource call (PRO-002) -- an edge case, since the screen is only reachable once a listing is known to exist."
@@ -1106,5 +1110,56 @@
   "writeReviewThanksMessage": "Thanks for your review!",
   "@writeReviewThanksMessage": {
     "description": "Brief confirmation copy shown for a moment after a successful review submission, before the Write-a-Review screen pops back (REV-002, not itself an AC requirement -- minor UX completeness, mirrors outcomeTagPromptThanksMessage's pattern)."
+  },
+
+  "leadsScreenTitle": "My Leads",
+  "@leadsScreenTitle": {
+    "description": "App bar title on the Leads screen (LEAD-001, AC1)."
+  },
+  "leadsEmptyStateMessage": "No leads yet — once a customer views your contact details, they'll show up here.",
+  "@leadsEmptyStateMessage": {
+    "description": "Empty-state copy on the Leads screen shown when the caller's Provider has zero Contact Views (LEAD-001, AC2) -- still pull-to-refresh-able."
+  },
+  "leadsOutcomeHiredLabel": "Hired",
+  "@leadsOutcomeHiredLabel": {
+    "description": "Outcome-status chip label for a lead whose Outcome Tag has hired=true (LEAD-001, AC1/AC5)."
+  },
+  "leadsOutcomeNotHiredLabel": "Not hired",
+  "@leadsOutcomeNotHiredLabel": {
+    "description": "Outcome-status chip label for a lead whose Outcome Tag has hired=false (LEAD-001, AC1/AC5) -- retained as a real signal, not hidden."
+  },
+  "leadsOutcomeNotYetReportedLabel": "Not yet reported",
+  "@leadsOutcomeNotYetReportedLabel": {
+    "description": "Outcome-status chip label for a lead with no Outcome Tag at all yet (LEAD-001, AC1/AC5); also the display fallback for the forward-compatibility-only `unknown` outcome status."
+  },
+  "leadsNoCategoryContextLabel": "Viewed your profile directly",
+  "@leadsNoCategoryContextLabel": {
+    "description": "Honest fallback shown in place of a category name when a lead's category/request context can't be resolved (LEAD-001, Decision 3) -- e.g. the structured (non-AI) Search Results path, which creates no search_requests row at all. Deliberately never a fabricated category guess, and textually distinct from any real category name."
+  },
+
+  "relativeTimeJustNowLabel": "Just now",
+  "@relativeTimeJustNowLabel": {
+    "description": "Relative-timestamp copy for a moment under a minute ago (`shared/utils/relative_time.dart`, LEAD-001)."
+  },
+  "relativeTimeMinutesAgoLabel": "{minutes, plural, one {1 minute ago} other {{minutes} minutes ago}}",
+  "@relativeTimeMinutesAgoLabel": {
+    "description": "Relative-timestamp copy for a moment between 1 and 59 minutes ago (`shared/utils/relative_time.dart`, LEAD-001).",
+    "placeholders": {
+      "minutes": {"type": "int", "example": "5"}
+    }
+  },
+  "relativeTimeHoursAgoLabel": "{hours, plural, one {1 hour ago} other {{hours} hours ago}}",
+  "@relativeTimeHoursAgoLabel": {
+    "description": "Relative-timestamp copy for a moment between 1 and 23 hours ago (`shared/utils/relative_time.dart`, LEAD-001).",
+    "placeholders": {
+      "hours": {"type": "int", "example": "3"}
+    }
+  },
+  "relativeTimeDaysAgoLabel": "{days, plural, one {1 day ago} other {{days} days ago}}",
+  "@relativeTimeDaysAgoLabel": {
+    "description": "Relative-timestamp copy for a moment between 1 and 29 days ago (`shared/utils/relative_time.dart`, LEAD-001) -- beyond ~30 days this utility falls back to an absolute short date instead.",
+    "placeholders": {
+      "days": {"type": "int", "example": "4"}
+    }
   }
 }

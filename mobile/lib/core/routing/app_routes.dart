@@ -133,4 +133,10 @@ class AppRoutes {
   /// Outcome Tag Prompt submission (Decision 7, `Plan_S09_REV-002.md`) --
   /// no other call site, deep link, or menu item navigates here.
   static const String writeReview = '/write-review';
+
+  /// S-26 -- My Leads (LEAD-001, AC1/AC2). Reached from [storefront]'s new
+  /// "My Leads" entry point tile. Needs no `extra` -- the caller's own
+  /// leads are resolved entirely server-side from the authenticated
+  /// session, same as [storefront]/[verificationStatus].
+  static const String leads = '/leads';
 }

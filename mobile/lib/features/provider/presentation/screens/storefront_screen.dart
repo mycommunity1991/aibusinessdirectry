@@ -94,6 +94,8 @@ class _StorefrontSections extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const _VerificationStatusChip(),
+          const SizedBox(height: AppSpacing.sm),
+          const _LeadsEntryPointCard(),
           const SizedBox(height: AppSpacing.lg),
           _BasicInfoSection(provider: provider),
           if (provider.providerType == ProviderType.business &&
@@ -209,6 +211,55 @@ class _VerificationStatusChip extends ConsumerWidget {
             Expanded(
               child: Text(
                 _labelFor(l10n, summary),
+                style: TextStyle(color: colorScheme.onSecondaryContainer),
+              ),
+            ),
+            Icon(Icons.chevron_right, color: colorScheme.onSecondaryContainer),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// LEAD-001's "My Leads" entry point tile -- mirrors
+/// [_VerificationStatusChip]'s own shape exactly: a tappable card reading
+/// only the [AppRoutes.leads] constant, never importing anything from
+/// `features/leads/` (`docs/AI/02_ARCHITECTURE.md`'s "Features must not
+/// depend directly on each other" rule). Unlike the verification chip,
+/// this tile has no dynamic status to reflect -- Leads' own list-loading
+/// concerns live entirely on `LeadsScreen` once tapped through.
+class _LeadsEntryPointCard extends StatelessWidget {
+  const _LeadsEntryPointCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      key: const ValueKey('storefront-leads-entry-point'),
+      borderRadius: BorderRadius.circular(AppRadius.small),
+      onTap: () => context.push(AppRoutes.leads),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: colorScheme.secondaryContainer,
+          borderRadius: BorderRadius.circular(AppRadius.small),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.visibility_outlined,
+              color: colorScheme.onSecondaryContainer,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                l10n.storefrontLeadsEntryLabel,
                 style: TextStyle(color: colorScheme.onSecondaryContainer),
               ),
             ),

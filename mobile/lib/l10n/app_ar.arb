@@ -155,6 +155,7 @@
   "storefrontPortfolioSectionTitle": "معرض الأعمال",
   "storefrontAvailabilitySectionTitle": "أوقات التوفر",
   "changesSavedMessage": "تم حفظ التغييرات.",
+  "storefrontLeadsEntryLabel": "عملائي المحتملون",
   "providerListingNotFoundMessage": "تعذر العثور على قائمة نشاطك التجاري.",
   "portfolioInvalidUploadMessage": "تعذر رفع هذه الصورة. الرجاء اختيار صورة بصيغة JPG أو PNG أو WEBP بحجم أقل من 5 ميجابايت.",
   "portfolioLimitExceededMessage": "لقد وصلت إلى الحد الأقصى لعدد صور معرض الأعمال.",
@@ -291,5 +292,17 @@
   "writeReviewRatingLabel": "كيف تقيّم تجربتك معهم؟",
   "writeReviewCommentLabel": "تعليق (اختياري)",
   "writeReviewSubmitLabel": "إرسال التقييم",
-  "writeReviewThanksMessage": "شكراً على تقييمك!"
+  "writeReviewThanksMessage": "شكراً على تقييمك!",
+
+  "leadsScreenTitle": "عملائي المحتملون",
+  "leadsEmptyStateMessage": "لا يوجد عملاء محتملون بعد — بمجرد أن يشاهد أحد العملاء بيانات التواصل الخاصة بك، ستظهر هنا.",
+  "leadsOutcomeHiredLabel": "تم التوظيف",
+  "leadsOutcomeNotHiredLabel": "لم يتم التوظيف",
+  "leadsOutcomeNotYetReportedLabel": "لم يُبلَّغ بعد",
+  "leadsNoCategoryContextLabel": "شاهد ملفك الشخصي مباشرة",
+
+  "relativeTimeJustNowLabel": "الآن",
+  "relativeTimeMinutesAgoLabel": "{minutes, plural, one {منذ دقيقة واحدة} other {منذ {minutes} دقائق}}",
+  "relativeTimeHoursAgoLabel": "{hours, plural, one {منذ ساعة واحدة} other {منذ {hours} ساعات}}",
+  "relativeTimeDaysAgoLabel": "{days, plural, one {منذ يوم واحد} other {منذ {days} أيام}}"
 }

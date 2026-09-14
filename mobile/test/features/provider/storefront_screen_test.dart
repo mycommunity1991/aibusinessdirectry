@@ -1,3 +1,4 @@
+import 'package:ai_marketplace_app/core/routing/app_routes.dart';
 import 'package:ai_marketplace_app/features/provider/data/provider_repository.dart';
 import 'package:ai_marketplace_app/features/provider/domain/models/portfolio_photo.dart';
 import 'package:ai_marketplace_app/features/provider/presentation/screens/storefront_screen.dart';
@@ -7,15 +8,38 @@ import 'package:ai_marketplace_app/shared/models/verification_status_summary.dar
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../shared/fakes/fake_verification_status_summary_repository.dart';
 import 'fakes/fake_provider_repository.dart';
 
+/// A minimal `GoRouter` shell -- `StorefrontScreen` at its own path, plus a
+/// stub destination for [AppRoutes.leads] (LEAD-001's new "My Leads" entry
+/// point, Plan item 3) -- so `_LeadsEntryPointCard`'s real
+/// `context.push(AppRoutes.leads)` call has a router ancestor to resolve
+/// against, mirroring `pumpScreen`'s own stub-destination pattern
+/// (`test/features/auth/test_helpers.dart`) rather than rendering the real
+/// `LeadsScreen` (which would need its own `leadRepositoryProvider`
+/// override, out of scope for a Storefront-focused test file).
 Future<void> _pumpStorefront(
   WidgetTester tester,
   FakeProviderRepository repository, {
   VerificationStatusSummary? verificationStatusSummary,
 }) async {
+  final router = GoRouter(
+    initialLocation: '/storefront-under-test',
+    routes: [
+      GoRoute(
+        path: '/storefront-under-test',
+        builder: (context, state) => const StorefrontScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.leads,
+        builder: (context, state) => const Scaffold(body: Text('leads-stub')),
+      ),
+    ],
+  );
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -30,10 +54,10 @@ Future<void> _pumpStorefront(
           ),
         ),
       ],
-      child: MaterialApp(
+      child: MaterialApp.router(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const StorefrontScreen(),
+        routerConfig: router,
       ),
     ),
   );
@@ -286,4 +310,38 @@ void main() {
       expect(find.text('Rejected'), findsOneWidget);
     });
   });
+
+  group(
+    'StorefrontScreen — "My Leads" entry point (LEAD-001, Plan item 3)',
+    () {
+      testWidgets('renders the "My Leads" entry point tile', (tester) async {
+        final repository = FakeProviderRepository(
+          existingProvider: fakeExistingBusinessProvider,
+        );
+        await _pumpStorefront(tester, repository);
+
+        expect(
+          find.byKey(const ValueKey('storefront-leads-entry-point')),
+          findsOneWidget,
+        );
+        expect(find.text('My Leads'), findsOneWidget);
+      });
+
+      testWidgets('tapping the "My Leads" tile navigates to AppRoutes.leads', (
+        tester,
+      ) async {
+        final repository = FakeProviderRepository(
+          existingProvider: fakeExistingBusinessProvider,
+        );
+        await _pumpStorefront(tester, repository);
+
+        await tester.tap(
+          find.byKey(const ValueKey('storefront-leads-entry-point')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('leads-stub'), findsOneWidget);
+      });
+    },
+  );
 }

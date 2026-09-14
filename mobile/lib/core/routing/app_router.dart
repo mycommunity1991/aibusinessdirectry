@@ -15,6 +15,7 @@ import '../../features/customer/presentation/screens/address_form_screen.dart';
 import '../../features/customer/presentation/screens/profile_settings_screen.dart';
 import '../../features/customer/presentation/screens/saved_addresses_screen.dart';
 import '../../features/home/presentation/screens/home_placeholder_screen.dart';
+import '../../features/leads/presentation/screens/leads_screen.dart';
 import '../../features/provider/presentation/screens/business_details_screen.dart';
 import '../../features/provider/presentation/screens/choose_provider_type_screen.dart';
 import '../../features/provider/presentation/screens/freelancer_details_screen.dart';
@@ -209,6 +210,10 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
           final args = state.extra as WriteReviewArgs;
           return WriteReviewScreen(args: args);
         },
+      ),
+      GoRoute(
+        path: AppRoutes.leads,
+        builder: (context, state) => const LeadsScreen(),
       ),
     ],
   );
