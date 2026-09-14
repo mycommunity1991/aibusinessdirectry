@@ -6,11 +6,10 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 14 September 2026, immediately after Story REV-002 closeout. Tracker sync for REV-002 is a
-separate, subsequent step (not yet performed as of this update) — see Section 5.
+**Last updated:** 14 September 2026, after Story REV-002 closeout AND its tracker sync (both complete).
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `44f1c56` (docs: REV-002 review outcomes; backend `d61d8e4`, frontend
-`0a11e87`)
+**Last commit at time of writing:** `34f774e` (chore: tracker sync for REV-002; docs closeout `3e42fe2`; backend
+`d61d8e4`, frontend `0a11e87`)
 
 ---
 
@@ -30,13 +29,14 @@ separate, subsequent step (not yet performed as of this update) — see Section 
   for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
   test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
   PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
-- **Dashboard numbers (as of commit `7a50561`, before this session's REV-002 closeout — tracker sync for
-  REV-002 not yet performed):** Overall Progress **56.8%** | Completed Milestones **8/24** | Completed Epics
-  **15/23** | Completed Stories **36/47** | Current Phase **PH2** | Current Milestone **ML9** (1/2 stories done,
-  In Progress) | Current Sprint **SP09** (1/2 done, In Progress) | Upcoming Sprint **SP10**. **These numbers are
-  now stale** — `REV-002` has shipped since, completing Sprint 9/Milestone ML9 in full (2/2 stories, 2/2
-  respectively); the tracker sync (Section 5) to bring the spreadsheet's rollups current, and the resulting
-  refreshed Dashboard numbers, is a separate step the orchestrator performs after this file is written.
+- **Dashboard numbers (as of commit `34f774e`, tracker sync for REV-002 confirmed applied and verified):**
+  Overall Progress **59.4%** | Completed Milestones **9/24** | Completed Epics **16/23** | Completed Stories
+  **37/47** | Current Phase **PH2** (progress **0.76**) | Milestone **ML9** — ✅ **Completed** (2/2 stories) |
+  Epic **ML9-EP01** — ✅ **Completed** | Sprint **SP09** — ✅ **Completed** (2/2 stories) | Upcoming Sprint
+  **SP10** (see Section 2 — its first story, `LEAD-001`, has now been identified). These numbers are current
+  and verified (each of the 14 changed cells checked individually via `openpyxl` before and after, plus a
+  structural cell-by-cell diff against the pre-sync file confirming no other cell changed) — no further tracker
+  action is needed for REV-002.
 - **Sprint 9 / Milestone ML9 ("Outcome & Reviews") is now fully complete — 2 of 2 stories done: `REV-001`,
   `REV-002`.** `REV-001` shipped and was signed off 13 September 2026 — see
   `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md` (`architect`: APPROVED, one minor non-blocking
@@ -65,14 +65,34 @@ separate, subsequent step (not yet performed as of this update) — see Section 
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
   historical context on a specific earlier decision; it's over 1200 lines.
 
-## 2. Next story — Sprint 10 (first story not yet identified)
+## 2. Next story — Sprint 10, first story: `LEAD-001`
 
-**Milestone ML9 ("Outcome & Reviews") is now fully complete — both `REV-001` and `REV-002` are Done.** There is
-no next-startable story recorded in this file yet: **Sprint 10's first story has not been looked up.** Per
-standing practice, the orchestrator must read `docs/AI/Project_Tracker.xlsx` to identify Sprint 10's first story
-(its Epic, Milestone, verbatim description, and Acceptance Criteria) and record it here — and in
-`docs/AI/PROJECT_IMPLEMENTATION_STATE.md` — before any engineering agent plans or starts it. **Do NOT start any
-Sprint 10 story without that lookup and the CTO's explicit "Start X" instruction.**
+**Milestone ML9 ("Outcome & Reviews") is now fully complete — both `REV-001` and `REV-002` are Done.** Sprint 10
+("Provider Leads & Analytics," Milestone **ML10**, Epic **ML10-EP01**) is next. Its first story, looked up fresh
+from `docs/AI/Project_Tracker.xlsx` (row 38) this session:
+
+- **Story ID:** `LEAD-001` — "See and manage my provider leads"
+- **Sprint/Milestone/Epic/Phase:** SP10 / ML10 / ML10-EP01 / PH2
+- **Priority:** High | **Depends on:** `CON-001` (already shipped) | **Status:** ⏳ Planned
+- **Description (verbatim):** "As a provider, I want to see who viewed my contact info and whether they went on
+  to hire me, so that I can gauge real interest in my listing without needing customer-provider messaging, which
+  doesn't exist in this product. This story surfaces `CON-001`'s Contact Views and `REV-001`'s outcome tags as a
+  provider-facing Leads list, without exposing more customer PII than necessary. Scope boundary: does not
+  include visibility analytics/trend charts (`LEAD-002`) — this story is the raw lead list only."
+- **Acceptance Criteria (verbatim):**
+  1. Leads screen lists Contact Views for the authenticated provider, each showing a category/request context, a
+     relative timestamp, and an outcome status chip (Hired / Not hired / not yet reported) where available.
+  2. Leads are ordered most-recent-first and support the app's standard pull-to-refresh and empty-state patterns.
+  3. No more customer PII is shown than necessary for the provider to recognize the lead.
+  4. A provider can only see their own leads (ownership enforced, tested explicitly).
+  5. Automated tests cover the ownership boundary and correct outcome-status display across all three states.
+- **Sprint 10's theme/goal** (from the Sprints sheet): "Provider Leads & Analytics" — "A provider can see leads
+  and storefront visibility." `LEAD-002` ("Understand my listing visibility") is Sprint 10's second story,
+  depends on `LEAD-001`, not yet started.
+
+This is now recorded here and should also be reflected in `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s "Next
+Planned Story" section. **Do NOT start `LEAD-001` (or any Sprint 10 story) without the CTO's explicit "Start X"
+instruction** — this lookup only identifies the story, it is not authorization to begin it.
 
 ## 3. Standing process (do not skip steps)
 
@@ -300,9 +320,8 @@ review-rejection exception shapes). Next new ADR starts at **ADR-054**.
   spreadsheet themselves (this was a repeated, avoidable source of wasted planning rounds in Sprints 6–7).
 ---
 
-**End of handoff. Sprint 9 / Milestone ML9 is now fully complete — 2 of 2 stories done (`REV-001`, `REV-002`).
-Tracker sync for `REV-002` has NOT yet been performed as of this update (a separate, subsequent step — Section
-5) — do not assume the Dashboard/rollup numbers above already reflect it. Sprint 10's first story has not been
-identified. When resuming: read this file, perform the tracker sync for `REV-002` if not already done, look up
-Sprint 10's first story in `docs/AI/Project_Tracker.xlsx`, confirm the CTO wants to proceed with it, then follow
-Section 3's cycle starting with `tech-lead`.**
+**End of handoff. Sprint 9 / Milestone ML9 is now fully complete — 2 of 2 stories done (`REV-001`, `REV-002`) —
+and its tracker sync is done and verified (Dashboard/rollup numbers above are current). Sprint 10's first story,
+`LEAD-001` ("See and manage my provider leads"), has been identified (Section 2) but NOT started. When
+resuming: read this file, confirm the CTO wants to proceed with `LEAD-001`, then follow Section 3's cycle
+starting with `tech-lead`.**
