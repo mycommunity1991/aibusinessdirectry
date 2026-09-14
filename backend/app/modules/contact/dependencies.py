@@ -133,6 +133,11 @@ def get_lead_service(
     providers, plus `search.SearchRequestRepository` and `provider.
     ProviderService` (both already existing cross-module edges via
     `ContactService`), and a new `category.CategoryRepository` edge.
+
+    `search.SearchRequestRepository` and `category.CategoryRepository`
+    are raw Repository dependencies, not Services, per ADR-047's
+    exception -- neither `SearchRequestService` nor `CategoryService`
+    exposes a batch-by-ids read primitive today.
     """
     return LeadService(
         contact_view_repository=contact_view_repository,

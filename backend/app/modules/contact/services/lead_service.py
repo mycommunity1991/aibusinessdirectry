@@ -12,6 +12,12 @@ CategoryRepository` (new), `provider.ProviderService` (already an
 existing edge via `ContactService`) -- mirrors Decision 1's own
 reasoning for reusing `contact`'s already-established dependency
 direction rather than inventing a new one.
+
+`search.SearchRequestRepository` and `category.CategoryRepository` are
+raw Repository dependencies here, not Services, per ADR-047's own
+carved-out exception: neither `SearchRequestService` nor
+`CategoryService` exposes a batch-by-ids read primitive today, so there
+is no equivalent Service method to depend on instead.
 """
 
 import uuid
