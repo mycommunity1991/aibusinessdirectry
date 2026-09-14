@@ -24,6 +24,20 @@ class SearchRequestRepository(BaseRepository[SearchRequest]):
         """
         return await self.update(search_request, {"status": status})
 
+    async def list_by_ids(self, ids: list[uuid.UUID]) -> list[SearchRequest]:
+        """
+        Batch-fetches `search_requests` rows by id in one query (LEAD-001,
+        Backend Proposed Changes item 3, `Plan_S10_LEAD-001.md`) --
+        mirrors `ProviderRepository.list_by_ids`'s existing, precedented
+        shape. Used by `LeadService` to batch-resolve `category_id` for
+        a page of leads without an N+1 query.
+        """
+        if not ids:
+            return []
+        stmt = select(SearchRequest).where(SearchRequest.id.in_(ids))
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_latest_by_conversation_session_id(
         self, conversation_session_id: uuid.UUID
     ) -> SearchRequest | None:

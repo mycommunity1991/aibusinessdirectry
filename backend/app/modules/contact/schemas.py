@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -61,3 +62,46 @@ class OutcomeTagResponse(BaseModel):
     contact_view_id: uuid.UUID
     hired: bool
     submitted_at: datetime
+
+
+class LeadOutcomeStatus(StrEnum):
+    """
+    LEAD-001, Decision 5, `Plan_S10_LEAD-001.md` -- the three-state
+    outcome status a Lead's `OutcomeTag` (if any) maps onto, computed
+    server-side (never the raw boolean or a raw-row absence left for the
+    client to interpret). Mirrors `search/models.py`'s own
+    `SearchRequestStatus` `StrEnum` shape.
+    """
+
+    HIRED = "hired"
+    NOT_HIRED = "not_hired"
+    NOT_YET_REPORTED = "not_yet_reported"
+
+
+class LeadResponse(BaseModel):
+    """
+    Response payload for one row of `GET /providers/me/leads`
+    (LEAD-001, AC1, Decision 4) -- deliberately carries no
+    `customer_id`/`provider_id`/PII field: no customer name, avatar,
+    phone, or raw customer id anywhere on this shape. `category_name`
+    is `null` whenever Decision 3's two-hop lookup dead-ends (never a
+    fabricated fallback) -- the mobile client renders an honest fallback
+    string in that case.
+    """
+
+    id: uuid.UUID = Field(..., description="The underlying Contact View's own id.")
+    category_name: str | None = Field(
+        None,
+        description=(
+            "The category this lead was reached through, if resolvable "
+            "(Decision 3). `null` when the Contact View has no "
+            "`search_request_id`, or when that search request's own "
+            "`category_id` is `null` -- never a fabricated substitute."
+        ),
+    )
+    viewed_at: datetime = Field(
+        ..., description="When the customer viewed this provider's contact details."
+    )
+    outcome_status: LeadOutcomeStatus = Field(
+        ..., description="Hired / Not hired / not yet reported (Decision 5)."
+    )

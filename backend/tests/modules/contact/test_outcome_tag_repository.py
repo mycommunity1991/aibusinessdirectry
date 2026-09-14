@@ -68,3 +68,73 @@ class TestGetByContactViewId:
         result = await repository.get_by_contact_view_id(uuid.uuid4())
 
         assert result is None
+
+
+class TestListByContactViewIds:
+    """LEAD-001, Backend Proposed Changes item 4, `Plan_S10_LEAD-001.md`
+    -- the batch counterpart to `get_by_contact_view_id`."""
+
+    @pytest.mark.anyio
+    async def test_returns_empty_list_for_an_empty_input_list(self, db_session) -> None:
+        repository = OutcomeTagRepository(db_session)
+
+        result = await repository.list_by_contact_view_ids([])
+
+        assert result == []
+
+    @pytest.mark.anyio
+    async def test_returns_only_the_matching_rows_for_a_partial_match(
+        self, db_session
+    ) -> None:
+        customer_user = await create_user(db_session, "601200001")
+        await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "601200002")
+        provider = await create_provider(db_session, user=provider_owner)
+        tagged_contact_view = await _create_contact_view(
+            db_session, customer_user_id=customer_user.id, provider_id=provider.id
+        )
+        untagged_contact_view = await _create_contact_view(
+            db_session, customer_user_id=customer_user.id, provider_id=provider.id
+        )
+        repository = OutcomeTagRepository(db_session)
+        await repository.try_create(
+            {"contact_view_id": tagged_contact_view.id, "hired": True}
+        )
+        await db_session.commit()
+
+        result = await repository.list_by_contact_view_ids(
+            [tagged_contact_view.id, untagged_contact_view.id, uuid.uuid4()]
+        )
+
+        assert len(result) == 1
+        assert result[0].contact_view_id == tagged_contact_view.id
+
+    @pytest.mark.anyio
+    async def test_returns_every_row_for_a_full_match(self, db_session) -> None:
+        customer_user = await create_user(db_session, "601200003")
+        await create_customer_profile(db_session, customer_user)
+        provider_owner = await create_user(db_session, "601200004")
+        provider = await create_provider(db_session, user=provider_owner)
+        first_contact_view = await _create_contact_view(
+            db_session, customer_user_id=customer_user.id, provider_id=provider.id
+        )
+        second_contact_view = await _create_contact_view(
+            db_session, customer_user_id=customer_user.id, provider_id=provider.id
+        )
+        repository = OutcomeTagRepository(db_session)
+        await repository.try_create(
+            {"contact_view_id": first_contact_view.id, "hired": True}
+        )
+        await repository.try_create(
+            {"contact_view_id": second_contact_view.id, "hired": False}
+        )
+        await db_session.commit()
+
+        result = await repository.list_by_contact_view_ids(
+            [first_contact_view.id, second_contact_view.id]
+        )
+
+        assert {tag.contact_view_id for tag in result} == {
+            first_contact_view.id,
+            second_contact_view.id,
+        }

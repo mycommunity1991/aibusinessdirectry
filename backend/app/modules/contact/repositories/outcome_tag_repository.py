@@ -69,3 +69,24 @@ class OutcomeTagRepository(BaseRepository[OutcomeTag]):
         stmt = select(OutcomeTag).where(OutcomeTag.contact_view_id == contact_view_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def list_by_contact_view_ids(
+        self, contact_view_ids: list[uuid.UUID]
+    ) -> list[OutcomeTag]:
+        """
+        Batch counterpart to `get_by_contact_view_id` (LEAD-001, Backend
+        Proposed Changes item 4, `Plan_S10_LEAD-001.md`, Decision 5) --
+        a plain `WHERE contact_view_id IN (...)` batch fetch, needed by
+        `LeadService` to resolve a page of leads' outcome statuses
+        without an N+1 query. Any `contact_view_id` with no row here has
+        no `OutcomeTag` yet -- the "not yet reported" state (the 1:1
+        unique constraint on `contact_view_id` guarantees at most one
+        row per id, so callers never need to dedupe the result).
+        """
+        if not contact_view_ids:
+            return []
+        stmt = select(OutcomeTag).where(
+            OutcomeTag.contact_view_id.in_(contact_view_ids)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

@@ -6,6 +6,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.session import get_db
+from app.modules.category.dependencies import get_category_repository
+from app.modules.category.repositories.category_repository import CategoryRepository
 from app.modules.contact.repositories.contact_view_repository import (
     ContactViewRepository,
 )
@@ -13,6 +15,7 @@ from app.modules.contact.repositories.outcome_tag_repository import (
     OutcomeTagRepository,
 )
 from app.modules.contact.services.contact_service import ContactService
+from app.modules.contact.services.lead_service import LeadService
 from app.modules.contact.services.outcome_tag_service import OutcomeTagService
 from app.modules.customer.dependencies import get_customer_profile_repository
 from app.modules.customer.repositories.customer_profile_repository import (
@@ -105,4 +108,36 @@ def get_outcome_tag_service(
         outcome_tag_repository=outcome_tag_repository,
         contact_view_repository=contact_view_repository,
         customer_profile_repository=customer_profile_repository,
+    )
+
+
+def get_lead_service(
+    contact_view_repository: Annotated[
+        ContactViewRepository, Depends(get_contact_view_repository)
+    ],
+    outcome_tag_repository: Annotated[
+        OutcomeTagRepository, Depends(get_outcome_tag_repository)
+    ],
+    search_request_repository: Annotated[
+        SearchRequestRepository, Depends(get_search_request_repository)
+    ],
+    category_repository: Annotated[
+        CategoryRepository, Depends(get_category_repository)
+    ],
+    provider_service: Annotated[ProviderService, Depends(get_provider_service)],
+) -> LeadService:
+    """
+    Provides a `LeadService` bound to the request-scoped DB session
+    (LEAD-001, Decision 1, `Plan_S10_LEAD-001.md`) -- wires in the
+    module's existing `ContactViewRepository`/`OutcomeTagRepository`
+    providers, plus `search.SearchRequestRepository` and `provider.
+    ProviderService` (both already existing cross-module edges via
+    `ContactService`), and a new `category.CategoryRepository` edge.
+    """
+    return LeadService(
+        contact_view_repository=contact_view_repository,
+        outcome_tag_repository=outcome_tag_repository,
+        search_request_repository=search_request_repository,
+        category_repository=category_repository,
+        provider_service=provider_service,
     )

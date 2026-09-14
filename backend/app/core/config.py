@@ -132,6 +132,12 @@ class Settings(BaseSettings):
     # small, hence a tighter cap than `SEARCH_MAX_PAGE_SIZE`.
     CLAIM_SEARCH_MAX_PAGE_SIZE: int = 20
 
+    # Leads list (LEAD-001, Backend Proposed Changes item 1,
+    # `Plan_S10_LEAD-001.md`) -- the fourth instance of this codebase's
+    # established per-domain page-size-cap pattern
+    # (`SEARCH_MAX_PAGE_SIZE`, `CLAIM_SEARCH_MAX_PAGE_SIZE`).
+    LEADS_MAX_PAGE_SIZE: int = 50
+
     # AI Conversation intake (AI-001, Decision 4, `Plan_S07_AI-001.md`)
     # -- config-driven, not code, mirroring VER-001's "business
     # verification type is an app-config decision" precedent
