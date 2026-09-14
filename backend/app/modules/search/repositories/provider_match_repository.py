@@ -104,9 +104,15 @@ class ProviderMatchRepository(BaseRepository[ProviderMatch]):
         `Plan_S10_LEAD-002.md`) -- only days that actually have a row
         are returned; `VisibilityAnalyticsService` zero-fills the rest
         in Python. Plain `GROUP BY date_trunc('day', ...)`, deliberately
-        not a SQL `generate_series` (Decision 4).
+        not a SQL `generate_series` (Decision 4). `created_at` is
+        converted to UTC via `AT TIME ZONE 'UTC'` before truncation, so
+        the day boundary is always UTC midnight regardless of the DB
+        session's timezone GUC -- matching `VisibilityAnalyticsService`'s
+        own explicit `tzinfo=UTC` window boundaries.
         """
-        day_column = func.date_trunc("day", ProviderMatch.created_at)
+        day_column = func.date_trunc(
+            "day", ProviderMatch.created_at.op("AT TIME ZONE")("UTC")
+        )
         stmt = (
             select(day_column, func.count())
             .select_from(ProviderMatch)
