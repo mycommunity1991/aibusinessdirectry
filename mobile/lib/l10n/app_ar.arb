@@ -286,5 +286,10 @@
   "outcomeTagPromptYesLabel": "نعم",
   "outcomeTagPromptNoLabel": "لا",
   "outcomeTagPromptMaybeLaterLabel": "ربما لاحقاً",
-  "outcomeTagPromptThanksMessage": "شكراً لإخبارنا!"
+  "outcomeTagPromptThanksMessage": "شكراً لإخبارنا!",
+  "writeReviewTitle": "اكتب تقييماً",
+  "writeReviewRatingLabel": "كيف تقيّم تجربتك معهم؟",
+  "writeReviewCommentLabel": "تعليق (اختياري)",
+  "writeReviewSubmitLabel": "إرسال التقييم",
+  "writeReviewThanksMessage": "شكراً على تقييمك!"
 }

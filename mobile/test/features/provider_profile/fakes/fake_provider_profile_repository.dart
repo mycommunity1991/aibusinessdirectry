@@ -5,6 +5,8 @@ import 'package:ai_marketplace_app/features/provider_profile/domain/models/outco
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/outcome_tag_exception.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile_exception.dart';
+import 'package:ai_marketplace_app/features/provider_profile/domain/models/review.dart';
+import 'package:ai_marketplace_app/features/provider_profile/domain/models/review_exception.dart';
 import 'package:dio/dio.dart';
 
 /// A hermetic test double for [ProviderProfileRepository] -- no real
@@ -18,6 +20,8 @@ class FakeProviderProfileRepository extends ProviderProfileRepository {
     this.createContactViewError,
     this.outcomeTag,
     this.submitOutcomeTagError,
+    this.review,
+    this.submitReviewError,
   }) : super(Dio());
 
   /// The [ProviderProfile] a successful `getProviderProfile` call returns.
@@ -38,13 +42,21 @@ class FakeProviderProfileRepository extends ProviderProfileRepository {
   /// The failure `submitOutcomeTag` throws, if any.
   final OutcomeTagException? submitOutcomeTagError;
 
+  /// The [Review] a successful `submitReview` call returns.
+  final Review? review;
+
+  /// The failure `submitReview` throws, if any.
+  final ReviewException? submitReviewError;
+
   int getProviderProfileCallCount = 0;
   int createContactViewCallCount = 0;
   int submitOutcomeTagCallCount = 0;
+  int submitReviewCallCount = 0;
 
   String? lastGetProviderProfileId;
   ({String providerId, String? searchRequestId})? lastCreateContactViewArgs;
   ({String contactViewId, bool hired})? lastSubmitOutcomeTagArgs;
+  ({String contactViewId, int rating, String? comment})? lastSubmitReviewArgs;
 
   @override
   Future<ProviderProfile> getProviderProfile(String providerId) async {
@@ -83,5 +95,23 @@ class FakeProviderProfileRepository extends ProviderProfileRepository {
       throw submitOutcomeTagError!;
     }
     return outcomeTag!;
+  }
+
+  @override
+  Future<Review> submitReview({
+    required String contactViewId,
+    required int rating,
+    String? comment,
+  }) async {
+    submitReviewCallCount++;
+    lastSubmitReviewArgs = (
+      contactViewId: contactViewId,
+      rating: rating,
+      comment: comment,
+    );
+    if (submitReviewError != null) {
+      throw submitReviewError!;
+    }
+    return review!;
   }
 }

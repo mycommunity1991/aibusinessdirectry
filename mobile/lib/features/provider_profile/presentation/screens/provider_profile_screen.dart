@@ -19,6 +19,7 @@ import '../../domain/models/provider_profile.dart';
 import '../../domain/models/provider_profile_args.dart';
 import '../../domain/models/provider_profile_exception.dart';
 import '../../state/contact_reveal_controller.dart';
+import '../../state/outcome_tag_prompt_controller.dart';
 import '../../state/provider_profile_controller.dart';
 import '../utils/provider_profile_error_copy.dart';
 import '../widgets/contact_reveal_sheet.dart';
@@ -33,7 +34,10 @@ import '../widgets/outcome_tag_prompt_sheet.dart';
 /// anywhere between tapping Contact and seeing the phone number. Once the
 /// Contact Reveal sheet closes on a real reveal, the [OutcomeTagPromptSheet]
 /// (REV-001) opens next, in the same session (Decision 6,
-/// `Plan_S09_REV-001.md`).
+/// `Plan_S09_REV-001.md`). Once *that* sheet closes on a real `hired=true`
+/// submission, the Write-a-Review screen (S-10, REV-002, Decision 7) opens
+/// next -- the only call site anywhere in the app that ever navigates
+/// there (AC6).
 class ProviderProfileScreen extends ConsumerWidget {
   const ProviderProfileScreen({super.key, required this.args});
 
@@ -50,6 +54,14 @@ class ProviderProfileScreen extends ConsumerWidget {
   /// if a real reveal happened (`status == loaded`, not merely an error
   /// state the customer backed out of) -- opens the Outcome Tag Prompt
   /// sheet with the just-created `contact_view_id` (REV-001, Decision 6).
+  /// Once that sheet closes, reads its controller's final state (REV-002,
+  /// Decision 7, `Plan_S09_REV-002.md`): only a real `hired=true`
+  /// submission (`status == submitted && lastHired == true`) pushes the
+  /// Write-a-Review screen next -- `hired=false`, "Maybe later," and any
+  /// unrecoverable-error dismissal all do nothing further, leaving
+  /// [OutcomeTagPromptSheet]'s own existing close behavior untouched. This
+  /// is the *only* call site anywhere in the app that ever pushes
+  /// [AppRoutes.writeReview] (AC6).
   Future<void> _onContactTap(
     BuildContext context,
     WidgetRef ref,
@@ -67,6 +79,25 @@ class ProviderProfileScreen extends ConsumerWidget {
       contactViewId: reveal.id,
       providerDisplayName: reveal.providerDisplayName,
       providerPhotoUrl: providerPhotoUrl,
+    );
+    if (!context.mounted) return;
+
+    final outcomeTagState = ref.read(
+      outcomeTagPromptControllerProvider(reveal.id),
+    );
+    if (outcomeTagState.status != OutcomeTagPromptStatus.submitted ||
+        outcomeTagState.lastHired != true) {
+      return;
+    }
+
+    await context.push<void>(
+      AppRoutes.writeReview,
+      extra: (
+        contactViewId: reveal.id,
+        providerId: reveal.providerId,
+        providerDisplayName: reveal.providerDisplayName,
+        providerPhotoUrl: providerPhotoUrl,
+      ),
     );
   }
 

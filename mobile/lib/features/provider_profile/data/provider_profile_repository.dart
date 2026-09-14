@@ -8,14 +8,19 @@ import '../domain/models/outcome_tag.dart';
 import '../domain/models/outcome_tag_exception.dart';
 import '../domain/models/provider_profile.dart';
 import '../domain/models/provider_profile_exception.dart';
+import '../domain/models/review.dart';
+import '../domain/models/review_exception.dart';
 
-/// Wraps the Provider Profile screen's (S-09), Contact Reveal sheet's, and
-/// Outcome Tag Prompt sheet's backend endpoints (CON-001/REV-001):
+/// Wraps the Provider Profile screen's (S-09), Contact Reveal sheet's,
+/// Outcome Tag Prompt sheet's, and Write-a-Review screen's backend
+/// endpoints (CON-001/REV-001/REV-002):
 /// `GET /providers/{provider_id}`
 /// (`backend/app/modules/provider/public_api.py`),
-/// `POST /contact-views`, and
+/// `POST /contact-views`,
 /// `POST /contact-views/{contact_view_id}/outcome-tag`
-/// (`backend/app/modules/contact/api.py`).
+/// (`backend/app/modules/contact/api.py`), and
+/// `POST /contact-views/{contact_view_id}/review`
+/// (`backend/app/modules/review/api.py`).
 ///
 /// Every failure is mapped to a plain-language exception -- callers (the
 /// state controllers/screens) never see a [DioException], an HTTP status
@@ -95,6 +100,31 @@ class ProviderProfileRepository {
     }
   }
 
+  /// `POST /contact-views/{contact_view_id}/review` (REV-002, AC1) --
+  /// rates the provider after a confirmed ('Yes') hire outcome. [comment]
+  /// is omitted from the request body entirely when `null`, never sent as
+  /// a literal JSON `null` (mirrors [createContactView]'s
+  /// `search_request_id` handling).
+  Future<Review> submitReview({
+    required String contactViewId,
+    required int rating,
+    String? comment,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/contact-views/$contactViewId/review',
+        data: {'rating': rating, 'comment': ?comment},
+      );
+      final data = response.data?['data'] as Map<String, dynamic>?;
+      if (data == null) {
+        throw const ReviewException(type: ReviewErrorType.unknown);
+      }
+      return Review.fromJson(data);
+    } on DioException catch (error) {
+      throw _mapReviewError(error);
+    }
+  }
+
   ProviderProfileException _mapProfileError(DioException error) {
     if (error.response == null) {
       return const ProviderProfileException(
@@ -130,6 +160,35 @@ class ProviderProfileRepository {
       404 => const OutcomeTagException(type: OutcomeTagErrorType.notFound),
       409 => const OutcomeTagException(type: OutcomeTagErrorType.alreadyExists),
       _ => const OutcomeTagException(type: OutcomeTagErrorType.unknown),
+    };
+  }
+
+  /// `POST .../review` has two distinct 409 causes (Decision 5,
+  /// `Plan_S09_REV-002.md`): `ReviewAnchorNotVerifiedError` and
+  /// `ReviewAlreadyExistsError`. The backend's `ErrorResponse` body carries
+  /// only `{success, message, errors}` -- no structured error identifier
+  /// (`backend/app/shared/schemas/response.py`) -- so the two can't be
+  /// told apart over the wire without parsing the raw `message` string,
+  /// which `docs/AI/06_SECURITY.md`'s "never surface/rely on the backend's
+  /// raw message" convention (already followed by every other repository
+  /// in this codebase) rules out. Both are collapsed into
+  /// [ReviewErrorType.anchorNotVerified] here -- functionally low-stakes in
+  /// practice, since [WriteReviewScreen] shows the same plain-language
+  /// inline error (with no type-specific copy or retry semantics) for every
+  /// failure type, unlike [OutcomeTagPromptSheet]'s own quiet-close
+  /// treatment of its 404/409 cases -- a full-screen form the customer just
+  /// filled in deserves explicit feedback rather than silently closing.
+  /// [ReviewErrorType.alreadyExists] is kept in the domain model for
+  /// documentation/forward-compatibility (Decision 5's taxonomy), should the
+  /// backend ever add a distinguishing field.
+  ReviewException _mapReviewError(DioException error) {
+    if (error.response == null) {
+      return const ReviewException(type: ReviewErrorType.network);
+    }
+    return switch (error.response!.statusCode) {
+      404 => const ReviewException(type: ReviewErrorType.notFound),
+      409 => const ReviewException(type: ReviewErrorType.anchorNotVerified),
+      _ => const ReviewException(type: ReviewErrorType.unknown),
     };
   }
 }

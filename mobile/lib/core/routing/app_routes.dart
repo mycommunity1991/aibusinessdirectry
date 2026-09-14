@@ -124,4 +124,13 @@ class AppRoutes {
   /// `searchRequestId: null`) and from the AI Conversation results view's
   /// card tap (`searchRequestId` threaded from the session).
   static const String providerProfile = '/provider-profile';
+
+  /// S-10 -- Write a Review (REV-002, AC6). Always reached via
+  /// `push(..., extra: WriteReviewArgs(...))` -- a plain record, never a
+  /// bare deep link, mirroring [otpEntry]/[addressForm]'s `extra`-required
+  /// pattern. Reachable exactly one way: from
+  /// `ProviderProfileScreen._onContactTap`, only after a real `hired=true`
+  /// Outcome Tag Prompt submission (Decision 7, `Plan_S09_REV-002.md`) --
+  /// no other call site, deep link, or menu item navigates here.
+  static const String writeReview = '/write-review';
 }

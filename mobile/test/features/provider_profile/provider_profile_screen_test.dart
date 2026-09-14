@@ -2,6 +2,8 @@ import 'package:ai_marketplace_app/features/provider/domain/models/weekday_avail
 import 'package:ai_marketplace_app/features/provider_profile/data/provider_profile_repository.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/contact_exception.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/contact_reveal.dart';
+import 'package:ai_marketplace_app/features/provider_profile/domain/models/outcome_tag.dart';
+import 'package:ai_marketplace_app/features/provider_profile/domain/models/outcome_tag_exception.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile_args.dart';
 import 'package:ai_marketplace_app/features/provider_profile/domain/models/provider_profile_exception.dart';
@@ -438,5 +440,170 @@ void main() {
       findsNothing,
     );
     expect(find.text('Did you hire them?'), findsNothing);
+  });
+
+  group('Outcome Tag Prompt -> Write-a-Review chaining (REV-002, AC6, '
+      'Decision 7)', () {
+    Future<void> openContactAndOutcomeTagSheets(
+      WidgetTester tester,
+      FakeProviderProfileRepository fakeRepository,
+    ) async {
+      await pumpProviderProfileScreen(
+        tester,
+        child: const ProviderProfileScreen(args: args),
+        overrides: [
+          providerProfileRepositoryProvider.overrideWithValue(fakeRepository),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Contact'));
+      await tester.pumpAndSettle();
+
+      // Close the Contact Reveal sheet by tapping outside it (the modal
+      // barrier), exactly as the existing Decision 6 test above does --
+      // this reveals the Outcome Tag Prompt sheet next.
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a hired=true Outcome Tag Prompt submission pushes AppRoutes.'
+        'writeReview with the correct WriteReviewArgs -- the only positive '
+        'case that ever does', (tester) async {
+      final fakeRepository = FakeProviderProfileRepository(
+        profile: businessProfile(
+          isClaimed: true,
+          verificationStatus: 'approved',
+        ),
+        contactReveal: const ContactReveal(
+          id: 'contact-view-1',
+          providerId: 'provider-1',
+          providerDisplayName: 'Al Noor Plumbing Services LLC',
+          phoneCountryCode: '+971',
+          phoneNumber: '501234567',
+        ),
+        outcomeTag: OutcomeTag(
+          id: 'outcome-tag-1',
+          contactViewId: 'contact-view-1',
+          hired: true,
+          submittedAt: DateTime.utc(2024, 1, 1),
+        ),
+      );
+      await openContactAndOutcomeTagSheets(tester, fakeRepository);
+
+      await tester.tap(
+        find.byKey(const ValueKey('outcome-tag-prompt-yes-button')),
+      );
+      // Mirrors `outcome_tag_prompt_sheet_test.dart`'s own pattern for
+      // advancing past the sheet's 700ms auto-close delay on a
+      // `submitted` status.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'write-review-stub-contact-view-1-provider-1-'
+          'Al Noor Plumbing Services LLC',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a hired=false Outcome Tag Prompt submission does NOT push '
+        'AppRoutes.writeReview (AC6 negative case)', (tester) async {
+      final fakeRepository = FakeProviderProfileRepository(
+        profile: businessProfile(
+          isClaimed: true,
+          verificationStatus: 'approved',
+        ),
+        contactReveal: const ContactReveal(
+          id: 'contact-view-1',
+          providerId: 'provider-1',
+          providerDisplayName: 'Al Noor Plumbing Services LLC',
+          phoneCountryCode: '+971',
+          phoneNumber: '501234567',
+        ),
+        outcomeTag: OutcomeTag(
+          id: 'outcome-tag-1',
+          contactViewId: 'contact-view-1',
+          hired: false,
+          submittedAt: DateTime.utc(2024, 1, 1),
+        ),
+      );
+      await openContactAndOutcomeTagSheets(tester, fakeRepository);
+
+      await tester.tap(
+        find.byKey(const ValueKey('outcome-tag-prompt-no-button')),
+      );
+      // Mirrors `outcome_tag_prompt_sheet_test.dart`'s own pattern for
+      // advancing past the sheet's 700ms auto-close delay on a
+      // `submitted` status.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 700));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('write-review-stub'), findsNothing);
+    });
+
+    testWidgets(
+      '"Maybe later" does NOT push AppRoutes.writeReview (AC6 negative '
+      'case)',
+      (tester) async {
+        final fakeRepository = FakeProviderProfileRepository(
+          profile: businessProfile(
+            isClaimed: true,
+            verificationStatus: 'approved',
+          ),
+          contactReveal: const ContactReveal(
+            id: 'contact-view-1',
+            providerId: 'provider-1',
+            providerDisplayName: 'Al Noor Plumbing Services LLC',
+            phoneCountryCode: '+971',
+            phoneNumber: '501234567',
+          ),
+        );
+        await openContactAndOutcomeTagSheets(tester, fakeRepository);
+
+        await tester.tap(
+          find.byKey(const ValueKey('outcome-tag-prompt-maybe-later-button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('write-review-stub'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'an unrecoverable Outcome Tag Prompt submission error (the sheet '
+      'closes quietly) does NOT push AppRoutes.writeReview (AC6 negative '
+      'case)',
+      (tester) async {
+        final fakeRepository = FakeProviderProfileRepository(
+          profile: businessProfile(
+            isClaimed: true,
+            verificationStatus: 'approved',
+          ),
+          contactReveal: const ContactReveal(
+            id: 'contact-view-1',
+            providerId: 'provider-1',
+            providerDisplayName: 'Al Noor Plumbing Services LLC',
+            phoneCountryCode: '+971',
+            phoneNumber: '501234567',
+          ),
+          submitOutcomeTagError: const OutcomeTagException(
+            type: OutcomeTagErrorType.notFound,
+          ),
+        );
+        await openContactAndOutcomeTagSheets(tester, fakeRepository);
+
+        await tester.tap(
+          find.byKey(const ValueKey('outcome-tag-prompt-yes-button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.textContaining('write-review-stub'), findsNothing);
+      },
+    );
   });
 }

@@ -1086,5 +1086,25 @@
   "outcomeTagPromptThanksMessage": "Thanks for letting us know!",
   "@outcomeTagPromptThanksMessage": {
     "description": "Brief confirmation copy shown for a moment after a successful Yes/No submission, before the Outcome Tag Prompt sheet auto-closes (REV-001, not itself an AC requirement -- minor UX completeness)."
+  },
+  "writeReviewTitle": "Write a review",
+  "@writeReviewTitle": {
+    "description": "App bar title on the Write-a-Review screen (S-10, REV-002, AC1). Only ever reached after a confirmed hire outcome (AC6)."
+  },
+  "writeReviewRatingLabel": "How would you rate them?",
+  "@writeReviewRatingLabel": {
+    "description": "Heading above the 1-5 star rating input on the Write-a-Review screen (REV-002, AC3)."
+  },
+  "writeReviewCommentLabel": "Comment (optional)",
+  "@writeReviewCommentLabel": {
+    "description": "Label on the Write-a-Review screen's optional free-text comment field (REV-002, AC3) -- the label itself communicates the field is optional."
+  },
+  "writeReviewSubmitLabel": "Submit review",
+  "@writeReviewSubmitLabel": {
+    "description": "The Write-a-Review screen's Submit button label -- disabled until a star rating is chosen (REV-002, AC3)."
+  },
+  "writeReviewThanksMessage": "Thanks for your review!",
+  "@writeReviewThanksMessage": {
+    "description": "Brief confirmation copy shown for a moment after a successful review submission, before the Write-a-Review screen pops back (REV-002, not itself an AC requirement -- minor UX completeness, mirrors outcomeTagPromptThanksMessage's pattern)."
   }
 }
