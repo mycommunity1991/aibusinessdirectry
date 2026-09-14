@@ -6,9 +6,11 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 13 September 2026, immediately after Story REV-001 closeout, tracker synced.
+**Last updated:** 14 September 2026, immediately after Story REV-002 closeout. Tracker sync for REV-002 is a
+separate, subsequent step (not yet performed as of this update) — see Section 5.
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `7a50561` (tracker sync marking REV-001 Done)
+**Last commit at time of writing:** `44f1c56` (docs: REV-002 review outcomes; backend `d61d8e4`, frontend
+`0a11e87`)
 
 ---
 
@@ -28,60 +30,49 @@ file and update this file once caught up.
   for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
   test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
   PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
-- **Dashboard numbers (confirmed as of commit `7a50561`):** Overall Progress **56.8%** | Completed Milestones
-  **8/24** | Completed Epics **15/23** | Completed Stories **36/47** | Current Phase **PH2** | Current Milestone
-  **ML9** (1/2 stories done, In Progress) | Current Sprint **SP09** (1/2 done, In Progress) | Upcoming Sprint
-  **SP10**.
-- **Sprint 9 / Milestone ML9 ("Outcome & Reviews") has started — 1 of 2 stories done: `REV-001`.** It shipped
-  and was signed off 13 September 2026 — see `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md`
-  (`architect`: APPROVED, one minor non-blocking documentation finding, fixed at closeout; `tester`: all 6 ACs
-  pass, no bugs found — only the second story in this project's history, alongside `MAT-001`, to ship with zero
-  real bugs found during review). It extended the existing `contact` module in place with `outcome_tags`
-  (ADR-048), an ownership check reusing `ensure_owner_or_not_found` for a 404 plus an atomic
-  `INSERT ... ON CONFLICT DO NOTHING ... RETURNING` uniqueness guard — independently proven correct under a
-  genuine two-independent-session concurrency test (ADR-049) — and a flagged, additive notification touch-point
-  on `CON-001`'s shipped `ContactService`, plus the mobile Outcome Tag Prompt sheet chained after Contact Reveal
-  (ADR-050). Its next story, `REV-002`, is now the actual next startable story in this milestone — detailed in
-  full below (Section 2).
+- **Dashboard numbers (as of commit `7a50561`, before this session's REV-002 closeout — tracker sync for
+  REV-002 not yet performed):** Overall Progress **56.8%** | Completed Milestones **8/24** | Completed Epics
+  **15/23** | Completed Stories **36/47** | Current Phase **PH2** | Current Milestone **ML9** (1/2 stories done,
+  In Progress) | Current Sprint **SP09** (1/2 done, In Progress) | Upcoming Sprint **SP10**. **These numbers are
+  now stale** — `REV-002` has shipped since, completing Sprint 9/Milestone ML9 in full (2/2 stories, 2/2
+  respectively); the tracker sync (Section 5) to bring the spreadsheet's rollups current, and the resulting
+  refreshed Dashboard numbers, is a separate step the orchestrator performs after this file is written.
+- **Sprint 9 / Milestone ML9 ("Outcome & Reviews") is now fully complete — 2 of 2 stories done: `REV-001`,
+  `REV-002`.** `REV-001` shipped and was signed off 13 September 2026 — see
+  `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md` (`architect`: APPROVED, one minor non-blocking
+  documentation finding, fixed at closeout; `tester`: all 6 ACs pass, no bugs found). It extended the existing
+  `contact` module in place with `outcome_tags` (ADR-048), an ownership check reusing `ensure_owner_or_not_found`
+  for a 404 plus an atomic `INSERT ... ON CONFLICT DO NOTHING ... RETURNING` uniqueness guard — independently
+  proven correct under a genuine two-independent-session concurrency test (ADR-049) — and a flagged, additive
+  notification touch-point on `CON-001`'s shipped `ContactService`, plus the mobile Outcome Tag Prompt sheet
+  chained after Contact Reveal (ADR-050).
+  `REV-002` ("leave a verified review after a successful hire") has since shipped and was signed off
+  14 September 2026, on top of `REV-001` — see `docs/implementation/walkthroughs/Walkthrough_S09_REV-002.md`
+  (`architect`: clean verdict, zero findings, no fix-and-recheck round needed; `tester`: all 7 ACs pass, no
+  functional bugs found). It builds a new, standalone `review` domain module (its own Postgres schema, distinct
+  from `contact` — ADR-051, since `REV-001`'s `outcome_tags`-into-`contact` folding was a narrower, same-schema
+  exception, not a general rule), a race-safe rating-summary recalculation (`SELECT ... FOR UPDATE`-locked full
+  recompute, never an incremental running average, to avoid `NUMERIC(3,2)` rounding drift — ADR-052), and a new
+  409/404 rejection family (`ReviewAnchorNotVerifiedError`/`ReviewAlreadyExistsError`/reused
+  `ContactViewNotFoundError` — ADR-053). `13_OPEN_DECISIONS.md` item 14 is now **Resolved**: both
+  `providers.average_rating`/`review_count` and `review.provider_rating_summaries` are needed, written from the
+  same computed values in the same transaction. On mobile, a new Write-a-Review screen (S-10) is reachable only
+  after a "Yes" Outcome Tag Prompt submission. Final counts: 752/752 backend tests, 233/233 mobile tests.
+  **`REV-001` and `MAT-001` remain the only two stories in this project's history to ship with zero real bugs
+  found during review; `REV-002` is the first story to also return a fully clean `architect` verdict on the
+  first pass alongside a bug-free `tester` pass.**
 - Full narrative history of every story shipped so far (Sprints 1–9) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
-  historical context on a specific earlier decision; it's over 1100 lines.
+  historical context on a specific earlier decision; it's over 1200 lines.
 
-## 2. Next story — Sprint 9 / Milestone ML9 ("Outcome & Reviews")
+## 2. Next story — Sprint 10 (first story not yet identified)
 
-**Do NOT start without the CTO's explicit "Start REV-002" (or equivalent) instruction.**
-Standing practice throughout this project: no engineering agent plans or starts a story unprompted.
-
-**`REV-001` ("tell the platform whether I hired a provider") has shipped** — its dependency requirement for
-`REV-002` is satisfied. `REV-002` is now ready to start, pending the CTO's explicit instruction; its full
-verbatim ACs (already recorded below from `REV-001`'s own closeout write-up) mean no tracker read is required
-to begin planning it.
-
-### REV-002 — "Leave a verified review after a successful hire" (ready to start, pending the CTO's explicit instruction)
-- Sprint: SP09 | Epic: ML9-EP01 | Milestone: ML9 | Phase: PH2 | Priority: **High** | Depends On: **REV-001**
-- **Description:** As a customer who confirmed a hire, I want to rate and review the provider, so that future
-  customers can trust the provider's track record — and so that reviews can never be submitted by someone who
-  didn't actually go through a real Contact View and a positive outcome. This is the anchor-verified review
-  model: a Review can only exist against a Contact View carrying a "Yes" outcome tag from `REV-001`. Because
-  `CON-001`'s self-dealing guard already blocks a provider from generating a Contact View against their own
-  listing, this story's anchor requirement transitively blocks self-reviews too, without needing a second
-  explicit check. **Scope boundary:** does not include provider-side display of reviews beyond the rating
-  summary recalculation. **This is also the story that finally builds `provider_rating_summaries`** — resolving
-  `13_OPEN_DECISIONS.md` item 14's open question in the affirmative (the table is needed after all).
-- **Acceptance Criteria (verbatim):**
-  1. `reviews` and `provider_rating_summaries` tables exist via migration; `reviews.contact_view_id` is unique,
-     enforcing one review per Contact View.
-  2. Submitting a review is only possible when the anchoring Contact View has an `outcome_tags.hired=true` row
-     — attempting otherwise (no outcome tag, or `hired=false`) is rejected.
-  3. Rating is constrained to 1–5; a comment field is optional free text.
-  4. `provider_rating_summaries` (average rating, review count) is recalculated in the same transaction as the
-     review write — never left stale.
-  5. Because the anchoring Contact View was already rejected for self-dealing in `CON-001`, an automated test
-     confirms a provider cannot end up with a review pointing back at their own listing via this path.
-  6. Write-a-Review screen is only reachable after a "Yes" outcome tag — there is no direct navigation path to
-     it otherwise.
-  7. Automated tests cover the anchor-verification rejection case and the rating-summary recalculation
-     correctness.
+**Milestone ML9 ("Outcome & Reviews") is now fully complete — both `REV-001` and `REV-002` are Done.** There is
+no next-startable story recorded in this file yet: **Sprint 10's first story has not been looked up.** Per
+standing practice, the orchestrator must read `docs/AI/Project_Tracker.xlsx` to identify Sprint 10's first story
+(its Epic, Milestone, verbatim description, and Acceptance Criteria) and record it here — and in
+`docs/AI/PROJECT_IMPLEMENTATION_STATE.md` — before any engineering agent plans or starts it. **Do NOT start any
+Sprint 10 story without that lookup and the CTO's explicit "Start X" instruction.**
 
 ## 3. Standing process (do not skip steps)
 
@@ -213,6 +204,25 @@ well-precedented, not a reason to expect it every time.
   one** (ADR-050, `REV-001`) — mirrors the existing discipline against inventing unrequested mechanisms (e.g. the
   admin-queue pull-based pattern's "never invent a push-notification recipient concept"). Flag the gap to the CTO
   as an open item, don't block the story on building scheduling infrastructure nobody asked for yet.
+- **Module-vs-schema placement rule, generalized** (ADR-051, `REV-002`) — a new table set gets its own new module
+  when it owns a genuinely separate Postgres schema (the codebase's actual default: `provider`, `contact`,
+  `notification`, `verification`, `search`, `administration` are each their own module/schema pair); it only
+  folds into an existing module when it *shares* that module's existing schema (`outcome_tags`→`contact`,
+  ADR-048, was this narrower exception, not a general "related-by-FK" license). Check Postgres schema identity
+  first, not just how tightly a new table references another module's data by foreign key.
+- **Race-safe aggregate recompute over an unbounded, growing row set: lock the parent row, then fully recompute
+  — never increment** (ADR-052, `REV-002`) — when an aggregate (e.g. an average) must be recalculated
+  transactionally on every write and read by a trust-facing/ranking-facing consumer, take a
+  `SELECT ... FOR UPDATE` lock on a stable parent row (here, `providers`) before a fresh `AVG()`/`COUNT()`-style
+  recompute from the raw rows, rather than an incremental running-average update — the latter is race-safe on its
+  own but compounds `NUMERIC` column rounding drift over the aggregate's lifetime, which a full recompute never
+  does. First application of a lock held across a multi-statement critical section in this codebase (every prior
+  atomic-write precedent is a single self-contained statement).
+- **A new 409/404 rejection family should reuse an existing exception for an identical check, and only add a new
+  exception per genuinely distinct rejection reason** (ADR-053, `REV-002`) — `reviews`' ownership check reused
+  `ContactViewNotFoundError` verbatim (the same check `REV-001`'s `outcome_tags` already performs on the same
+  resource) rather than inventing a duplicate 404; separate new 409s were added only for the two genuinely
+  distinct reasons (anchor validity, uniqueness) that need independently distinguishable rejection reasons.
 
 ## 5. Tracker editing method (raw XML — never openpyxl `.save()`)
 
@@ -260,36 +270,39 @@ item's full history/reasoning.
   extraction instead) — keep that discipline.
 - **Item 13 — Real LLM Vendor Selection and RAG Grounding Implementation.** Open. `ConversationAiClient` is
   fully rule-based; AC3/AC5 of AI-001 are honestly unmet pending a real vendor decision + credentials.
-- **Item 14 — `provider_rating_summaries` Remains Unbuilt: Is It Still Needed Once Real Reviews Exist?** Still
-  Open. `MAT-001` ranks against `providers.average_rating`/`review_count` instead, since the table was unbuilt
-  and structurally could not hold data before an Outcome Tag mechanism shipped. `REV-001` (now shipped) did not
-  resolve this — it explicitly left it as `REV-002`'s decision to make. `REV-002` will finally build
-  `reviews`/`provider_rating_summaries`, resolving this item in the affirmative.
+Item 14 (`provider_rating_summaries`) is **no longer listed here** — it was **Resolved** by `REV-002` (14
+September 2026): both `providers.average_rating`/`review_count` (`MAT-001`'s ranking-formula hot-path read
+target, unchanged) and `review.provider_rating_summaries` (the Review domain's own decoupled read-model) are
+needed, written from the same computed values in the same transaction. See `13_OPEN_DECISIONS.md` item 14 for
+the full resolution.
 
 ## 7. ADR numbering
 
-Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-050** (ADR-048/049/050, all recorded at `REV-001`'s
-closeout, grouped by load-bearing precedent per the architect's own recommendation — module placement +
-immutability; ownership shape + atomicity; notification touch-point + mobile delivery trim). Next new ADR
-starts at **ADR-051**.
+Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-053** (ADR-051/052/053, all recorded at `REV-002`'s
+closeout, grouped by architectural theme — `review` module placement; full-recompute lock-guarded recalculation;
+review-rejection exception shapes). Next new ADR starts at **ADR-054**.
 
 ## 8. Environment notes
 
-- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `REV-001`'s closeout, independently
-  re-run/re-confirmed by `tester`: **721/721 backend tests passing**. `ruff check .` clean. `mypy` is configured
-  in `pyproject.toml` but is **not installed** in this sandbox's venv — cannot be run here; this is a known,
-  pre-existing environment gap, not a regression to chase.
-- Mobile: Flutter/Riverpod. **211 mobile tests passing** as of `REV-001`'s closeout. `flutter analyze` clean.
-  Flutter SDK is not preinstalled in a fresh container — a prior session cloned `flutter/stable` to
-  `/root/.flutter_sdk` to run `flutter analyze`/`flutter test`/`gen-l10n`; this is outside the repo and won't
-  persist across containers, so a fresh session may need to redo this setup step once, before running any mobile
-  agent.
+- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `REV-002`'s closeout, independently
+  re-run/re-confirmed by `tester`: **752/752 backend tests passing** (721 baseline before `REV-002`, +31 new,
+  zero regressions). `ruff check .` clean. `mypy` is configured in `pyproject.toml` but is **not installed** in
+  this sandbox's venv — cannot be run here; this is a known, pre-existing environment gap, not a regression to
+  chase.
+- Mobile: Flutter/Riverpod. **233 mobile tests passing** as of `REV-002`'s closeout (211 baseline before
+  `REV-002`, +22 new, zero regressions). `flutter analyze` clean. Flutter SDK is not preinstalled in a fresh
+  container — a prior session cloned `flutter/stable` to `/root/.flutter_sdk` to run `flutter
+  analyze`/`flutter test`/`gen-l10n`; this is outside the repo and won't persist across containers, so a fresh
+  session may need to redo this setup step once, before running any mobile agent.
 - `Project_Tracker.xlsx` is readable by direct `openpyxl`/shell access in this orchestrating session, but the
   specialist agents (tech-lead, tester, architect, backend, frontend) do **not** have Bash/openpyxl tools —
   always relay verbatim tracker text to them directly in the task prompt rather than asking them to read the
   spreadsheet themselves (this was a repeated, avoidable source of wasted planning rounds in Sprints 6–7).
 ---
 
-**End of handoff. Sprint 9 / Milestone ML9 has started — 1 of 2 stories done (`REV-001`), tracker synced. When
-resuming: read this file, confirm the CTO wants to proceed with `REV-002` (the next startable story, detailed
-in Section 2), then follow Section 3's cycle starting with `tech-lead`.**
+**End of handoff. Sprint 9 / Milestone ML9 is now fully complete — 2 of 2 stories done (`REV-001`, `REV-002`).
+Tracker sync for `REV-002` has NOT yet been performed as of this update (a separate, subsequent step — Section
+5) — do not assume the Dashboard/rollup numbers above already reflect it. Sprint 10's first story has not been
+identified. When resuming: read this file, perform the tracker sync for `REV-002` if not already done, look up
+Sprint 10's first story in `docs/AI/Project_Tracker.xlsx`, confirm the CTO wants to proceed with it, then follow
+Section 3's cycle starting with `tech-lead`.**

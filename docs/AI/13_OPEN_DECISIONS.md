@@ -5,11 +5,12 @@
 **Status:** Draft — Reconstructed; item 1 resolved and implemented (`CTG-001` shipped), item 4 resolved, item 3
 given an explicit CTO risk-acceptance decision (still Open — the underlying legal question is unresolved), item
 13 newly added and given an explicit CTO risk-acceptance decision (still Open — real LLM vendor selection remains
-unresolved), item 14 newly added (`MAT-001`, still Open — a `REV-001` design question), items 5/8/10/11/12 still
-pending CTO review, items 2/6/7 still unrecoverable numbering gaps
+unresolved), item 14 resolved and implemented (`REV-002` shipped — both `providers.average_rating`/`review_count`
+and `review.provider_rating_summaries` are needed), items 5/8/10/11/12 still pending CTO review, items 2/6/7
+still unrecoverable numbering gaps
 **Owner:** CTO
 **Audience:** Engineering Team, Product Team, AI Assistants
-**Last Updated:** 11 September 2026
+**Last Updated:** 14 September 2026
 
 ---
 
@@ -487,7 +488,8 @@ Open Questions 1/2), `docs/implementation/walkthroughs/Walkthrough_S07_AI-001.md
 
 ## Item 14 — `provider_rating_summaries` Remains Unbuilt: Is It Still Needed Once Real Reviews Exist?
 
-**Status:** Open
+**Status:** Resolved (14 September 2026, `REV-002` shipped) — both tables are needed, not one instead of the
+other.
 
 **Description:** `04_DATABASE.md`'s Review Domain section fully specs `review.provider_rating_summaries` (a
 denormalized per-provider rating aggregate, recalculated on every Review write). `MAT-001` ("see ranked
@@ -498,29 +500,43 @@ Review anchors to a Contact View with a "Yes" Outcome Tag; Contact View is `CON-
 `review_count` columns instead (`09_DECISIONS.md` ADR-043) — a deliberate, flagged substitution of AC3's
 literally-named data source, not a silent reinterpretation.
 
-**The genuinely open question, for a future `REV-001` to decide:** once the Review domain actually ships and
-real reviews can exist, is `review.provider_rating_summaries` still needed as a distinct table — e.g. for a
+**The question, as `REV-002` decided it with real requirements in hand:** once the Review domain actually ships
+and real reviews can exist, is `review.provider_rating_summaries` still needed as a distinct table — e.g. for a
 richer, decoupled read-model separate from `providers` itself — or is `providers.average_rating`/`review_count`
-alone (already `04_DATABASE.md`'s own documented `REV-001` write target, independent of whether
-`provider_rating_summaries` is ever built) sufficient? `04_DATABASE.md` itself appears to carry two overlapping
-denormalized-rating specs today, both described as "recalculated on/whenever a Review is written" — this looks
-like undocumented drift from the schema's evolution (the `provider_rating_summaries` section's own text says it
-"replaces" an earlier "ratings" placeholder), not a deliberate two-tier design. This is not `MAT-001`'s decision
-to resolve; it is `REV-001`'s design question to make with real requirements in hand.
+alone sufficient? `04_DATABASE.md` had carried two overlapping denormalized-rating specs since before this
+question was ever tracked, both described as "recalculated on/whenever a Review is written."
 
-**Current workaround:** none needed yet — `provider_rating_summaries` remains an unbuilt table with zero
-readers/writers anywhere in the codebase. `MAT-001`'s ranking formula and every provider-facing rating display
-(DIR-001, AI-002, MAT-001) already read `providers.average_rating`/`review_count` exclusively.
+**Resolution:** **both are needed, in addition to, not instead of, each other.** `Plan_S08_MAT-001.md` Decision 2
+had already substituted `providers.average_rating`/`review_count` for the (then-unbuildable)
+`provider_rating_summaries` table so `MAT-001`'s ranking formula had a real column to read; that formula is
+embedded directly in `ProviderSearchRepository.search_nearby`'s `ORDER BY` clause and reads
+`providers.average_rating`/`review_count` inline in that same query — moving it to a join against a separate
+`provider_rating_summaries` table would touch `MAT-001`'s already-shipped, already-tested ranking SQL for a
+purely internal storage-location change with no behavioral benefit, which `REV-002` had no reason to force.
+**Both tables are therefore built and written in the same transaction, from the same computed values, by
+`REV-002`**: `providers.average_rating`/`review_count` remains the ranking formula's hot-path read target (zero
+change to `MAT-001`'s SQL); `review.provider_rating_summaries` is built exactly per its pre-existing
+`04_DATABASE.md` spec, becoming the Review domain's own decoupled read-model (its own `recalculated_at` audit
+column, its own row lifecycle, independent of `providers`) for whatever future Review-domain-facing feature needs
+it. The dual write is guaranteed atomic and race-safe by `ReviewService.submit_review`'s
+`SELECT ... FOR UPDATE`-locked full-recompute recalculation (`09_DECISIONS.md` ADR-052) — both tables are always
+in sync, never independently stale.
 
-**Blocks:** Nothing at the code level today. Will directly shape `REV-001`'s own schema design once that story
-is planned — whichever answer is chosen, no other domain's code needs to change, since every current reader
-already targets `providers.average_rating`/`review_count`, not `provider_rating_summaries`.
+**Current state:** `review.provider_rating_summaries` and `review.reviews` are both real, live tables as of
+`REV-002`'s `reviews_domain` migration. `providers.average_rating`/`review_count` remain unchanged as
+`MAT-001`'s ranking-formula hot-path read target and every provider-facing rating display's (DIR-001, AI-002,
+MAT-001) exclusive read source — none of those call sites needed to change.
+
+**Blocks:** Nothing further — the design question is settled and implemented.
 
 **Related:** `03_DOMAIN_MODEL.md` (Review domain — Contact-View/Outcome-Tag anchor requirement), `04_DATABASE.md`
-(`providers.average_rating`/`review_count`, lines 405–406; `provider_rating_summaries`, Review Domain section),
-`09_DECISIONS.md` (ADR-041 — AI-002's original deferred-ranking gap; ADR-042/ADR-043 — MAT-001's ranking formula
-and rating-source substitution), `docs/implementation/plans/Plan_S08_MAT-001.md` (Decision 2),
-`docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md`.
+(`providers.average_rating`/`review_count`, lines 405–406; `provider_rating_summaries`, Review Domain section —
+now marked shipped), `09_DECISIONS.md` (ADR-041 — AI-002's original deferred-ranking gap; ADR-042/ADR-043 —
+MAT-001's ranking formula and rating-source substitution; ADR-051/ADR-052/ADR-053 — `REV-002`'s shipped design),
+`docs/implementation/plans/Plan_S08_MAT-001.md` (Decision 2),
+`docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md`,
+`docs/implementation/plans/Plan_S09_REV-002.md` (the "item 14" resolution section),
+`docs/implementation/walkthroughs/Walkthrough_S09_REV-002.md`.
 
 ---
 
@@ -582,6 +598,14 @@ and rating-source substitution), `docs/implementation/plans/Plan_S08_MAT-001.md`
   `provider_rating_summaries` is still needed as a distinct table once `REV-001` ships real reviews, or whether
   `providers.average_rating`/`review_count` alone is sufficient, remains a genuinely open design question for
   that future story. See `docs/implementation/walkthroughs/Walkthrough_S08_MAT-001.md` for the full account.
+- **14 September 2026 (Sprint 9, `REV-002` shipped)** — Item 14 resolved: `REV-002` ("leave a verified review
+  after a successful hire") built the real `review.reviews`/`review.provider_rating_summaries` tables and decided
+  the question in the affirmative for both — `providers.average_rating`/`review_count` remains `MAT-001`'s
+  ranking-formula hot-path read target (unchanged), while `review.provider_rating_summaries` is the Review
+  domain's own decoupled read-model, per its original `04_DATABASE.md` spec. Both are written, from the same
+  computed values, in the same transaction, guarded by a `SELECT ... FOR UPDATE`-locked full-recompute
+  recalculation (`09_DECISIONS.md` ADR-052) — never independently stale. See item 14 above for the full
+  resolution and `docs/implementation/walkthroughs/Walkthrough_S09_REV-002.md` for the full account.
 
 ---
 

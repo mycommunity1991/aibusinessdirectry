@@ -11,6 +11,44 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Leave a verified review after a successful hire (Story REV-002, Sprint 9 / Milestone ML9's second and final
+  story — **this completes Milestone ML9 in full**): a new, standalone `review` domain module
+  (`backend/app/modules/review/`), with its own `review` Postgres schema distinct from `contact` — unlike
+  `REV-001`'s `outcome_tags`, which was folded into the existing `contact` module because it shared `contact`'s
+  own schema, `reviews`/`provider_rating_summaries` get a genuinely new module because they own a genuinely
+  separate schema (**ADR-051**). Two new migrations create `review.reviews`/`review.provider_rating_summaries`
+  exactly per `04_DATABASE.md`'s pre-existing spec (`reviews.contact_view_id` unique — one review per Contact
+  View), plus a `chk_providers_average_rating_range CHECK (average_rating IS NULL OR average_rating BETWEEN 0 AND
+  5)` invariant on `provider.providers` — **`REV-002`, not `REV-001`, is the actual first real writer of
+  `providers.average_rating`**, correcting a prior documentation attribution error. `ReviewService.submit_review`
+  enforces the anchor-verified review model: a Review can only be submitted against a Contact View carrying a
+  `outcome_tags.hired=true` row, rejecting with a new `ReviewAnchorNotVerifiedError` (**HTTP 409**) otherwise
+  (missing outcome tag, or `hired=false`); ownership of the Contact View reuses the existing
+  `ContactViewNotFoundError` (**HTTP 404**); a second review against an already-reviewed `contact_view_id` raises
+  a new `ReviewAlreadyExistsError` (**HTTP 409**), via the same atomic `INSERT ... ON CONFLICT DO
+  NOTHING ... RETURNING` pattern `REV-001` established (**ADR-053**). Rating-summary recalculation is a
+  **race-safe full recompute**: `SELECT ... FOR UPDATE` locks the target provider's row before a fresh
+  `AVG()`/`COUNT()` over raw `reviews` rows, writing the same computed values to both
+  `review.provider_rating_summaries` and `providers.average_rating`/`review_count` in one transaction —
+  deliberately **not** an incremental running-average update, which would compound `NUMERIC(3,2)` rounding drift
+  over a provider's long-term review history (**ADR-052**). Because `CON-001`'s self-dealing guard already
+  prevents a self-dealing Contact View from ever being created, this story's anchor requirement transitively
+  blocks self-reviews too, without a second explicit check — proven, not merely asserted, by a dedicated test and
+  independently re-verified by `architect` (`ContactViewRepository.create` has exactly one call site anywhere in
+  the codebase). **`13_OPEN_DECISIONS.md` item 14 is now Resolved**: both `providers.average_rating`/
+  `review_count` (`MAT-001`'s ranking-formula hot-path read target, unchanged) and
+  `review.provider_rating_summaries` (the Review domain's own decoupled read-model) are needed, not one instead
+  of the other. On mobile, a new Write-a-Review screen (S-10) — a five-star rating input, optional comment,
+  "Thanks!" confirmation — is reachable only after a "Yes" Outcome Tag Prompt submission, built inside the
+  existing `provider_profile` feature (no new feature directory); `AppRoutes.writeReview` has exactly one call
+  site anywhere in the app. **No bugs of any kind were found during this story's review cycle** — `tester`
+  independently verified all 7 verbatim ACs (including a genuine two-overlapping-transaction concurrency test for
+  the recalculation race and a same-transaction rollback test) with no functional bugs found; `architect` returned
+  a **clean verdict with zero findings** — no fix-and-recheck round was needed. Final counts: 752/752 backend
+  tests, 233/233 mobile tests. One flagged, non-blocking mobile limitation: `ErrorResponse` carries no structured
+  error code, so both new 409 exceptions surface identically on mobile today (functionally inconsequential, same
+  inline copy either way). See `docs/implementation/walkthroughs/Walkthrough_S09_REV-002.md` for the full
+  account. **This completes Sprint 9 and Milestone ML9 in full** (`REV-001` + `REV-002`, both Done).
 - Tell the platform whether I hired a provider (Story REV-001, Sprint 9 / Milestone ML9's first story): a new
   `outcome_tags` table, added via migration to the existing `contact` domain module (alongside `contact_views`,
   not a new module — mirroring the `administration` module's own multi-aggregate-root precedent — **ADR-048**),

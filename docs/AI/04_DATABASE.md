@@ -842,18 +842,25 @@ Denormalized aggregate per Provider, recalculated whenever a Review is written �
 
 **Constraints:** `uq_provider_rating_summaries_provider_id`
 
-**Status: remains fully unbuilt (as of `MAT-001`, Sprint 8).** No `review.provider_rating_summaries` table, no
-`review` schema, and no `review` module exist anywhere in this codebase — the Review domain is structurally
-impossible to build meaningfully before `CON-001` ships (a Review anchors to a Contact View with a "Yes"
-Outcome Tag; Contact View is `CON-001`, which itself depends on `MAT-001`). `MAT-001`'s merit-ranking formula
-(proximity + rating + review volume, "See ranked providers for my request") instead reads the already-existing,
-already-wired `providers.average_rating`/`review_count` columns above (lines 405–406) — a deliberate, flagged
-substitution, recorded as `09_DECISIONS.md` ADR-043. Whether `provider_rating_summaries` is still needed as a
-distinct table once `REV-001` ships real reviews, or whether `providers.average_rating`/`review_count` alone is
-sufficient, is tracked as a genuinely open design question at `13_OPEN_DECISIONS.md` item 14. **Also flagged for
-a future `REV-001` write path:** `providers.average_rating` has no DB-level `CHECK` constraint enforcing the 0–5
-rating range today (noted during `MAT-001`'s `architect` review) — a documentation flag for this story, not a
-schema change; `REV-001`, as the first real writer of this column, should add one.
+**Status: shipped (`REV-002`, Sprint 9).** Both `review.reviews` and `review.provider_rating_summaries` are now
+real, live tables, built via the `reviews_domain` migration exactly per this spec, no deviation. Before `REV-002`,
+the Review domain was structurally impossible to build meaningfully until `CON-001` shipped (a Review anchors to
+a Contact View with a "Yes" Outcome Tag; Contact View is `CON-001`, which itself depends on `MAT-001`), so
+`MAT-001`'s merit-ranking formula (proximity + rating + review volume, "See ranked providers for my request") had
+read the already-existing `providers.average_rating`/`review_count` columns above (lines 405–406) instead — a
+deliberate, flagged substitution, recorded as `09_DECISIONS.md` ADR-043. **`13_OPEN_DECISIONS.md` item 14 is now
+Resolved**: both tables are needed, not one instead of the other — `providers.average_rating`/`review_count`
+remains `MAT-001`'s ranking-formula hot-path read target (embedded directly in
+`ProviderSearchRepository.search_nearby`'s `ORDER BY` clause, unchanged by `REV-002`), while
+`review.provider_rating_summaries` is the Review domain's own decoupled read-model, per this section's
+pre-existing spec. Both are written from the same computed values, in the same transaction, by
+`ReviewService.submit_review`'s lock-guarded full-recompute recalculation (`09_DECISIONS.md` ADR-052). A new
+`chk_providers_average_rating_range CHECK (average_rating IS NULL OR average_rating BETWEEN 0 AND 5)` constraint
+was added to `provider.providers` in a second migration (`provider_average_rating_range_invariant`) —
+**`REV-002`, not `REV-001`, is the actual first real writer of `providers.average_rating`** (a prior note here
+incorrectly attributed this to `REV-001`, which never wrote to this column; corrected at `REV-002`'s closeout).
+See `09_DECISIONS.md` ADR-051/052/053 and
+`docs/implementation/walkthroughs/Walkthrough_S09_REV-002.md` for the full account.
 
 ---
 

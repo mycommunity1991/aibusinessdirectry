@@ -3947,6 +3947,246 @@ outcome tag is a fine, honestly-retained-by-omission state.
 
 ---
 
+# ADR-051
+
+## Title
+
+`review` Module Placement (`REV-002`): New Standalone Module/Schema, Not Folded Into `contact` — the One-Schema-One-Module Default vs. the Shared-Schema Exception (`outcome_tags`/ADR-048)
+
+**Date**
+
+2026-09-14
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`REV-002` ("leave a verified review after a successful hire") needed to build `reviews`/`provider_rating_summaries`,
+already fully spec'd in `04_DATABASE.md`'s own `# Review Domain (\`review\` schema)` heading — a Postgres schema
+distinct from `contact`. `REV-001` (ADR-048) had just folded `outcome_tags` into the existing `contact` module
+specifically because it shared `contact`'s own Postgres schema, mirroring the `administration` module's own
+multi-aggregate-root precedent, itself explicitly conditioned on "shares the same Postgres schema." Since a
+Review anchors to a `ContactView`, `REV-002` needed to settle whether that same reasoning extends to `reviews` —
+i.e., whether ADR-048's exception is a general license to fold any related-by-reference table into an existing
+module, or a narrower one.
+
+### Decision
+
+`review` ships as a new, standalone `backend/app/modules/review/` module, with its own `review` Postgres schema,
+exactly as `04_DATABASE.md` already documents. This is this codebase's actual, consistently-applied default —
+`provider`, `contact`, `notification`, `verification`, `search`, and `administration` are each their own
+module/schema pair — and `outcome_tags`/ADR-048 was the deliberate, narrowly-scoped exception (same schema as
+`contact`), not a general rule that any table referencing another module's row should live in that module. Since
+`review` is its own schema per the DB spec, not `contact`'s, the condition that justified ADR-048's exception does
+not hold here, so the default applies.
+
+### Alternatives Considered
+
+- **Fold `reviews`/`provider_rating_summaries` into the existing `contact` module anyway**, since a Review
+  anchors to a `ContactView`. Rejected — this would put two different Postgres schemas' tables in one Python
+  module, a shape this codebase has never done and that the `administration`/`outcome_tags` precedent explicitly
+  does not extend to (both of those examples share one schema across all their aggregate roots).
+
+### Consequences
+
+- `review`'s `dependencies.py` carries genuine cross-module edges to `contact.ContactViewRepository`/
+  `contact.OutcomeTagRepository` and `customer.CustomerProfileRepository` (raw Repositories, the documented
+  ADR-047 exception — each gap named explicitly in that file's own docstring) and to `provider.ProviderService`
+  (a genuine Service-to-Service edge, per ADR-047's default). This is the expected cost of choosing schema
+  isolation over folding, not an oversight.
+- Future stories deciding whether to fold a new table into an existing module or create a new one should check
+  Postgres schema identity first, per this ADR and ADR-048 read together: same schema as an existing module →
+  fold in (ADR-048's shape); a genuinely new schema → new module (this ADR's shape), regardless of how tightly
+  the new table's rows reference another module's data by foreign key.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md
+- 04_DATABASE.md (Review Domain — `review` schema)
+- 09_DECISIONS.md (ADR-047 — the cross-module services-only convention and its raw-Repository exception; ADR-048
+  — the shared-schema folding exception this ADR distinguishes from)
+- docs/implementation/plans/Plan_S09_REV-002.md (Decision 1)
+- docs/implementation/walkthroughs/Walkthrough_S09_REV-002.md
+- backend/app/modules/review/ (models.py, dependencies.py)
+
+---
+
+# ADR-052
+
+## Title
+
+Rating-Summary Recalculation (`REV-002`): Full Recompute Guarded by `SELECT ... FOR UPDATE` on `providers`, Never an Incremental Running-Average Update
+
+**Date**
+
+2026-09-14
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`REV-002`'s AC4 requires `provider_rating_summaries` (and, per `13_OPEN_DECISIONS.md` item 14's resolution,
+`providers.average_rating`/`review_count` too) to be recalculated in the same transaction as the Review write,
+genuinely race-safe: two customers submitting a review for the same provider concurrently must never produce a
+lost update. This is a fundamentally different shape of problem from every existing atomic-conditional-write
+precedent in this codebase (`try_claim_for_account`/`try_claim_for_review`/`try_resolve`/`try_create`, ADR-049) —
+those are each a single-row status transition or an INSERT-uniqueness race, expressible as one self-contained
+atomic statement. Recomputing an average over an unbounded, growing set of rows cannot be expressed the same way.
+
+### Decision
+
+Before writing the new `reviews` row, `ReviewService` calls `ProviderService.lock_for_rating_recalculation
+(provider_id)`, issuing `SELECT * FROM provider.providers WHERE id = :id FOR UPDATE`
+(`ProviderRepository.get_by_id_for_update`) — a row-level lock held for the rest of the transaction, blocking any
+other concurrent review submission for the *same* provider until this transaction commits or rolls back (reviews
+for *different* providers are unaffected). `ReviewRepository.try_create` then inserts the new `reviews` row via
+the same atomic `INSERT ... ON CONFLICT (contact_view_id) DO NOTHING ... RETURNING` shape ADR-049 established.
+With the lock held, `ReviewRepository.compute_rating_aggregate` runs a fresh `SELECT AVG(rating), COUNT(*) FROM
+review.reviews WHERE provider_id = :id` — guaranteed correct, since no concurrent transaction could have
+committed another review for this provider in the window. `ProviderRatingSummaryRepository.upsert` and
+`ProviderService.apply_rating_recalculation` then write those exact recomputed values onto
+`provider_rating_summaries` and `providers.average_rating`/`review_count` respectively (the item-14 dual write),
+all inside the one transaction the API layer commits.
+
+### Alternatives Considered
+
+- **An incremental running-average update** (`new_avg = (old_avg * old_count + new_rating) / (old_count + 1)`),
+  expressible as a single atomic `UPDATE`/`ON CONFLICT DO UPDATE` statement. This *would* be race-safe on its own
+  (Postgres serializes concurrent single-statement UPDATEs against the same row via the same row-locking
+  mechanism, without needing an explicit prior `FOR UPDATE`) — but rejected on a **correctness-over-time**, not a
+  race-safety, basis: `average_rating` is `NUMERIC(3,2)`, storing only two decimal digits. Every incremental step
+  operates on the already-rounded, stored prior average rather than the exact sum of all raw ratings, so rounding
+  error compounds with every subsequent review a provider ever receives — unacceptable for a trust-facing number
+  `MAT-001`'s entire ranking formula also reads. A full recompute from the raw `rating` values has zero drift, at
+  the cost of one extra `SELECT` per review write — immaterial, since reviews are written far less often than
+  they are read/ranked against.
+- **No lock at all, relying on the uniqueness constraint alone.** Rejected — the uniqueness constraint only
+  protects against a second write for the *same* `contact_view_id`; it does nothing to serialize two *different*
+  customers' concurrent reviews for the *same provider*, which is exactly the scenario that produces a lost
+  update in the recompute step.
+- **Locking `provider_rating_summaries`'s own row instead of `providers`.** Rejected as the primary lock target —
+  the summary row does not exist yet for a provider's very first review, forcing a special-cased branch; locking
+  `providers` works uniformly for the first review and every subsequent one, since that row is guaranteed to
+  already exist for any provider a Contact View could ever have been created against.
+- **A database trigger recalculating `provider_rating_summaries` automatically on `reviews` INSERT.** Rejected —
+  `08_CODING_STANDARDS.md`/this codebase's established practice puts all business logic in the service layer, not
+  in triggers; no other "recalculated on write" behavior in this codebase (`providers.is_discoverable`,
+  `verification_status`) uses one.
+
+### Consequences
+
+- This is the first genuinely new correctness pattern in this codebase — a `SELECT ... FOR UPDATE` lock held
+  across a multi-statement critical section, rather than a single atomic conditional statement. `architect`
+  independently confirmed it is deadlock-free: `get_by_id_for_update`/`FOR UPDATE` on `providers` is the only
+  row-lock anywhere in the backend (repo-wide grep), acquired before the review INSERT and held only through
+  in-process writes, released at the API layer's single `db.commit()`, with no external I/O awaited while held.
+- Independently proven, not merely asserted: a genuine two-overlapping-transaction concurrency test
+  (`asyncio.gather`, two independent DB sessions, same provider) confirms both reviews are counted correctly (no
+  lost update), and a same-transaction rollback test confirms no partial-write window exists.
+- Future features needing a race-safe aggregate recompute over an unbounded, growing row set should reuse this
+  lock-then-recompute shape rather than attempting an incremental update, per the rounding-drift reasoning above.
+
+### Related Documents
+
+- 04_DATABASE.md (Review Domain — `providers.average_rating`/`review_count`, `provider_rating_summaries`)
+- 09_DECISIONS.md (ADR-042/ADR-043 — `MAT-001`'s ranking formula reading these columns; ADR-049 — the
+  `ON CONFLICT DO NOTHING ... RETURNING` pattern reused here for `reviews.contact_view_id`)
+- 13_OPEN_DECISIONS.md (item 14 — resolved by this story's dual-write)
+- docs/implementation/plans/Plan_S09_REV-002.md (Decision 3)
+- docs/implementation/walkthroughs/Walkthrough_S09_REV-002.md
+- backend/app/modules/provider/repositories/provider_repository.py (`get_by_id_for_update`)
+- backend/app/modules/provider/services/provider_service.py (`lock_for_rating_recalculation`,
+  `apply_rating_recalculation`)
+- backend/app/modules/review/repositories/review_repository.py, provider_rating_summary_repository.py
+
+---
+
+# ADR-053
+
+## Title
+
+Review Rejection Exception Shapes (`REV-002`): New 409s `ReviewAnchorNotVerifiedError`/`ReviewAlreadyExistsError`; Ownership Reuses the Existing 404 `ContactViewNotFoundError`
+
+**Date**
+
+2026-09-14
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`REV-002`'s AC2 requires two independently rejectable conditions on `submit_review` (ownership of the anchoring
+Contact View; anchor validity — an `outcome_tags` row with `hired = true`) plus AC1's uniqueness constraint on
+`reviews.contact_view_id` — three rejection reasons needing exception shapes, not necessarily new ones.
+
+### Decision
+
+**Ownership** (`contact_view_id` doesn't exist, or isn't owned by the calling customer): reuses
+`ContactViewNotFoundError` verbatim (404), via `ensure_owner_or_not_found` — the exact same check, on the exact
+same resource, `REV-001`'s `OutcomeTagService.submit_outcome_tag` already performs (ADR-015/ADR-049); inventing a
+second, differently-named 404 for an identical condition would be pure duplication. **Anchor validity**
+(`outcome_tags` row missing, or `hired = false`): a new `ReviewAnchorNotVerifiedError` (409), joining the
+"resource exists, ownership isn't in question, but its state blocks this specific write" 409 family already
+established by `VerificationSubmissionNotAllowedError`/`VerificationRecordNotActionableError`/
+`ManualMatchAssignmentAlreadyResolvedError` — one exception covers both the "no outcome tag at all" and
+"`hired=false`" cases, since AC2's own wording treats them identically. **Uniqueness** (a second review attempted
+against an already-reviewed `contact_view_id`): a new `ReviewAlreadyExistsError` (409), mirroring
+`OutcomeTagAlreadyExistsError`/`ClaimAlreadyClaimedError`'s identical shape — a genuine timing conflict on the
+atomic `try_create` insert (ADR-049's `ON CONFLICT DO NOTHING ... RETURNING` pattern, reused here for
+`reviews.contact_view_id`).
+
+### Alternatives Considered
+
+- **A single generic `ReviewNotAllowedError` covering both the anchor-validity and uniqueness cases.** Rejected —
+  collapsing "you already reviewed this" (a genuine one-time-only state) with "this contact view was never a
+  positive outcome" (a different reason, with no corrective action) would make the mobile client's error-mapping
+  logic unable to distinguish two meaningfully different states, which no other exception in this codebase's
+  history has done deliberately. (In practice, the two 409s still end up visually identical on mobile today
+  anyway, since `ErrorResponse` carries no structured error code for the client to key off of — `architect`
+  reviewed this as functionally inconsequential, not a defect in this decision, since the two exceptions remain
+  genuinely distinguishable at the backend/API-contract level even though today's one mobile client happens to
+  collapse them for display purposes.)
+
+### Consequences
+
+- Ownership/anchor-validity/uniqueness are three independently testable, separately-asserted rejection paths
+  (`test_review_service.py`/`test_review_api.py`), each with a zero-rows-written assertion.
+- All three extend `BusinessException`, whose `status_code` is read generically by the one global exception
+  handler (`backend/app/core/exceptions/handlers.py`) — no per-exception-type special-casing needed or missing.
+- A future story adding a further rejection reason for a similarly-shaped "resource exists, state blocks this
+  write" precondition should join this 409 family rather than inventing a new status-code convention.
+
+### Related Documents
+
+- 06_SECURITY.md
+- 09_DECISIONS.md (ADR-015 — the `{id}`-addressable-collection-always-404 convention this ownership check reuses;
+  ADR-044 — the self-dealing 403 shape deliberately not reused here; ADR-049 — the ownership-shape/atomicity
+  precedent this directly extends)
+- docs/implementation/plans/Plan_S09_REV-002.md (Decision 5)
+- docs/implementation/walkthroughs/Walkthrough_S09_REV-002.md
+- backend/app/core/exceptions/exceptions.py
+- backend/app/modules/review/services/review_service.py
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:
