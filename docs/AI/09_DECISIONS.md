@@ -4187,6 +4187,178 @@ atomic `try_create` insert (ADR-049's `ON CONFLICT DO NOTHING ... RETURNING` pat
 
 ---
 
+# ADR-054
+
+## Title
+
+Leads (`LEAD-001`) Module Placement: Extends the Existing `contact` Module In Place — Zero New Schema Reinforces the Module/Schema Placement Rule (ADR-051) from the Opposite Direction
+
+**Date**
+
+2026-09-14
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`LEAD-001` ("see and manage my provider leads") surfaces `CON-001`'s `contact_views` and `REV-001`'s
+`outcome_tags` as a provider-facing Leads list, joined read-only against `search.search_requests` (for category
+context) and `category.categories` (for the category name itself). Unlike every prior module-placement decision
+in this project's history, this story introduces **zero new tables and zero new columns** — it is a pure query
+layer over data `contact` already owns, reaching into two other modules' tables purely to resolve display
+context. `ADR-051` had already established "fold into an existing module only when the new table set shares that
+module's own Postgres schema; a genuinely new schema gets a new module" — but that rule was framed around a table
+set that needs *some* module to own it. `LEAD-001` needed a related but distinct question settled: where does a
+new capability live when it owns no schema at all, and the resulting cross-module Repository edges point at
+schemas neither the source nor the destination module already shares?
+
+### Decision
+
+`LeadService`/`GET /providers/me/leads` are added to the existing `backend/app/modules/contact/` module — a new
+`services/lead_service.py`, two new read methods on the existing `ContactViewRepository`, a new batch read
+method on the existing `OutcomeTagRepository`, a new schema in `contact/schemas.py`, and a new route file
+(`contact/provider_lead_api.py`) mounted separately — never a new standalone `leads` module. This generalizes
+`ADR-051`'s rule from the opposite direction: `ADR-051` already established that a genuinely new schema gets a
+new module regardless of how tightly the new table references another module's data by foreign key; `LEAD-001`
+confirms the converse also holds — **a capability that introduces no new schema at all has nothing for a new
+module to meaningfully "own,"** so it belongs inside whichever existing module's own data it is primarily a view
+over (`contact`, since both `contact_views` and `outcome_tags` are `contact`'s own rows), even though building
+it required two brand-new cross-module Repository edges (`contact → search.SearchRequestRepository`,
+`contact → category.CategoryRepository`) into schemas `contact` had no prior relationship with at all. A new
+`leads` module would have needed to re-establish `contact`'s own `ContactViewRepository`/`OutcomeTagRepository`
+dependencies as new cross-module edges too, for zero isolation benefit, since `leads` would still own no schema
+of its own either way.
+
+### Alternatives Considered
+
+- **A new standalone `leads` module.** Rejected — no new schema exists for it to own; it would only relocate
+  `contact`'s own existing data access behind an extra cross-module hop, adding indirection with no benefit.
+- **Folding into `provider` instead**, since the mobile-facing framing is "provider self-service." Rejected —
+  `provider` has no existing edge to `contact_views`/`outcome_tags` at all, while `contact` already depends on
+  `provider.ProviderService` (the reverse direction, already established); reusing an existing direction is
+  simpler than inventing a new, opposite one for a feature that is fundamentally a read over `contact`'s own data.
+
+### Consequences
+
+- The "one schema, one module" default (`ADR-051`) now has a matching, symmetric rule for the zero-new-schema
+  case: check schema ownership first, not cross-module reference density, in either direction.
+- `contact`'s `dependencies.py` gained two new raw cross-module Repository edges
+  (`search.SearchRequestRepository`, `category.CategoryRepository`) under the documented `ADR-047` exception
+  (`search`/`category` expose no equivalent batch-lookup Service primitive today). **This story's own `architect`
+  review caught a concrete instance of `ADR-047`'s docstring-naming requirement not yet being honored in the
+  initial implementation** — `contact/dependencies.py`'s docstring did not yet explicitly name these two edges as
+  the `ADR-047` raw-Repository exception, even though the wiring itself was correct. Fixed at commit `8e987c3` by
+  adding the explicit naming `ADR-047` already requires, and re-confirmed clean by `architect`. This reinforces
+  that `ADR-047`'s naming duty is a mandatory step of shipping any new raw-Repository cross-module edge, not an
+  optional nicety — a future story adding a similar edge should name it in the dependencies module's docstring
+  at implementation time, not rely on review to catch its absence.
+- Future stories with zero new schema, needing only new cross-module read edges over existing modules' data,
+  should default to extending the module that already owns the primary data being surfaced, per this ADR and
+  `ADR-051` read together.
+
+### Related Documents
+
+- 02_ARCHITECTURE.md
+- 04_DATABASE.md (Contact Domain — `contact_views`/`outcome_tags`, now noting `LeadService` as a new read-only
+  consumer)
+- 09_DECISIONS.md (ADR-047 — the raw-Repository exception and its docstring-naming requirement, re-surfaced by
+  this story's own architect finding; ADR-048 — the shared-schema module-extension precedent; ADR-051 — the
+  module/schema placement rule this ADR generalizes from the opposite direction)
+- docs/implementation/plans/Plan_S10_LEAD-001.md (Decision 1)
+- docs/implementation/walkthroughs/Walkthrough_S10_LEAD-001.md
+- backend/app/modules/contact/services/lead_service.py, dependencies.py
+
+---
+
+# ADR-055
+
+## Title
+
+Two-Hop Optional-FK Chain (`LEAD-001`): Two Independent "Honest-Null" Dead-Ends, Never a Fabricated Fallback
+
+**Date**
+
+2026-09-14
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`LEAD-001`'s AC1 requires each Lead to show "a category/request context," but the real join path from a Contact
+View to a category name — `contact_views.search_request_id` (nullable FK, populated only for the AI-conversation
+path) → `search_requests.category_id` (itself a nullable FK, per `ADR-038`'s own flagged deviation — a
+`routed_to_admin` session can reach a terminal status with no category ever resolved) → `categories.name` — has
+**two independent, real points where the chain can legitimately dead-end**, not one: a Contact View reached via
+the structured (non-AI) Search Results path has no `search_request_id` at all; and a Contact View that does have
+a `search_request_id` can still point at a `search_requests` row whose own `category_id` is `NULL`. This is a
+genuinely new shape for this codebase's existing anti-fabrication principle (`00_PROJECT_CONTEXT.md` §3,
+`ADR-038`) to address — every prior application (a single nullable column, or a single nullable FK hop) had
+exactly one absence reason; this is the first case with two independently reachable, distinct absence reasons
+chained together.
+
+### Decision
+
+`LeadResponse.category_name: str | None` is populated from the real two-hop join when both links resolve, and is
+`null` when either link is absent — the two dead-ends are **not** distinguished from each other in the API
+response (both collapse to the same `null`), since AC1 only asks for "a category/request context" to be shown
+when available, not for the platform to explain *why* it's unavailable when it isn't. The mobile Leads screen
+renders a single, honest, textually distinct fallback string ("Viewed your profile directly") for `null`, never
+a fabricated category guess. Two substitutions considered and explicitly rejected: the provider's own primary
+category label (would misrepresent "the provider's own general category" as "the category this specific customer
+searched under" — a genuine fabrication of specificity `ADR-038`'s reasoning already rules out) and
+`search_requests.structured_criteria`'s raw free-text answers (out of this story's own scope boundary, and its
+own separate PII-adjacent risk, since customer free-text answers could incidentally contain identifying detail).
+Both dead-end cases are tested **separately**, not assumed to behave identically by inspection alone — a Contact
+View with `search_request_id = NULL`, and a second, distinct Contact View with a real `search_request_id` whose
+`search_requests.category_id` is itself `NULL`, each get their own named test case.
+
+### Alternatives Considered
+
+- **Falling back to the provider's own primary category label when the join misses.** Rejected — a fabrication
+  of specificity, per `ADR-038`'s established reasoning.
+- **Surfacing `structured_criteria`'s raw free-text answers as the "request context."** Rejected — bigger surface
+  than AC1 asks for, and reopens a customer-PII-minimization question this story's own Decision 4 (zero customer
+  PII) was built to close, not reopen.
+- **Distinguishing the two dead-ends in the API response** (e.g. two different `null`-like sentinel reasons).
+  Rejected — no AC or product need asks for this distinction to reach the provider; both cases mean the same
+  thing to a provider looking at their Leads list ("we don't know a category for this one"), so exposing the
+  internal reason would be an unrequested, unused elaboration.
+
+### Consequences
+
+- Extends the anti-fabrication principle (`00_PROJECT_CONTEXT.md` §3, `ADR-038`) to the first multi-dead-end
+  chained-nullable-FK case in this codebase — future stories resolving a similar two-hop (or deeper) optional
+  join should default to collapsing every dead-end to one honest, textually distinct fallback, while still
+  testing each dead-end as an independently named case in the backend test suite, rather than assuming one
+  dead-end's test coverage implies the other's correctness.
+- The mobile fallback string is now the established pattern for "we have no specific context to show" anywhere a
+  future Leads-adjacent screen (e.g. `LEAD-002`'s analytics) needs the same honest-absence treatment.
+
+### Related Documents
+
+- 00_PROJECT_CONTEXT.md (§3 — the anti-fabrication principle)
+- 04_DATABASE.md (Search Domain — `search_requests.category_id`'s nullable-FK deviation, `ADR-038`)
+- 09_DECISIONS.md (ADR-038 — the nullable-column/no-fabrication precedent this ADR extends to a multi-dead-end
+  chain)
+- docs/implementation/plans/Plan_S10_LEAD-001.md (Decision 3)
+- docs/implementation/walkthroughs/Walkthrough_S10_LEAD-001.md
+- backend/app/modules/contact/services/lead_service.py
+- mobile/lib/features/leads/presentation/screens/leads_screen.dart
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

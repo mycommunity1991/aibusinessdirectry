@@ -6,10 +6,11 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 14 September 2026, after Story REV-002 closeout AND its tracker sync (both complete).
+**Last updated:** 14 September 2026, after Story LEAD-001 closeout. **Tracker sync for `LEAD-001` is NOT yet
+done** — that is a separate step the orchestrator performs directly (Section 5), not part of this closeout.
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `34f774e` (chore: tracker sync for REV-002; docs closeout `3e42fe2`; backend
-`d61d8e4`, frontend `0a11e87`)
+**Last commit at time of writing:** `8e987c3` (docs: LEAD-001 closeout; docstring fix for architect's ADR-047
+finding; backend `e05747b`, frontend `03f1f5b`). Prior closeout: `34f774e` (chore: tracker sync for REV-002).
 
 ---
 
@@ -29,14 +30,15 @@ file and update this file once caught up.
   for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
   test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
   PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
-- **Dashboard numbers (as of commit `34f774e`, tracker sync for REV-002 confirmed applied and verified):**
+- **Dashboard numbers (as of commit `34f774e`, tracker sync for REV-002 confirmed applied and verified) —
+  STALE as of this update, pending `LEAD-001`'s own tracker sync:**
   Overall Progress **59.4%** | Completed Milestones **9/24** | Completed Epics **16/23** | Completed Stories
   **37/47** | Current Phase **PH2** (progress **0.76**) | Milestone **ML9** — ✅ **Completed** (2/2 stories) |
-  Epic **ML9-EP01** — ✅ **Completed** | Sprint **SP09** — ✅ **Completed** (2/2 stories) | Upcoming Sprint
-  **SP10** (see Section 2 — its first story, `LEAD-001`, has now been identified). These numbers are current
-  and verified (each of the 14 changed cells checked individually via `openpyxl` before and after, plus a
-  structural cell-by-cell diff against the pre-sync file confirming no other cell changed) — no further tracker
-  action is needed for REV-002.
+  Epic **ML9-EP01** — ✅ **Completed** | Sprint **SP09** — ✅ **Completed** (2/2 stories). These numbers reflect
+  the state through `REV-002` only. **`LEAD-001` has since shipped and been signed off but its tracker row is
+  still `⏳ Planned`** — the orchestrator must run the raw-XML tracker-sync procedure (Section 5) for `LEAD-001`
+  before these Dashboard numbers are trusted again; do not assume Stories/Epics/Milestones counts already
+  reflect `LEAD-001`.
 - **Sprint 9 / Milestone ML9 ("Outcome & Reviews") is now fully complete — 2 of 2 stories done: `REV-001`,
   `REV-002`.** `REV-001` shipped and was signed off 13 September 2026 — see
   `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md` (`architect`: APPROVED, one minor non-blocking
@@ -61,38 +63,41 @@ file and update this file once caught up.
   **`REV-001` and `MAT-001` remain the only two stories in this project's history to ship with zero real bugs
   found during review; `REV-002` is the first story to also return a fully clean `architect` verdict on the
   first pass alongside a bug-free `tester` pass.**
-- Full narrative history of every story shipped so far (Sprints 1–9) lives in
+- **Sprint 10 ("Provider Leads & Analytics," Milestone ML10, Epic ML10-EP01) has since started. Its first
+  story, `LEAD-001` ("see and manage my provider leads"), has shipped and been signed off on top of
+  `REV-001`/`CON-001`** — see `docs/implementation/walkthroughs/Walkthrough_S10_LEAD-001.md` (`architect`: one
+  documentation-only finding, an `ADR-047` docstring-naming gap, fixed at commit `8e987c3` and re-confirmed
+  clean; `tester`: all 5 ACs pass, no bugs and no gaps found). It extends the existing `contact` module in place
+  with a new, read-only `LeadService`/`GET /providers/me/leads` — zero new schema, zero new migration —
+  generalizing `ADR-051`'s module/schema placement rule from the opposite direction: a capability with no new
+  schema of its own belongs inside whichever existing module already owns the primary data being surfaced, even
+  when it needs new cross-module raw-Repository edges into schemas it had no prior relationship with
+  (`contact → search.SearchRequestRepository`, `contact → category.CategoryRepository` — ADR-054). Category
+  context resolves via a two-hop join with **two independent, honest-null dead-ends** (no `search_request_id` at
+  all, or a `search_request_id` whose own `category_id` is `NULL`), both collapsing to one honest fallback
+  rather than a fabricated substitute — extending the anti-fabrication principle to a chained-nullable-FK case
+  with more than one distinct absence reason (ADR-055). `LeadResponse` carries zero customer-identifying fields;
+  `outcome_status` is a server-computed three-value enum. On mobile, a new `features/leads/` module delivers the
+  Leads screen (pull-to-refresh, a distinct empty state, three outcome chip variants) and a new, dependency-free
+  relative-time utility. Final counts: 783/783 backend tests, 257/257 mobile tests. **Tracker sync for
+  `LEAD-001` has NOT yet been performed** — see Section 5; the Dashboard numbers in the bullet above are stale
+  until that happens.
+- Full narrative history of every story shipped so far (Sprints 1–10) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
   historical context on a specific earlier decision; it's over 1200 lines.
 
-## 2. Next story — Sprint 10, first story: `LEAD-001`
+## 2. Next story — Sprint 10, second story: `LEAD-002` (not yet fully detailed)
 
-**Milestone ML9 ("Outcome & Reviews") is now fully complete — both `REV-001` and `REV-002` are Done.** Sprint 10
-("Provider Leads & Analytics," Milestone **ML10**, Epic **ML10-EP01**) is next. Its first story, looked up fresh
-from `docs/AI/Project_Tracker.xlsx` (row 38) this session:
+**Sprint 10 / Milestone ML10 is now 1 of 2 stories done — `LEAD-001` shipped, `LEAD-002` remains.** `LEAD-002`
+("understand my listing visibility") is Sprint 10's second and final story, and its dependency is already known
+from earlier tracker context: it **depends on `LEAD-001`** (now shipped, so `LEAD-002` is unblocked
+dependency-wise). Its full verbatim description and acceptance criteria have **not yet been fetched** from
+`docs/AI/Project_Tracker.xlsx` — mirroring how this file previously flagged Sprint 10's first story
+(`LEAD-001`) before it was looked up, `LEAD-002` is now in that same "identified but not yet detailed" state.
+**A fresh tracker lookup for `LEAD-002`'s full description/ACs is required before any planning begins.**
 
-- **Story ID:** `LEAD-001` — "See and manage my provider leads"
-- **Sprint/Milestone/Epic/Phase:** SP10 / ML10 / ML10-EP01 / PH2
-- **Priority:** High | **Depends on:** `CON-001` (already shipped) | **Status:** ⏳ Planned
-- **Description (verbatim):** "As a provider, I want to see who viewed my contact info and whether they went on
-  to hire me, so that I can gauge real interest in my listing without needing customer-provider messaging, which
-  doesn't exist in this product. This story surfaces `CON-001`'s Contact Views and `REV-001`'s outcome tags as a
-  provider-facing Leads list, without exposing more customer PII than necessary. Scope boundary: does not
-  include visibility analytics/trend charts (`LEAD-002`) — this story is the raw lead list only."
-- **Acceptance Criteria (verbatim):**
-  1. Leads screen lists Contact Views for the authenticated provider, each showing a category/request context, a
-     relative timestamp, and an outcome status chip (Hired / Not hired / not yet reported) where available.
-  2. Leads are ordered most-recent-first and support the app's standard pull-to-refresh and empty-state patterns.
-  3. No more customer PII is shown than necessary for the provider to recognize the lead.
-  4. A provider can only see their own leads (ownership enforced, tested explicitly).
-  5. Automated tests cover the ownership boundary and correct outcome-status display across all three states.
-- **Sprint 10's theme/goal** (from the Sprints sheet): "Provider Leads & Analytics" — "A provider can see leads
-  and storefront visibility." `LEAD-002` ("Understand my listing visibility") is Sprint 10's second story,
-  depends on `LEAD-001`, not yet started.
-
-This is now recorded here and should also be reflected in `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s "Next
-Planned Story" section. **Do NOT start `LEAD-001` (or any Sprint 10 story) without the CTO's explicit "Start X"
-instruction** — this lookup only identifies the story, it is not authorization to begin it.
+**Do NOT start `LEAD-002` (or plan it) without the CTO's explicit "Start X" instruction** — this note only
+identifies the story as next-in-line, it is not authorization to begin it.
 
 ## 3. Standing process (do not skip steps)
 
@@ -243,6 +248,24 @@ well-precedented, not a reason to expect it every time.
   `ContactViewNotFoundError` verbatim (the same check `REV-001`'s `outcome_tags` already performs on the same
   resource) rather than inventing a duplicate 404; separate new 409s were added only for the two genuinely
   distinct reasons (anchor validity, uniqueness) that need independently distinguishable rejection reasons.
+- **Module/schema placement rule, generalized from the opposite direction: zero new schema → fold into the
+  module that already owns the primary data being surfaced** (ADR-054, `LEAD-001`) — `ADR-051` already
+  established that a genuinely new schema gets a new module regardless of FK-reference density; `LEAD-001`
+  confirms the converse: a capability introducing no new schema at all has nothing for a standalone module to
+  own, so it belongs inside whichever existing module already owns the data being surfaced, even when it
+  requires new cross-module raw-Repository edges into schemas that module had no prior relationship with.
+  **This story's own `architect` review also caught a concrete instance of `ADR-047`'s docstring-naming
+  requirement not yet being honored** — the wiring was correct, but the new raw-Repository edges weren't yet
+  named as the `ADR-047` exception in `dependencies.py`'s own docstring; fixed at implementation time. Treat
+  `ADR-047`'s naming duty as a mandatory step when adding a new raw-Repository edge, not something to leave for
+  review to catch.
+- **A chained, multi-hop optional-FK context resolution needs an honest `null` at every dead-end, even when
+  there is more than one independently reachable dead-end** (ADR-055, `LEAD-001`) — extends the anti-fabrication
+  principle (`ADR-038`) beyond its prior single-dead-end applications: `LEAD-001`'s category-context lookup
+  (`contact_views.search_request_id → search_requests.category_id → categories.name`) has two distinct, real
+  absence reasons, both collapsing to one honest fallback (never a fabricated substitute like the provider's own
+  category label), with each dead-end tested as its own separately-named case rather than assumed identical by
+  inspection.
 
 ## 5. Tracker editing method (raw XML — never openpyxl `.save()`)
 
@@ -298,19 +321,19 @@ the full resolution.
 
 ## 7. ADR numbering
 
-Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-053** (ADR-051/052/053, all recorded at `REV-002`'s
-closeout, grouped by architectural theme — `review` module placement; full-recompute lock-guarded recalculation;
-review-rejection exception shapes). Next new ADR starts at **ADR-054**.
+Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-055** (ADR-054/055, both recorded at `LEAD-001`'s closeout —
+Leads module placement, generalizing `ADR-051` from the opposite direction; the two-independent-dead-end
+honest-null category-resolution pattern, extending `ADR-038`). Next new ADR starts at **ADR-056**.
 
 ## 8. Environment notes
 
-- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `REV-002`'s closeout, independently
-  re-run/re-confirmed by `tester`: **752/752 backend tests passing** (721 baseline before `REV-002`, +31 new,
+- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `LEAD-001`'s closeout, independently
+  re-run/re-confirmed by `tester`: **783/783 backend tests passing** (752 baseline before `LEAD-001`, +31 new,
   zero regressions). `ruff check .` clean. `mypy` is configured in `pyproject.toml` but is **not installed** in
   this sandbox's venv — cannot be run here; this is a known, pre-existing environment gap, not a regression to
   chase.
-- Mobile: Flutter/Riverpod. **233 mobile tests passing** as of `REV-002`'s closeout (211 baseline before
-  `REV-002`, +22 new, zero regressions). `flutter analyze` clean. Flutter SDK is not preinstalled in a fresh
+- Mobile: Flutter/Riverpod. **257 mobile tests passing** as of `LEAD-001`'s closeout (233 baseline before
+  `LEAD-001`, +24 new, zero regressions). `flutter analyze` clean. Flutter SDK is not preinstalled in a fresh
   container — a prior session cloned `flutter/stable` to `/root/.flutter_sdk` to run `flutter
   analyze`/`flutter test`/`gen-l10n`; this is outside the repo and won't persist across containers, so a fresh
   session may need to redo this setup step once, before running any mobile agent.
@@ -320,8 +343,10 @@ review-rejection exception shapes). Next new ADR starts at **ADR-054**.
   spreadsheet themselves (this was a repeated, avoidable source of wasted planning rounds in Sprints 6–7).
 ---
 
-**End of handoff. Sprint 9 / Milestone ML9 is now fully complete — 2 of 2 stories done (`REV-001`, `REV-002`) —
-and its tracker sync is done and verified (Dashboard/rollup numbers above are current). Sprint 10's first story,
-`LEAD-001` ("See and manage my provider leads"), has been identified (Section 2) but NOT started. When
-resuming: read this file, confirm the CTO wants to proceed with `LEAD-001`, then follow Section 3's cycle
-starting with `tech-lead`.**
+**End of handoff. Sprint 10 / Milestone ML10 is now 1 of 2 stories done — `LEAD-001` has shipped and been signed
+off (Section 1), but its tracker sync has NOT yet been performed (Section 5) — do that before trusting the
+Dashboard numbers in Section 1. `LEAD-002` ("understand my listing visibility") is next, depends on `LEAD-001`
+(now shipped), but is not yet fully detailed (Section 2) — a fresh tracker lookup is required before planning
+it. When resuming: read this file, run the tracker sync for `LEAD-001` if not already done, confirm the CTO
+wants to proceed with `LEAD-002`, look it up fresh in the tracker, then follow Section 3's cycle starting with
+`tech-lead`.**

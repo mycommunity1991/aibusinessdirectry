@@ -11,6 +11,40 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- See and manage my provider leads (Story LEAD-001, Sprint 10 / Milestone ML10's first story): a new, read-only
+  `LeadService`/`GET /providers/me/leads` slice of the existing `contact` domain module — **zero new tables, zero
+  new columns, zero new migration** — surfacing `CON-001`'s `contact_views` and `REV-001`'s `outcome_tags` as a
+  paginated, provider-facing Leads list (a fourth `Settings.LEADS_MAX_PAGE_SIZE` cap, following
+  `SEARCH_MAX_PAGE_SIZE`/`CLAIM_SEARCH_MAX_PAGE_SIZE`'s established pattern). Mounted at `/providers/me/leads`,
+  mirroring `verification`'s exact `/providers/me/...` router-mount precedent. This story's own module-placement
+  choice generalizes `ADR-051`'s "one schema, one module" rule **from the opposite direction**: a capability
+  introducing no new schema at all has nothing for a standalone module to meaningfully own, so it belongs inside
+  whichever existing module already owns the primary data being surfaced — even though it required two brand-new
+  cross-module raw-Repository edges (`contact → search.SearchRequestRepository`,
+  `contact → category.CategoryRepository`) into schemas `contact` had no prior relationship with (**ADR-054**).
+  Category/request context resolves via a two-hop join (`contact_views.search_request_id →
+  search_requests.category_id → categories.name`) with **two independent, real dead-ends** — no
+  `search_request_id` at all (the structured, non-AI search path), or a `search_request_id` whose own
+  `category_id` is itself `NULL` — both collapsing to one honest `null`/mobile fallback string ("Viewed your
+  profile directly") rather than any fabricated substitute (never the provider's own primary category label,
+  never raw `structured_criteria` free-text), extending this codebase's anti-fabrication principle to a
+  chained-nullable-FK case with more than one distinct absence reason, each independently tested (**ADR-055**).
+  `LeadResponse` carries zero customer-identifying fields (no name, no avatar, no phone, no raw `customer_id`),
+  continuing `CON-001`'s already-shipped zero-customer-PII precedent for anything provider-facing about a Contact
+  View. `outcome_status` is a server-computed three-value string enum (`hired` / `not_hired` /
+  `not_yet_reported`), derived from `outcome_tags.hired`'s presence/value — never left for the client to infer
+  from a raw boolean or a missing row. On mobile, a new `features/leads/` module delivers the Leads screen
+  (pull-to-refresh, a textually distinct empty state, three visually distinct outcome-status chips) and a new,
+  small, dependency-free relative-time utility (`mobile/lib/shared/utils/relative_time.dart`) — the first of its
+  kind in this codebase — plus a new "My Leads" entry-point card on the Storefront screen. **`tester`
+  independently verified all 5 verbatim ACs with no functional bugs and no gaps found.** **`architect`'s one
+  finding was documentation-only**: `contact/dependencies.py`'s docstring had not yet named this story's two new
+  cross-module raw-Repository edges as instances of the already-documented `ADR-047` exception (the wiring
+  itself was correct) — fixed at commit `8e987c3` and re-confirmed clean on a second pass. Final counts:
+  783/783 backend tests (752 baseline + 31 new), 257/257 mobile tests (233 baseline + 24 new), zero regressions
+  in either suite. See `docs/implementation/walkthroughs/Walkthrough_S10_LEAD-001.md` for the full account.
+  **Sprint 10 / Milestone ML10 is now 1 of 2 stories done** — `LEAD-002` ("understand my listing visibility")
+  remains.
 - Leave a verified review after a successful hire (Story REV-002, Sprint 9 / Milestone ML9's second and final
   story — **this completes Milestone ML9 in full**): a new, standalone `review` domain module
   (`backend/app/modules/review/`), with its own `review` Postgres schema distinct from `contact` — unlike
