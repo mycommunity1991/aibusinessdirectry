@@ -37,6 +37,11 @@ Future<void> _pumpStorefront(
         path: AppRoutes.leads,
         builder: (context, state) => const Scaffold(body: Text('leads-stub')),
       ),
+      GoRoute(
+        path: AppRoutes.visibilityAnalytics,
+        builder: (context, state) =>
+            const Scaffold(body: Text('visibility-analytics-stub')),
+      ),
     ],
   );
 
@@ -341,6 +346,45 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('leads-stub'), findsOneWidget);
+      });
+    },
+  );
+
+  group(
+    'StorefrontScreen — "My Visibility" entry point (LEAD-002, Plan item 3)',
+    () {
+      testWidgets('renders the "My Visibility" entry point tile', (
+        tester,
+      ) async {
+        final repository = FakeProviderRepository(
+          existingProvider: fakeExistingBusinessProvider,
+        );
+        await _pumpStorefront(tester, repository);
+
+        expect(
+          find.byKey(
+            const ValueKey('storefront-visibility-analytics-entry-point'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('My Visibility'), findsOneWidget);
+      });
+
+      testWidgets('tapping the "My Visibility" tile navigates to '
+          'AppRoutes.visibilityAnalytics', (tester) async {
+        final repository = FakeProviderRepository(
+          existingProvider: fakeExistingBusinessProvider,
+        );
+        await _pumpStorefront(tester, repository);
+
+        await tester.tap(
+          find.byKey(
+            const ValueKey('storefront-visibility-analytics-entry-point'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('visibility-analytics-stub'), findsOneWidget);
       });
     },
   );

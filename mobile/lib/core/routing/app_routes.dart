@@ -139,4 +139,10 @@ class AppRoutes {
   /// leads are resolved entirely server-side from the authenticated
   /// session, same as [storefront]/[verificationStatus].
   static const String leads = '/leads';
+
+  /// LEAD-002 -- My Visibility (AC1-AC4). Reached from [storefront]'s new
+  /// "My Visibility" entry point tile. Needs no `extra` -- the caller's own
+  /// visibility analytics are resolved entirely server-side from the
+  /// authenticated session, same as [leads]/[storefront].
+  static const String visibilityAnalytics = '/visibility-analytics';
 }

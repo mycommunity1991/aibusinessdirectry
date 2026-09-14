@@ -96,6 +96,8 @@ class _StorefrontSections extends StatelessWidget {
           const _VerificationStatusChip(),
           const SizedBox(height: AppSpacing.sm),
           const _LeadsEntryPointCard(),
+          const SizedBox(height: AppSpacing.sm),
+          const _VisibilityAnalyticsEntryPointCard(),
           const SizedBox(height: AppSpacing.lg),
           _BasicInfoSection(provider: provider),
           if (provider.providerType == ProviderType.business &&
@@ -260,6 +262,53 @@ class _LeadsEntryPointCard extends StatelessWidget {
             Expanded(
               child: Text(
                 l10n.storefrontLeadsEntryLabel,
+                style: TextStyle(color: colorScheme.onSecondaryContainer),
+              ),
+            ),
+            Icon(Icons.chevron_right, color: colorScheme.onSecondaryContainer),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// LEAD-002's "My Visibility" entry point tile -- mirrors
+/// [_LeadsEntryPointCard]'s own shape exactly: a tappable card reading only
+/// the [AppRoutes.visibilityAnalytics] constant, never importing anything
+/// from `features/visibility_analytics/` (`docs/AI/02_ARCHITECTURE.md`'s
+/// "Features must not depend directly on each other" rule).
+class _VisibilityAnalyticsEntryPointCard extends StatelessWidget {
+  const _VisibilityAnalyticsEntryPointCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      key: const ValueKey('storefront-visibility-analytics-entry-point'),
+      borderRadius: BorderRadius.circular(AppRadius.small),
+      onTap: () => context.push(AppRoutes.visibilityAnalytics),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: colorScheme.secondaryContainer,
+          borderRadius: BorderRadius.circular(AppRadius.small),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.insights_outlined,
+              color: colorScheme.onSecondaryContainer,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                l10n.storefrontVisibilityAnalyticsEntryLabel,
                 style: TextStyle(color: colorScheme.onSecondaryContainer),
               ),
             ),

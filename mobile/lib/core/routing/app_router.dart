@@ -33,6 +33,7 @@ import '../../features/verification/domain/models/verification_confirm_args.dart
 import '../../features/verification/presentation/screens/verification_confirm_screen.dart';
 import '../../features/verification/presentation/screens/verification_status_screen.dart';
 import '../../features/verification/presentation/screens/verification_upload_screen.dart';
+import '../../features/visibility_analytics/presentation/screens/visibility_analytics_screen.dart';
 import 'app_routes.dart';
 
 /// Builds the app's [GoRouter]. Exposed as a factory (rather than a single
@@ -214,6 +215,10 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.splash}) {
       GoRoute(
         path: AppRoutes.leads,
         builder: (context, state) => const LeadsScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.visibilityAnalytics,
+        builder: (context, state) => const VisibilityAnalyticsScreen(),
       ),
     ],
   );

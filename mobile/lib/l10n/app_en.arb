@@ -560,6 +560,10 @@
   "@storefrontLeadsEntryLabel": {
     "description": "Label on the Storefront screen's new tappable entry-point tile linking to the Leads screen (LEAD-001, Plan item 3) -- mirrors verificationStatusChipNotStartedLabel's tile shape."
   },
+  "storefrontVisibilityAnalyticsEntryLabel": "My Visibility",
+  "@storefrontVisibilityAnalyticsEntryLabel": {
+    "description": "Label on the Storefront screen's new tappable entry-point tile linking to the Visibility Analytics screen (LEAD-002, Plan item 3) -- mirrors storefrontLeadsEntryLabel's tile shape."
+  },
   "providerListingNotFoundMessage": "We couldn't find your provider listing.",
   "@providerListingNotFoundMessage": {
     "description": "Plain-language message for a 404 on a Storefront sub-resource call (PRO-002) -- an edge case, since the screen is only reachable once a listing is known to exist."
@@ -1135,6 +1139,35 @@
   "leadsNoCategoryContextLabel": "Viewed your profile directly",
   "@leadsNoCategoryContextLabel": {
     "description": "Honest fallback shown in place of a category name when a lead's category/request context can't be resolved (LEAD-001, Decision 3) -- e.g. the structured (non-AI) Search Results path, which creates no search_requests row at all. Deliberately never a fabricated category guess, and textually distinct from any real category name."
+  },
+
+  "visibilityAnalyticsScreenTitle": "My Visibility",
+  "@visibilityAnalyticsScreenTitle": {
+    "description": "App bar title on the Visibility Analytics screen (LEAD-002, AC1/AC2)."
+  },
+  "visibilityAnalyticsSearchAppearancesLabel": "Search appearances",
+  "@visibilityAnalyticsSearchAppearancesLabel": {
+    "description": "Label for the search-appearances headline stat card and the matching trend-chart legend entry (LEAD-002, AC1/AC2) -- sourced from search.provider_matches, never search_event_log (Decision 2)."
+  },
+  "visibilityAnalyticsContactViewsLabel": "Contact views",
+  "@visibilityAnalyticsContactViewsLabel": {
+    "description": "Label for the contact-views headline stat card and the matching trend-chart legend entry (LEAD-002, AC1/AC2) -- sourced from contact.contact_views."
+  },
+  "visibilityAnalyticsTrendUpLabel": "Up",
+  "@visibilityAnalyticsTrendUpLabel": {
+    "description": "Trend-indicator label for TrendDirection.up (LEAD-002, AC1, Decision 5) -- a plain three-state enum, never a fabricated percentage."
+  },
+  "visibilityAnalyticsTrendDownLabel": "Down",
+  "@visibilityAnalyticsTrendDownLabel": {
+    "description": "Trend-indicator label for TrendDirection.down (LEAD-002, AC1, Decision 5)."
+  },
+  "visibilityAnalyticsTrendFlatLabel": "Flat",
+  "@visibilityAnalyticsTrendFlatLabel": {
+    "description": "Trend-indicator label for TrendDirection.flat (LEAD-002, AC1, Decision 5); also the display fallback for the forward-compatibility-only `unknown` trend value."
+  },
+  "visibilityAnalyticsNotEnoughDataMessage": "Not enough data yet — once customers start finding and contacting you, your visibility stats will show up here.",
+  "@visibilityAnalyticsNotEnoughDataMessage": {
+    "description": "Empty-state copy on the Visibility Analytics screen shown when hasSufficientData is false (LEAD-002, AC4) -- replaces the stat cards/chart entirely, still pull-to-refresh-able."
   },
 
   "relativeTimeJustNowLabel": "Just now",

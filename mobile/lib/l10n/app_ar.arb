@@ -156,6 +156,7 @@
   "storefrontAvailabilitySectionTitle": "أوقات التوفر",
   "changesSavedMessage": "تم حفظ التغييرات.",
   "storefrontLeadsEntryLabel": "عملائي المحتملون",
+  "storefrontVisibilityAnalyticsEntryLabel": "ظهوري",
   "providerListingNotFoundMessage": "تعذر العثور على قائمة نشاطك التجاري.",
   "portfolioInvalidUploadMessage": "تعذر رفع هذه الصورة. الرجاء اختيار صورة بصيغة JPG أو PNG أو WEBP بحجم أقل من 5 ميجابايت.",
   "portfolioLimitExceededMessage": "لقد وصلت إلى الحد الأقصى لعدد صور معرض الأعمال.",
@@ -300,6 +301,14 @@
   "leadsOutcomeNotHiredLabel": "لم يتم التوظيف",
   "leadsOutcomeNotYetReportedLabel": "لم يُبلَّغ بعد",
   "leadsNoCategoryContextLabel": "شاهد ملفك الشخصي مباشرة",
+
+  "visibilityAnalyticsScreenTitle": "ظهوري",
+  "visibilityAnalyticsSearchAppearancesLabel": "مرات الظهور في البحث",
+  "visibilityAnalyticsContactViewsLabel": "مشاهدات بيانات التواصل",
+  "visibilityAnalyticsTrendUpLabel": "ارتفاع",
+  "visibilityAnalyticsTrendDownLabel": "انخفاض",
+  "visibilityAnalyticsTrendFlatLabel": "مستقر",
+  "visibilityAnalyticsNotEnoughDataMessage": "لا توجد بيانات كافية بعد — بمجرد أن يبدأ العملاء بإيجادك والتواصل معك، ستظهر إحصاءات ظهورك هنا.",
 
   "relativeTimeJustNowLabel": "الآن",
   "relativeTimeMinutesAgoLabel": "{minutes, plural, one {منذ دقيقة واحدة} other {منذ {minutes} دقائق}}",
