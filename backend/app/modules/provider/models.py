@@ -121,6 +121,11 @@ class Provider(CommonColumnsMixin, Base):
     sync here with the migration that actually creates it
     (`provider_discoverability_invariant`), so the ORM model and the DB
     schema never drift apart.
+
+    `chk_providers_average_rating_range` (REV-002, Decision 2,
+    `Plan_S09_REV-002.md`) is the same defense-in-depth pattern applied
+    to `average_rating` -- kept in sync here with the migration that
+    actually creates it (`provider_average_rating_range_invariant`).
     """
 
     __tablename__ = "providers"
@@ -145,6 +150,10 @@ class Provider(CommonColumnsMixin, Base):
         CheckConstraint(
             "is_discoverable = false OR verification_status = 'approved'",
             name="chk_providers_discoverable_requires_approved",
+        ),
+        CheckConstraint(
+            "average_rating IS NULL OR average_rating BETWEEN 0 AND 5",
+            name="chk_providers_average_rating_range",
         ),
         Index("idx_providers_provider_type", "provider_type"),
         Index("idx_providers_is_discoverable", "is_discoverable"),

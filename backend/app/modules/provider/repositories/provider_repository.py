@@ -102,6 +102,25 @@ class ProviderRepository(BaseRepository[Provider]):
         rowcount: int = result.rowcount  # type: ignore[attr-defined]
         return rowcount == 1
 
+    async def get_by_id_for_update(self, provider_id: uuid.UUID) -> Provider | None:
+        """
+        `SELECT * FROM provider.providers WHERE id = :id FOR UPDATE`
+        (REV-002, Decision 3 step 1, `Plan_S09_REV-002.md`) -- acquires a
+        Postgres row-level lock held for the rest of the caller's
+        transaction. Any other concurrent transaction attempting the
+        same lock (i.e. another review submission for the *same*
+        provider) blocks until this transaction commits or rolls back;
+        reviews for *different* providers are entirely unaffected (the
+        lock is per-row, not global). This is this codebase's first row
+        lock held across a multi-statement critical section, rather than
+        expressed as a single atomic conditional statement (Decision 3's
+        own "Open Question" flag) -- `ProviderService.
+        lock_for_rating_recalculation` is this method's sole caller.
+        """
+        stmt = select(Provider).where(Provider.id == provider_id).with_for_update()
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_by_google_place_id(self, google_place_id: str) -> Provider | None:
         """
         Retrieve a Provider by its `google_place_id` (CLM-001, Decision

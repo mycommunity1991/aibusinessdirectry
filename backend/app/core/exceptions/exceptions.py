@@ -713,3 +713,52 @@ class OutcomeTagAlreadyExistsError(BusinessException):
 
     def __init__(self, message: str = "An outcome tag was already submitted."):
         super().__init__(message=message, status_code=409)
+
+
+class ReviewAnchorNotVerifiedError(BusinessException):
+    """
+    Raised by `ReviewService.submit_review` (REV-002, AC2, Decision 5,
+    `Plan_S09_REV-002.md`) when the anchoring `ContactView` has no
+    `contact.outcome_tags` row at all, or has one with `hired=False` --
+    AC2's own wording treats both cases identically ("attempting
+    otherwise (no outcome tag, or `hired=false`) is rejected"), so one
+    exception covers both, mirroring `VerificationSubmissionNotAllowedError`/
+    `VerificationRecordNotActionableError`/
+    `ManualMatchAssignmentAlreadyResolvedError`'s existing "resource
+    exists, ownership isn't in question, but its current state blocks
+    this specific write" 409 shape.
+
+    409, not 403 -- unlike `SelfDealingContactError`, this is not a
+    permanent, identity-based rule: a `hired=false` (or missing) outcome
+    tag today doesn't mean this exact `contact_view_id` could never
+    anchor a review under any circumstance, it means the current
+    recorded outcome doesn't support one. Not a 404 either -- the
+    `ContactView` itself is genuinely found and owned by the caller;
+    nothing is being hidden.
+    """
+
+    def __init__(
+        self,
+        message: str = (
+            "This contact view does not have a confirmed hire outcome yet."
+        ),
+    ):
+        super().__init__(message=message, status_code=409)
+
+
+class ReviewAlreadyExistsError(BusinessException):
+    """
+    Raised by `ReviewService.submit_review` (REV-002, AC1, Decision 3
+    step 2/Decision 5, `Plan_S09_REV-002.md`) when `ReviewRepository.
+    try_create`'s atomic `INSERT ... ON CONFLICT DO NOTHING ...
+    RETURNING` finds a row already exists for the target
+    `contact_view_id` -- a genuine timing conflict, mirroring
+    `OutcomeTagAlreadyExistsError`/`ClaimAlreadyClaimedError`'s existing
+    409 shape. A Review is immutable and one-shot (mirrors `OutcomeTag`'s
+    precedent) -- this is also the only response a second, later,
+    deliberate resubmission attempt will ever receive, since no update
+    path exists.
+    """
+
+    def __init__(self, message: str = "A review was already submitted."):
+        super().__init__(message=message, status_code=409)

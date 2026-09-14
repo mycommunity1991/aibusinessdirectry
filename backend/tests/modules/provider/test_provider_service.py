@@ -11,12 +11,13 @@ against a real database.
 
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.core.constants import ROLE_PROVIDER
-from app.core.exceptions import ProviderAlreadyExistsError
+from app.core.exceptions import ProviderAlreadyExistsError, ProviderNotFoundError
 from app.modules.provider.models import (
     ListingSource,
     Provider,
@@ -42,6 +43,8 @@ def mock_provider_repository() -> MagicMock:
     repo.get_by_user_id = AsyncMock(return_value=None)
     repo.get_by_slug = AsyncMock(return_value=None)
     repo.create = AsyncMock()
+    repo.get_by_id_for_update = AsyncMock(return_value=None)
+    repo.update = AsyncMock()
     return repo
 
 
@@ -440,3 +443,65 @@ class TestGetSubtypeProfiles:
         assert freelancer is freelancer_profile
         assert business is None
         mock_business_profile_repository.get_by_provider_id.assert_not_awaited()
+
+
+class TestLockForRatingRecalculation:
+    """REV-002, Decision 3 step 1, `Plan_S09_REV-002.md`."""
+
+    @pytest.mark.anyio
+    async def test_returns_the_locked_row(
+        self,
+        provider_service: ProviderService,
+        mock_provider_repository: MagicMock,
+    ) -> None:
+        provider = _provider()
+        mock_provider_repository.get_by_id_for_update.return_value = provider
+
+        result = await provider_service.lock_for_rating_recalculation(provider.id)
+
+        assert result is provider
+        mock_provider_repository.get_by_id_for_update.assert_awaited_once_with(
+            provider.id
+        )
+
+    @pytest.mark.anyio
+    async def test_raises_not_found_defensively_when_missing(
+        self,
+        provider_service: ProviderService,
+        mock_provider_repository: MagicMock,
+    ) -> None:
+        mock_provider_repository.get_by_id_for_update.return_value = None
+
+        with pytest.raises(ProviderNotFoundError):
+            await provider_service.lock_for_rating_recalculation(uuid.uuid4())
+
+
+class TestApplyRatingRecalculation:
+    """REV-002, Decision 3 step 5, `Plan_S09_REV-002.md`."""
+
+    @pytest.mark.anyio
+    async def test_writes_both_fields_and_leaves_other_columns_untouched(
+        self,
+        provider_service: ProviderService,
+        mock_provider_repository: MagicMock,
+    ) -> None:
+        provider = _provider(average_rating=None, review_count=0)
+        updated = _provider(
+            id=provider.id,
+            display_name=provider.display_name,
+            average_rating=Decimal("4.50"),
+            review_count=2,
+        )
+        mock_provider_repository.update.return_value = updated
+
+        result = await provider_service.apply_rating_recalculation(
+            provider, average_rating=Decimal("4.50"), review_count=2
+        )
+
+        assert result.average_rating == Decimal("4.50")
+        assert result.review_count == 2
+        assert result.display_name == provider.display_name
+        mock_provider_repository.update.assert_awaited_once_with(
+            provider,
+            {"average_rating": Decimal("4.50"), "review_count": 2},
+        )

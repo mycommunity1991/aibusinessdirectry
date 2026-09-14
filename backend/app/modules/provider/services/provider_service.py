@@ -24,6 +24,7 @@ import re
 import secrets
 import uuid
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from app.core.constants import ROLE_PROVIDER
@@ -322,6 +323,50 @@ class ProviderService:
                 "verification_status": verification_status,
                 "is_discoverable": is_discoverable,
             },
+        )
+
+    async def lock_for_rating_recalculation(self, provider_id: uuid.UUID) -> Provider:
+        """
+        Thin wrapper over `ProviderRepository.get_by_id_for_update`
+        (REV-002, Decision 3 step 1, `Plan_S09_REV-002.md`) -- acquires
+        and holds a row lock on `provider_id`'s `providers` row for the
+        rest of the caller's transaction, so that `ReviewService.
+        submit_review`'s full-recompute-then-write sequence (insert the
+        review, recompute the aggregate, upsert the summary, apply it
+        onto this same row) can never race against a concurrent review
+        submission for the same provider.
+
+        Raises `ProviderNotFoundError` defensively -- should not occur in
+        practice, since `provider_id` is always resolved from an
+        already-loaded `ContactView`, but this method never silently
+        no-ops on a missing row.
+        """
+        provider = await self.provider_repository.get_by_id_for_update(provider_id)
+        if provider is None:
+            raise ProviderNotFoundError()
+        return provider
+
+    async def apply_rating_recalculation(
+        self,
+        provider: Provider,
+        *,
+        average_rating: Decimal,
+        review_count: int,
+    ) -> Provider:
+        """
+        Writes the freshly recomputed rating aggregate onto the
+        *already-locked* `Provider` object returned by
+        `lock_for_rating_recalculation` (REV-002, Decision 3 step 5) --
+        a plain partial-field update, mirroring
+        `apply_verification_outcome`'s identical "already-resolved row,
+        partial-field update" shape. `providers.average_rating`/
+        `review_count` remain the ranking formula's hot-path read target
+        (`ProviderSearchRepository.search_nearby`, `MAT-001`) -- this is
+        that column's actual first real writer.
+        """
+        return await self.provider_repository.update(
+            provider,
+            {"average_rating": average_rating, "review_count": review_count},
         )
 
     async def create_google_seeded_provider(

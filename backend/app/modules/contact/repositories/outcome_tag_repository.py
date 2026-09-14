@@ -1,5 +1,7 @@
+import uuid
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,3 +52,20 @@ class OutcomeTagRepository(BaseRepository[OutcomeTag]):
         if new_id is None:
             return None
         return await self.get_by_id(new_id)
+
+    async def get_by_contact_view_id(
+        self, contact_view_id: uuid.UUID
+    ) -> OutcomeTag | None:
+        """
+        The read-only counterpart to `try_create` (REV-002, Backend
+        Proposed Changes item 7, `Plan_S09_REV-002.md`) -- a plain
+        `SELECT ... WHERE contact_view_id = :id`, needed by
+        `ReviewService.submit_review` to resolve AC2's anchor-
+        verification precondition (does the anchoring Contact View carry
+        a `hired=True` Outcome Tag?). REV-001 never needed this lookup
+        (it only ever creates, never reads back); this is its first
+        consumer.
+        """
+        stmt = select(OutcomeTag).where(OutcomeTag.contact_view_id == contact_view_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()

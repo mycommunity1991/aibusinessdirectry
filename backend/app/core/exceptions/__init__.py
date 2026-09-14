@@ -35,6 +35,8 @@ from app.core.exceptions.exceptions import (
     ProviderAlreadyExistsError,
     ProviderNotFoundError,
     RateLimitExceededError,
+    ReviewAlreadyExistsError,
+    ReviewAnchorNotVerifiedError,
     SavedAddressNotFoundError,
     SearchRequestNotFoundError,
     SelfDealingContactError,
@@ -94,4 +96,6 @@ __all__ = [
     "SelfDealingContactError",
     "ContactViewNotFoundError",
     "OutcomeTagAlreadyExistsError",
+    "ReviewAnchorNotVerifiedError",
+    "ReviewAlreadyExistsError",
 ]

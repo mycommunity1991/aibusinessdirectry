@@ -9,6 +9,7 @@ from app.modules.provider.admin_claim_api import router as admin_claim_router
 from app.modules.provider.api import router as provider_router
 from app.modules.provider.claim_api import router as claim_router
 from app.modules.provider.public_api import router as provider_public_router
+from app.modules.review.api import router as review_router
 from app.modules.search.admin_manual_match_api import (
     router as admin_manual_match_router,
 )
@@ -35,6 +36,7 @@ v1_router.include_router(
     admin_manual_match_router, prefix="/admin/search/manual-matches"
 )
 v1_router.include_router(contact_router, prefix="/contact-views")
+v1_router.include_router(review_router, prefix="/contact-views")
 # CON-001, Decision 2: registered *after* `provider_router` so `/me`,
 # `/me/portfolio`, `/me/availability` continue to match their literal
 # paths before this new `/{provider_id}` path-parameter route is ever

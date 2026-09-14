@@ -15,6 +15,7 @@ import app.modules.customer.models  # noqa: E402,F401
 import app.modules.identity.models  # noqa: E402,F401
 import app.modules.notification.models  # noqa: E402,F401
 import app.modules.provider.models  # noqa: E402,F401
+import app.modules.review.models  # noqa: E402,F401
 import app.modules.verification.models  # noqa: E402,F401
 from alembic import context
 from app.core.config import settings

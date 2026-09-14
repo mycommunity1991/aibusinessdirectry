@@ -99,6 +99,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
     import app.modules.identity.models  # noqa: F401 - registers identity tables
     import app.modules.notification.models  # noqa: F401 - registers notification tables
     import app.modules.provider.models  # noqa: F401 - registers provider tables
+    import app.modules.review.models  # noqa: F401 - registers review tables
     import app.modules.search.models  # noqa: F401 - registers search tables
     import app.modules.verification.models  # noqa: F401 - registers verification tables
     from app.database.base import Base
@@ -117,6 +118,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS administration"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS notification"))
         await conn.execute(text("CREATE SCHEMA IF NOT EXISTS search"))
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS review"))
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
@@ -134,6 +136,7 @@ async def db_engine() -> AsyncGenerator[AsyncEngine]:
         await conn.execute(text("DROP SCHEMA IF EXISTS administration CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS notification CASCADE"))
         await conn.execute(text("DROP SCHEMA IF EXISTS search CASCADE"))
+        await conn.execute(text("DROP SCHEMA IF EXISTS review CASCADE"))
     await engine.dispose()
 
 
@@ -187,6 +190,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         ProviderCategoryLabel,
         ServiceArea,
     )
+    from app.modules.review.models import ProviderRatingSummary, Review
     from app.modules.search.models import ProviderMatch, SearchEventLog, SearchRequest
     from app.modules.verification.models import (
         VerificationDocument,
@@ -205,6 +209,8 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             ClaimReviewRequest,
             ManualMatchAssignment,
             Notification,
+            Review,
+            ProviderRatingSummary,
             OutcomeTag,
             ContactView,
             ProviderMatch,

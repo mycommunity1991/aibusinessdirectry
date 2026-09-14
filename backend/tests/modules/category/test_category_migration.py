@@ -142,6 +142,13 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
     (unlike `conversation`/`search`): `contact_views` declares no native
     Postgres ENUM column, so it has no schema-wide `before_create`/
     `after_drop` DDL event to satisfy.
+
+    `review` (REV-002) is excluded for the identical reason as `contact`:
+    `review.reviews` has real FKs into both the excluded `contact`
+    schema (`contact_views`) and `customer`/`provider` -- since `contact`
+    is already excluded, `reviews` cannot be created here either, and
+    (like `contact`) `review` has no native Postgres ENUM column, so no
+    namespace-only `CREATE SCHEMA` is needed for it.
     """
     import app.modules.administration.models  # noqa: F401
     import app.modules.audit.models  # noqa: F401
@@ -149,10 +156,11 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
     import app.modules.identity.models  # noqa: F401
     import app.modules.notification.models  # noqa: F401
     import app.modules.provider.models  # noqa: F401
+    import app.modules.review.models  # noqa: F401
     import app.modules.verification.models  # noqa: F401
     from app.database.base import Base
 
-    _excluded_schemas = {"category", "contact", "conversation", "search"}
+    _excluded_schemas = {"category", "contact", "conversation", "search", "review"}
     _excluded_table_names = {"administration.manual_match_assignments"}
     non_category_tables = [
         t
