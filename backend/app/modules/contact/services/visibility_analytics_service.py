@@ -21,7 +21,7 @@ primitive `LeadService`/`PortfolioService` already use).
 
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 from app.core.config import settings
 from app.core.exceptions import ProviderNotFoundError
@@ -110,15 +110,14 @@ def _build_daily_series(
     maps built from the repositories' `count_daily_for_provider_since`
     rows, defaulting to `0`.
 
-    Deliberately anchored on `today`, not on the headline stats'
-    `current_start` timestamp (30*24 exact hours ago): a non-midnight
-    timestamp boundary cannot align to a whole number of calendar days
-    on both ends at once, so the boundary is resolved in favor of never
-    silently dropping `today` -- the single most useful, most-recently-
-    populated day of any trend chart -- from the visible series. Both
-    repositories are still queried from `current_start` onward (one
-    calendar day earlier than this series' own first entry, at most),
-    so this never fabricates data outside what was actually queried.
+    `today` is anchored on the same midnight-aligned calendar day as the
+    headline stats' own `current_start` (`get_my_visibility_analytics`
+    computes `current_start` as midnight on `today - (window_days - 1)`
+    days), so `window_start` here always equals `date(current_start)`
+    exactly -- the chart's 30 daily buckets and the headline
+    `total_last_30_days` are always drawn from the identical calendar-
+    day window, and `total_last_30_days` always exactly equals the sum
+    of this series' own counts for that metric.
     """
     window_start = today - timedelta(days=window_days - 1)
     days = (window_start + timedelta(days=offset) for offset in range(window_days))
@@ -162,8 +161,22 @@ class VisibilityAnalyticsService:
 
         window_days = settings.VISIBILITY_ANALYTICS_WINDOW_DAYS
         now = datetime.now(UTC)
-        current_start = now - timedelta(days=window_days)
-        previous_start = current_start - timedelta(days=window_days)
+        today = now.date()
+        # Midnight-aligned to the same calendar day the 30-day chart's
+        # own `window_start` begins (`_build_daily_series`), not an
+        # exact-timestamp offset from `now` -- otherwise `current_start`
+        # falls exactly one calendar day before the chart's earliest
+        # visible day, and any row on that boundary day is counted in
+        # the headline total but can never appear in the chart series.
+        # `previous_start` mirrors the same midnight alignment, exactly
+        # `window_days` calendar days before `current_start`, giving a
+        # clean, non-overlapping, calendar-day-aligned previous window.
+        current_start = datetime.combine(
+            today - timedelta(days=window_days - 1), time.min, tzinfo=UTC
+        )
+        previous_start = datetime.combine(
+            today - timedelta(days=(2 * window_days) - 1), time.min, tzinfo=UTC
+        )
 
         contact_views_current_total = (
             await self.contact_view_repository.count_for_provider_between(
@@ -198,7 +211,7 @@ class VisibilityAnalyticsService:
         )
 
         daily_trend = _build_daily_series(
-            today=now.date(),
+            today=today,
             window_days=window_days,
             search_appearances_by_day=dict(search_appearances_daily_rows),
             contact_views_by_day=dict(contact_views_daily_rows),
