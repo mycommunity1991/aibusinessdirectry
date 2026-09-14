@@ -106,3 +106,53 @@ The Plan's mobile exception design (`review_exception.dart`... "mirrors outcome_
 
 - **tester** — verify AC6/AC7's mobile-relevant coverage per the Plan's Verification Plan table (the positive push + 3 negative non-push cases in `provider_profile_screen_test.dart`; the star-input/disabled-Submit/success-pop widget tests in `write_review_screen_test.dart`).
 - **architect** — review the 409-collapsing deviation above; confirm the "screen shows inline error rather than silently closing" UX choice is acceptable (`docs/AI/16_UX_GUIDELINES.md`).
+
+---
+
+## Architect review (this update)
+
+**Verdict: CLEAN — no findings that block sign-off.**
+
+Reviewed backend commit `d61d8e4` and frontend commit `0a11e87` against `docs/AI/02_ARCHITECTURE.md`,
+`docs/AI/08_CODING_STANDARDS.md`, `docs/AI/06_SECURITY.md`, and the Plan's own 7 Decisions.
+
+- **Decision 1 (module placement)**: `review` as a standalone module/schema is correct and consistent with this
+  codebase's actual rule (new module per new Postgres schema; `outcome_tags`→`contact` was the documented
+  exception, not the default). No cross-module coupling issue in `backend/app/modules/review/models.py` — FKs
+  into `contact`/`customer`/`provider` schemas are ordinary cross-schema FKs, not logic coupling.
+- **Cross-module edges vs ADR-047**: `ReviewService` (`backend/app/modules/review/services/review_service.py`)
+  reaches `provider` only via `ProviderService.lock_for_rating_recalculation`/`apply_rating_recalculation` —
+  never `ProviderRepository` directly (grep confirms `get_by_id_for_update`'s only callers are
+  `ProviderService` itself and tests). It does inject `contact.ContactViewRepository`/`contact.
+  OutcomeTagRepository` and `customer.CustomerProfileRepository` raw, but this is the documented, CTO-accepted
+  exception ADR-047 itself carves out ("a raw cross-module Repository dependency is only acceptable when the
+  target module's Service genuinely exposes no equivalent read primitive... named explicitly in the new
+  module's own dependencies.py docstring") — `backend/app/modules/review/dependencies.py`'s docstring names
+  each gap explicitly, exactly per that convention, mirroring `ContactService`'s own identical, already-accepted
+  precedent for the same two repositories. Not a violation.
+- **Decision 3 (lock correctness)**: `get_by_id_for_update`/`FOR UPDATE` on `providers` is the only row-lock
+  anywhere in the backend today (verified by repo-wide grep) — no other code path locks `providers` in any
+  order, so no lock-order-inversion deadlock is possible. The lock is acquired before the review INSERT and
+  held through recompute/upsert/apply, released only at the API layer's single `db.commit()` — no external
+  I/O (no notification/HTTP/LLM call) is awaited while the lock is held. The genuine two-overlapping-transaction
+  concurrency test (`test_two_concurrent_reviews_for_the_same_provider_both_count`) and the rollback test both
+  independently confirm this.
+- **AC5 reasoning**: independently verified, not just trusted. `ContactService.create_contact_view`
+  (`backend/app/modules/contact/services/contact_service.py:118-119`) raises `SelfDealingContactError` before
+  `contact_view_repository.create(...)` is ever reached, and a repo-wide search confirms `ContactViewRepository
+  .create`/`.contact_view_repository.create` has exactly one call site in the entire codebase (that same
+  method) — no admin/seed path, no migration backfill, nothing else ever writes a `contact_views` row. The
+  self-dealing state is genuinely structurally unreachable, not merely untested.
+- **Decision 5 (exceptions)**: `ReviewAnchorNotVerifiedError`/`ReviewAlreadyExistsError` (409) and reused
+  `ContactViewNotFoundError` (404) all extend `BusinessException`, whose `status_code` is read generically by
+  the one global handler (`backend/app/core/exceptions/handlers.py`) — no per-exception-type special-casing
+  needed or missing. Status code choices match this codebase's established "resource exists, state blocks
+  write" 409 family and ADR-015's non-revealing-404 convention.
+- **Other**: the mobile-side 409 collapsing (both `ReviewAnchorNotVerifiedError`/`ReviewAlreadyExistsError`
+  surface as `ReviewErrorType.anchorNotVerified`, flagged by `frontend` in this same Checkpoint) is functionally
+  inconsequential (identical inline copy either way) and introduces no information leak — acceptable as-is, not
+  a blocking finding. Migrations, model/DB constraint parity (`chk_providers_average_rating_range` present in
+  both the migration and `provider/models.py`), and repository query scoping (each new repository only touches
+  its own schema's tables) all checked and correct.
+
+No fix-and-recheck round required for this story.
