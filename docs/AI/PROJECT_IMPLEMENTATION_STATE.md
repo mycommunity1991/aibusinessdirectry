@@ -1364,11 +1364,21 @@ docstring had not yet named this story's two new cross-module raw-Repository edg
 clean. **Final verdicts: `tester` — all 5 ACs pass; `architect` — clean after one docstring fix.** Final counts:
 783/783 backend tests, 257/257 mobile tests.
 
-**Sprint 10 is now 1 of 2 stories done — `LEAD-001` shipped, `LEAD-002` ("understand my listing visibility,"
-depends on `LEAD-001`) remains, not yet planned or started.** No engineering agent should plan or start
-`LEAD-002` without an explicit CTO "Start X" instruction, matching this document's own established convention;
-its full verbatim description/acceptance criteria still need a fresh `docs/AI/Project_Tracker.xlsx` lookup
-before planning begins.
+**Sprint 10 is now 1 of 2 stories done — `LEAD-001` shipped, `LEAD-002` ("understand my listing visibility")
+remains, the last story in Sprint 10/Milestone ML10.** Looked up fresh from `docs/AI/Project_Tracker.xlsx`:
+depends on `LEAD-001` (shipped, unblocked); Priority Medium. Verbatim description: "As a provider, I want
+simple stats on how often I appear in search and how many people viewed my contact info, so that I can tell
+whether my listing is actually working, without the platform building brand-new tracking infrastructure just
+for this. This story reuses the Search Event Log and Contact Views that already exist for other purposes,
+presenting them as a lightweight analytics view — consistent with the product's 'reuse, don't rebuild'
+principle. Scope boundary: does not include admin-facing platform-wide analytics (`ADM-002`) — this is the
+single-provider visibility view only." Verbatim ACs: (1) a Visibility Analytics screen shows two headline
+stats — search appearances and contact views — each with a short trend indicator; (2) a 30-day trend chart
+sourced from `search_event_log`/`contact_views`, not a new tracking table; (3) data scoped strictly to the
+authenticated provider's own listing; (4) a graceful "not enough data yet" state for a newly-onboarded
+provider; (5) automated tests cover the ownership boundary and correct 30-day aggregation. No engineering agent
+should plan or start `LEAD-002` without an explicit CTO "Start X" instruction, matching this document's own
+established convention.
 
 ---
 

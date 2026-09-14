@@ -6,11 +6,10 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 14 September 2026, after Story LEAD-001 closeout. **Tracker sync for `LEAD-001` is NOT yet
-done** — that is a separate step the orchestrator performs directly (Section 5), not part of this closeout.
+**Last updated:** 14 September 2026, after Story LEAD-001 closeout AND its tracker sync (both complete).
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `8e987c3` (docs: LEAD-001 closeout; docstring fix for architect's ADR-047
-finding; backend `e05747b`, frontend `03f1f5b`). Prior closeout: `34f774e` (chore: tracker sync for REV-002).
+**Last commit at time of writing:** `f614359` (chore: tracker sync for LEAD-001; docs closeout `8358551`;
+docstring fix `8e987c3`; backend `e05747b`, frontend `03f1f5b`).
 
 ---
 
@@ -30,15 +29,14 @@ finding; backend `e05747b`, frontend `03f1f5b`). Prior closeout: `34f774e` (chor
   for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
   test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
   PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
-- **Dashboard numbers (as of commit `34f774e`, tracker sync for REV-002 confirmed applied and verified) —
-  STALE as of this update, pending `LEAD-001`'s own tracker sync:**
-  Overall Progress **59.4%** | Completed Milestones **9/24** | Completed Epics **16/23** | Completed Stories
-  **37/47** | Current Phase **PH2** (progress **0.76**) | Milestone **ML9** — ✅ **Completed** (2/2 stories) |
-  Epic **ML9-EP01** — ✅ **Completed** | Sprint **SP09** — ✅ **Completed** (2/2 stories). These numbers reflect
-  the state through `REV-002` only. **`LEAD-001` has since shipped and been signed off but its tracker row is
-  still `⏳ Planned`** — the orchestrator must run the raw-XML tracker-sync procedure (Section 5) for `LEAD-001`
-  before these Dashboard numbers are trusted again; do not assume Stories/Epics/Milestones counts already
-  reflect `LEAD-001`.
+- **Dashboard numbers (as of commit `f614359`, tracker sync for LEAD-001 confirmed applied and verified):**
+  Overall Progress **62%** | Completed Milestones **9/24** | Completed Epics **16/23** | Completed Stories
+  **38/47** | Current Phase **PH2** (progress **0.8**) | Milestone **ML9** — ✅ **Completed** (2/2 stories) |
+  Epic **ML9-EP01** — ✅ **Completed** | Sprint **SP09** — ✅ **Completed** (2/2 stories) | Milestone **ML10** —
+  🔄 **In Progress** (0.5, 1/2 stories done) | Epic **ML10-EP01** — 🔄 **In Progress** (0.5) | Sprint **SP10** —
+  🔄 **In Progress** (1/2 stories done). These numbers are current and verified (each of the 12 changed cells
+  checked individually via `openpyxl` before and after, plus a structural cell-by-cell diff against the
+  pre-sync file confirming no other cell changed) — no further tracker action is needed for `LEAD-001`.
 - **Sprint 9 / Milestone ML9 ("Outcome & Reviews") is now fully complete — 2 of 2 stories done: `REV-001`,
   `REV-002`.** `REV-001` shipped and was signed off 13 September 2026 — see
   `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md` (`architect`: APPROVED, one minor non-blocking
@@ -86,18 +84,33 @@ finding; backend `e05747b`, frontend `03f1f5b`). Prior closeout: `34f774e` (chor
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
   historical context on a specific earlier decision; it's over 1200 lines.
 
-## 2. Next story — Sprint 10, second story: `LEAD-002` (not yet fully detailed)
+## 2. Next story — Sprint 10, second story: `LEAD-002`
 
-**Sprint 10 / Milestone ML10 is now 1 of 2 stories done — `LEAD-001` shipped, `LEAD-002` remains.** `LEAD-002`
-("understand my listing visibility") is Sprint 10's second and final story, and its dependency is already known
-from earlier tracker context: it **depends on `LEAD-001`** (now shipped, so `LEAD-002` is unblocked
-dependency-wise). Its full verbatim description and acceptance criteria have **not yet been fetched** from
-`docs/AI/Project_Tracker.xlsx` — mirroring how this file previously flagged Sprint 10's first story
-(`LEAD-001`) before it was looked up, `LEAD-002` is now in that same "identified but not yet detailed" state.
-**A fresh tracker lookup for `LEAD-002`'s full description/ACs is required before any planning begins.**
+**Sprint 10 / Milestone ML10 is now 1 of 2 stories done — `LEAD-001` shipped, `LEAD-002` is next and final.**
+Looked up fresh from `docs/AI/Project_Tracker.xlsx` (row 39) this session:
 
-**Do NOT start `LEAD-002` (or plan it) without the CTO's explicit "Start X" instruction** — this note only
-identifies the story as next-in-line, it is not authorization to begin it.
+- **Story ID:** `LEAD-002` — "Understand my listing visibility"
+- **Sprint/Milestone/Epic/Phase:** SP10 / ML10 / ML10-EP01 / PH2
+- **Priority:** Medium | **Depends on:** `LEAD-001` (shipped — unblocked) | **Status:** ⏳ Planned
+- **Description (verbatim):** "As a provider, I want simple stats on how often I appear in search and how many
+  people viewed my contact info, so that I can tell whether my listing is actually working, without the
+  platform building brand-new tracking infrastructure just for this. This story reuses the Search Event Log and
+  Contact Views that already exist for other purposes, presenting them as a lightweight analytics view —
+  consistent with the product's 'reuse, don't rebuild' principle. Scope boundary: does not include admin-facing
+  platform-wide analytics (`ADM-002`) — this is the single-provider visibility view only."
+- **Acceptance Criteria (verbatim):**
+  1. Visibility Analytics screen shows two headline stats — search appearances and contact views — each with a
+     short trend indicator.
+  2. A 30-day trend chart is shown, sourced from `search_event_log` and `contact_views`, not a new tracking
+     table.
+  3. Data shown is scoped strictly to the authenticated provider's own listing (ownership enforced).
+  4. The screen degrades gracefully (a clear "not enough data yet" state) for a newly-onboarded provider with
+     little or no history.
+  5. Automated tests cover the ownership boundary and correct aggregation of the two headline stats over the
+     30-day window.
+
+This is the last story in Sprint 10/Milestone ML10 — shipping it completes both in full. **Do NOT start
+`LEAD-002` (or plan it) without the CTO's explicit "Start X" instruction.**
 
 ## 3. Standing process (do not skip steps)
 
@@ -343,10 +356,8 @@ honest-null category-resolution pattern, extending `ADR-038`). Next new ADR star
   spreadsheet themselves (this was a repeated, avoidable source of wasted planning rounds in Sprints 6–7).
 ---
 
-**End of handoff. Sprint 10 / Milestone ML10 is now 1 of 2 stories done — `LEAD-001` has shipped and been signed
-off (Section 1), but its tracker sync has NOT yet been performed (Section 5) — do that before trusting the
-Dashboard numbers in Section 1. `LEAD-002` ("understand my listing visibility") is next, depends on `LEAD-001`
-(now shipped), but is not yet fully detailed (Section 2) — a fresh tracker lookup is required before planning
-it. When resuming: read this file, run the tracker sync for `LEAD-001` if not already done, confirm the CTO
-wants to proceed with `LEAD-002`, look it up fresh in the tracker, then follow Section 3's cycle starting with
-`tech-lead`.**
+**End of handoff. Sprint 10 / Milestone ML10 is now 1 of 2 stories done — `LEAD-001` has shipped, been signed
+off, and its tracker sync is done and verified (Dashboard/rollup numbers in Section 1 are current). `LEAD-002`
+("understand my listing visibility") is next and final for Sprint 10/Milestone ML10 — its full verbatim
+description and 5 ACs are recorded in Section 2. When resuming: read this file, confirm the CTO wants to
+proceed with `LEAD-002`, then follow Section 3's cycle starting with `tech-lead`.**
