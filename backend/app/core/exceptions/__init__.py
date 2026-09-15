@@ -15,6 +15,7 @@ from app.core.exceptions.exceptions import (
     ConversationSessionNotFoundError,
     CustomerProfileNotFoundError,
     ExpiredTokenError,
+    FeatureFlagNotFoundError,
     InsufficientRoleError,
     InvalidCategoryLabelsError,
     InvalidIdentityTokenError,
@@ -42,6 +43,7 @@ from app.core.exceptions.exceptions import (
     SelfDealingContactError,
     SessionNotFoundError,
     SubtypeDetailsMismatchError,
+    SystemSettingNotFoundError,
     UnmatchedQueryReportInvalidTransitionError,
     UnmatchedQueryReportNotFoundError,
     VerificationDocumentInvalidTypeError,
@@ -102,4 +104,6 @@ __all__ = [
     "ReviewAlreadyExistsError",
     "UnmatchedQueryReportNotFoundError",
     "UnmatchedQueryReportInvalidTransitionError",
+    "FeatureFlagNotFoundError",
+    "SystemSettingNotFoundError",
 ]

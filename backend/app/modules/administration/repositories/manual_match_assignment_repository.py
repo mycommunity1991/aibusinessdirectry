@@ -50,6 +50,22 @@ class ManualMatchAssignmentRepository(BaseRepository[ManualMatchAssignment]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all()), total
 
+    async def count_pending(self) -> int:
+        """
+        Decision 4 (ADM-002, `Plan_S11_ADM-002.md`): a standalone
+        `SELECT count(*)` mirroring `list_pending`'s exact `WHERE status
+        = 'pending'` clause, with no `OFFSET`/`LIMIT`/row hydration --
+        used by `DashboardService.get_summary` (AC2) so a headline
+        count never requires fetching a full page of PII-bearing rows.
+        """
+        stmt = select(func.count()).select_from(
+            select(ManualMatchAssignment)
+            .where(ManualMatchAssignment.status == _STATUS_PENDING)
+            .subquery()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
     async def try_resolve(
         self,
         assignment_id: uuid.UUID,

@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -175,6 +175,48 @@ class ManualMatchAssignment(CommonColumnsMixin, Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class FeatureFlag(CommonColumnsMixin, Base):
+    """
+    `administration`'s fifth aggregate root (ADM-002, Decision 1,
+    `Plan_S11_ADM-002.md`) -- a code-defined, migration-seeded set of
+    runtime-toggleable flags (AC1/AC4). Rows are never created via the
+    API (Decision 3): only a migration seeds new keys, mirroring
+    `04_DATABASE.md`'s "VARCHAR + application-level constant" convention
+    already applied to `AdminActionLog.action_type`.
+
+    Full `CommonColumnsMixin` (versioned, soft-deletable), matching
+    every other administration aggregate's own precedent.
+    """
+
+    __tablename__ = "feature_flags"
+    __table_args__ = ({"schema": SCHEMA},)
+
+    key: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    is_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class SystemSetting(CommonColumnsMixin, Base):
+    """
+    `administration`'s sixth aggregate root (ADM-002, Decision 1,
+    `Plan_S11_ADM-002.md`) -- a code-defined, migration-seeded set of
+    editable configuration values (AC1). Rows are never created via the
+    API (Decision 3): only a migration seeds new keys.
+
+    Full `CommonColumnsMixin` (versioned, soft-deletable), matching
+    every other administration aggregate's own precedent.
+    """
+
+    __tablename__ = "system_settings"
+    __table_args__ = ({"schema": SCHEMA},)
+
+    key: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    value: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class UnmatchedQueryReport(CommonColumnsMixin, Base):

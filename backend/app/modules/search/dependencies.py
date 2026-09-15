@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.session import get_db
 from app.modules.administration.dependencies import (
+    get_feature_flag_service,
     get_manual_match_assignment_service,
     get_unmatched_query_report_service,
 )
+from app.modules.administration.services.feature_flag_service import FeatureFlagService
 from app.modules.administration.services.manual_match_assignment_service import (
     ManualMatchAssignmentService,
 )
@@ -132,19 +134,24 @@ def get_search_request_service(
     unmatched_query_report_service: Annotated[
         UnmatchedQueryReportService, Depends(get_unmatched_query_report_service)
     ],
+    feature_flag_service: Annotated[
+        FeatureFlagService, Depends(get_feature_flag_service)
+    ],
 ) -> SearchRequestService:
     """
     Provides a `SearchRequestService` bound to the request-scoped DB
     session (AI-002, Decision 1) -- wires in `customer.
     SavedAddressService`/`CustomerService` (`search -> customer`) and
     `administration.ManualMatchAssignmentService`/`administration.
-    UnmatchedQueryReportService` (`search -> administration`, the second
-    added by ADM-001, Decision 2, `Plan_S11_ADM-001.md`) as cross-module,
-    constructor-injected dependencies, alongside the already-shipped
-    `SearchService`/`ProviderService` (`search -> provider`, DIR-001,
-    reused unchanged -- Decision 5). `message_repository` (ADM-001,
-    Decision 4) is `search`'s only import from `conversation`, wired via
-    `get_message_repository` above -- never `conversation.dependencies`.
+    UnmatchedQueryReportService`/`administration.FeatureFlagService`
+    (`search -> administration`, the second added by ADM-001, Decision
+    2, `Plan_S11_ADM-001.md`, the third by ADM-002, Decision 7,
+    `Plan_S11_ADM-002.md`) as cross-module, constructor-injected
+    dependencies, alongside the already-shipped `SearchService`/
+    `ProviderService` (`search -> provider`, DIR-001, reused unchanged --
+    Decision 5). `message_repository` (ADM-001, Decision 4) is `search`'s
+    only import from `conversation`, wired via `get_message_repository`
+    above -- never `conversation.dependencies`.
     """
     return SearchRequestService(
         search_request_repository=search_request_repository,
@@ -157,4 +164,5 @@ def get_search_request_service(
         customer_service=customer_service,
         message_repository=message_repository,
         unmatched_query_report_service=unmatched_query_report_service,
+        feature_flag_service=feature_flag_service,
     )

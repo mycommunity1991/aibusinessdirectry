@@ -30,6 +30,9 @@ from app.modules.administration.models import ManualMatchAssignment
 from app.modules.administration.repositories.manual_match_assignment_repository import (
     ManualMatchAssignmentRepository,
 )
+from app.modules.administration.services.admin_action_log_service import (
+    AdminActionLogService,
+)
 
 _STATUS_PENDING = "pending"
 
@@ -37,8 +40,17 @@ _STATUS_PENDING = "pending"
 class ManualMatchAssignmentService:
     """Creates, lists, and resolves `manual_match_assignments` rows."""
 
-    def __init__(self, repository: ManualMatchAssignmentRepository) -> None:
+    def __init__(
+        self,
+        repository: ManualMatchAssignmentRepository,
+        admin_action_log_service: AdminActionLogService,
+    ) -> None:
         self.repository = repository
+        # ADM-002, Decision 6 (`Plan_S11_ADM-002.md`): a trivial,
+        # intra-module constructor-injection addition -- closes the real
+        # gap where `resolve` previously wrote no `admin_action_log` row
+        # at all, despite AC3's literal "every... queue action" wording.
+        self.admin_action_log_service = admin_action_log_service
 
     async def create(
         self,
@@ -77,7 +89,11 @@ class ManualMatchAssignmentService:
         return await self.repository.get_by_id(assignment_id)
 
     async def resolve(
-        self, assignment_id: uuid.UUID, *, admin_user_id: uuid.UUID
+        self,
+        assignment_id: uuid.UUID,
+        *,
+        admin_user_id: uuid.UUID,
+        provider_ids: list[uuid.UUID],
     ) -> ManualMatchAssignment:
         """
         Marks an assignment `status=completed` with the given
@@ -101,6 +117,13 @@ class ManualMatchAssignmentService:
         is lost (already resolved by this call or a concurrent one), and
         refreshes `assignment` in place so its Python attributes reflect
         the just-applied transition before returning it.
+
+        `provider_ids` (ADM-002, Decision 6, `Plan_S11_ADM-002.md`) is
+        the admin's own supplied selection -- its only caller,
+        `SearchRequestService.resolve_manual_match`, already has this
+        value available -- recorded to `admin_action_log` (AC3) once the
+        transition genuinely wins the race, never before (a losing,
+        409-rejected call must never log a phantom action).
         """
         assignment = await self.repository.get_by_id(assignment_id)
         if assignment is None:
@@ -116,4 +139,9 @@ class ManualMatchAssignmentService:
             raise ManualMatchAssignmentAlreadyResolvedError()
 
         await self.repository.session.refresh(assignment)
+        await self.admin_action_log_service.record_manual_match_resolution(
+            admin_user_id=admin_user_id,
+            assignment_id=assignment.id,
+            provider_ids=provider_ids,
+        )
         return assignment

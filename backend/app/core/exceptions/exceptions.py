@@ -764,6 +764,32 @@ class ReviewAlreadyExistsError(BusinessException):
         super().__init__(message=message, status_code=409)
 
 
+class FeatureFlagNotFoundError(BusinessException):
+    """
+    Raised by `FeatureFlagService.toggle` (ADM-002, Decision 3,
+    `Plan_S11_ADM-002.md`) when a `feature_flags` row does not exist for
+    the given `key` -- feature-flag keys are code-defined and
+    migration-seeded only (Decision 3), never created via the API, so an
+    unknown key is always a genuine 404, mirroring
+    `UnmatchedQueryReportNotFoundError`'s identical shape.
+    """
+
+    def __init__(self, message: str = "Feature flag not found."):
+        super().__init__(message=message, status_code=404)
+
+
+class SystemSettingNotFoundError(BusinessException):
+    """
+    Raised by `SystemSettingService.update_value` (ADM-002, Decision 3,
+    `Plan_S11_ADM-002.md`) when a `system_settings` row does not exist
+    for the given `key` -- mirrors `FeatureFlagNotFoundError`'s identical
+    shape and reasoning.
+    """
+
+    def __init__(self, message: str = "System setting not found."):
+        super().__init__(message=message, status_code=404)
+
+
 class UnmatchedQueryReportNotFoundError(BusinessException):
     """
     Raised by `UnmatchedQueryReportService` (ADM-001, Decision 6,

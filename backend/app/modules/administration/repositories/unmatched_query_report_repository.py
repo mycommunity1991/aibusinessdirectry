@@ -52,6 +52,22 @@ class UnmatchedQueryReportRepository(BaseRepository[UnmatchedQueryReport]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all()), total
 
+    async def count_by_status(self, status: str) -> int:
+        """
+        Decision 4 (ADM-002, `Plan_S11_ADM-002.md`): a standalone
+        `SELECT count(*)` mirroring `list_filtered`'s exact `WHERE
+        status = :status` clause, with no `OFFSET`/`LIMIT`/row hydration
+        -- used by `DashboardService.get_summary` (AC2), called with
+        `"open"`.
+        """
+        stmt = select(func.count()).select_from(
+            select(UnmatchedQueryReport)
+            .where(UnmatchedQueryReport.status == status)
+            .subquery()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
     async def try_transition_status(
         self,
         report_id: uuid.UUID,

@@ -12,14 +12,22 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.exceptions import (
     ManualMatchAssignmentAlreadyResolvedError,
     ManualMatchAssignmentNotFoundError,
 )
+from app.modules.administration.models import AdminActionLog
+from app.modules.administration.repositories.admin_action_log_repository import (
+    AdminActionLogRepository,
+)
 from app.modules.administration.repositories.manual_match_assignment_repository import (
     ManualMatchAssignmentRepository,
+)
+from app.modules.administration.services.admin_action_log_service import (
+    AdminActionLogService,
 )
 from app.modules.administration.services.manual_match_assignment_service import (
     ManualMatchAssignmentService,
@@ -67,7 +75,10 @@ async def _make_conversation_session(db_session, customer_id: uuid.UUID):
 
 
 def _service(db_session) -> ManualMatchAssignmentService:
-    return ManualMatchAssignmentService(ManualMatchAssignmentRepository(db_session))
+    return ManualMatchAssignmentService(
+        ManualMatchAssignmentRepository(db_session),
+        AdminActionLogService(AdminActionLogRepository(db_session)),
+    )
 
 
 class TestCreate:
@@ -110,7 +121,7 @@ class TestListPending:
         resolved = await service.create(
             conversation_session_id=session_b.id, search_request_id=None
         )
-        await service.resolve(resolved.id, admin_user_id=admin.id)
+        await service.resolve(resolved.id, admin_user_id=admin.id, provider_ids=[])
         await db_session.commit()
 
         assignments, total = await service.list_pending(page=1, page_size=10)
@@ -152,12 +163,52 @@ class TestResolve:
             conversation_session_id=session.id, search_request_id=None
         )
 
-        resolved = await service.resolve(assignment.id, admin_user_id=admin.id)
+        provider_id = uuid.uuid4()
+        resolved = await service.resolve(
+            assignment.id, admin_user_id=admin.id, provider_ids=[provider_id]
+        )
         await db_session.commit()
 
         assert resolved.status == "completed"
         assert resolved.assigned_admin_id == admin.id
         assert resolved.completed_at is not None
+
+    async def test_resolve_writes_exactly_one_admin_action_log_row(
+        self, db_session
+    ) -> None:
+        """
+        ADM-002, Decision 6 (`Plan_S11_ADM-002.md`), AC3 -- closes the
+        real, evidence-based gap where `resolve` previously wrote no
+        `admin_action_log` row at all.
+        """
+        user = await _make_user(db_session, "910000014")
+        admin = await _make_user(db_session, "910000015")
+        profile = await _make_customer_profile(db_session, user)
+        session = await _make_conversation_session(db_session, profile.id)
+        service = _service(db_session)
+        assignment = await service.create(
+            conversation_session_id=session.id, search_request_id=None
+        )
+        provider_a = uuid.uuid4()
+        provider_b = uuid.uuid4()
+
+        await service.resolve(
+            assignment.id,
+            admin_user_id=admin.id,
+            provider_ids=[provider_a, provider_b],
+        )
+        await db_session.commit()
+
+        result = await db_session.execute(select(AdminActionLog))
+        logs = result.scalars().all()
+        assert len(logs) == 1
+        assert logs[0].admin_user_id == admin.id
+        assert logs[0].action_type == "manual_match_resolved"
+        assert logs[0].target_entity_type == "manual_match_assignment"
+        assert logs[0].target_entity_id == assignment.id
+        assert logs[0].metadata_ == {
+            "provider_ids": [str(provider_a), str(provider_b)]
+        }
 
     async def test_resolving_a_nonexistent_id_raises_not_found(
         self, db_session
@@ -165,7 +216,9 @@ class TestResolve:
         service = _service(db_session)
 
         with pytest.raises(ManualMatchAssignmentNotFoundError):
-            await service.resolve(uuid.uuid4(), admin_user_id=uuid.uuid4())
+            await service.resolve(
+                uuid.uuid4(), admin_user_id=uuid.uuid4(), provider_ids=[]
+            )
 
     async def test_resolving_an_already_resolved_assignment_raises(
         self, db_session
@@ -181,11 +234,13 @@ class TestResolve:
         assignment = await service.create(
             conversation_session_id=session.id, search_request_id=None
         )
-        await service.resolve(assignment.id, admin_user_id=admin.id)
+        await service.resolve(assignment.id, admin_user_id=admin.id, provider_ids=[])
         await db_session.commit()
 
         with pytest.raises(ManualMatchAssignmentAlreadyResolvedError):
-            await service.resolve(assignment.id, admin_user_id=admin.id)
+            await service.resolve(
+                assignment.id, admin_user_id=admin.id, provider_ids=[]
+            )
 
     async def test_get_by_id_returns_none_for_a_nonexistent_id(
         self, db_session
@@ -272,10 +327,13 @@ class TestTryResolveAtomicity:
         async def _attempt(admin_id: uuid.UUID) -> str:
             async with session_factory() as attempt_session:
                 attempt_service = ManualMatchAssignmentService(
-                    ManualMatchAssignmentRepository(attempt_session)
+                    ManualMatchAssignmentRepository(attempt_session),
+                    AdminActionLogService(AdminActionLogRepository(attempt_session)),
                 )
                 try:
-                    await attempt_service.resolve(assignment.id, admin_user_id=admin_id)
+                    await attempt_service.resolve(
+                        assignment.id, admin_user_id=admin_id, provider_ids=[]
+                    )
                     await attempt_session.commit()
                     return "resolved"
                 except ManualMatchAssignmentAlreadyResolvedError:

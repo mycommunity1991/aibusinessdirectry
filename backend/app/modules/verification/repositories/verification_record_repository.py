@@ -95,6 +95,24 @@ class VerificationRecordRepository(BaseRepository[VerificationRecord]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all()), total
 
+    async def count_for_review(self) -> int:
+        """
+        Decision 4 (ADM-002, `Plan_S11_ADM-002.md`): a standalone
+        `SELECT count(*)` mirroring `list_for_review`'s exact
+        `_REVIEWABLE_STATUSES` clause, with no `OFFSET`/`LIMIT`/row
+        hydration -- used by `administration.DashboardService.
+        get_summary` (AC2, Decision 5's raw-Repository edge) so a
+        headline count never requires fetching a full page of
+        PII-adjacent verification rows.
+        """
+        stmt = select(func.count()).select_from(
+            select(VerificationRecord)
+            .where(VerificationRecord.status.in_(_REVIEWABLE_STATUSES))
+            .subquery()
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one()
+
     async def try_claim_for_review(
         self,
         record_id: uuid.UUID,

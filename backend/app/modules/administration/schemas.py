@@ -1,10 +1,12 @@
 """
-Request/response schemas for the `administration` module's first-ever
-`api.py` (ADM-001, Decision 6/9, `Plan_S11_ADM-001.md`).
+Request/response schemas for the `administration` module's `api.py`
+(ADM-001, Decision 6/9, `Plan_S11_ADM-001.md`) and `admin_dashboard_api.py`
+(ADM-002, Decision 1/3, `Plan_S11_ADM-002.md`).
 """
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -52,3 +54,53 @@ class UnmatchedQueryReportActionRequest(BaseModel):
     category_gap_notes: str | None = Field(
         None, max_length=2000, description="Optional admin notes on the gap spotted."
     )
+
+
+class FeatureFlagResponse(BaseModel):
+    """One `feature_flags` row (ADM-002, AC1)."""
+
+    id: uuid.UUID
+    key: str
+    is_enabled: bool
+    description: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class FeatureFlagToggleRequest(BaseModel):
+    """Request payload for `PATCH /admin/feature-flags/{key}` (AC4)."""
+
+    is_enabled: bool
+
+
+class SystemSettingResponse(BaseModel):
+    """One `system_settings` row (ADM-002, AC1)."""
+
+    id: uuid.UUID
+    key: str
+    value: Any
+    description: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class SystemSettingUpdateRequest(BaseModel):
+    """Request payload for `PATCH /admin/system-settings/{key}` (AC1)."""
+
+    value: Any
+
+
+class DashboardSummaryResponse(BaseModel):
+    """
+    AC2's dashboard-summary payload -- three headline counts, each
+    paired with the literal, real, registered path of its own queue
+    (`DashboardService.get_summary`, Decision 4/5,
+    `Plan_S11_ADM-002.md`).
+    """
+
+    pending_verification_count: int
+    pending_verification_queue_path: str
+    pending_manual_match_count: int
+    pending_manual_match_queue_path: str
+    open_unmatched_query_report_count: int
+    open_unmatched_query_report_queue_path: str

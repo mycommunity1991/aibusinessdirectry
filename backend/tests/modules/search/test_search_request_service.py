@@ -25,6 +25,9 @@ from app.modules.administration.models import (
     ManualMatchAssignment,
     UnmatchedQueryReport,
 )
+from app.modules.administration.repositories.feature_flag_repository import (
+    FeatureFlagRepository,
+)
 from app.modules.search.models import ProviderMatch, SearchEventLog, SearchRequestStatus
 
 from ._helpers import (
@@ -36,6 +39,18 @@ from ._helpers import (
     create_user,
     make_search_request_service,
 )
+
+_FEATURE_FLAG_KEY = "manual_matching_force_all"
+
+
+async def _seed_feature_flag(db_session, *, is_enabled: bool) -> None:
+    """Mirrors Decision 1's literal migration-seed row -- built directly
+    through the repository, since this test's schema is created from
+    models, not the real migration."""
+    await FeatureFlagRepository(db_session).create(
+        {"key": _FEATURE_FLAG_KEY, "is_enabled": is_enabled, "description": None}
+    )
+    await db_session.commit()
 
 
 class TestHandleSessionCompletedAutomatedPath:
@@ -743,6 +758,156 @@ class TestGetResultForCustomer:
 
         fetched = await service.get_result_for_customer(user.id, search_request.id)
         assert fetched.id == search_request.id
+
+
+class TestManualMatchingForceAllFeatureFlag:
+    """
+    ADM-002, Decision 7 (`Plan_S11_ADM-002.md`), AC4/AC6 -- a genuine
+    end-to-end behavioral proof that toggling `manual_matching_force_all`
+    changes which path `handle_session_completed` takes for a
+    `status="completed"` session, plus the explicit regression case with
+    the flag `false` (the default) proving the existing automated-match
+    behavior is unchanged.
+    """
+
+    async def test_flag_enabled_routes_an_otherwise_automatch_session_to_manual_queue(
+        self, db_session
+    ) -> None:
+        await _seed_feature_flag(db_session, is_enabled=True)
+        user = await create_user(db_session, "920000070")
+        profile = await create_customer_profile(db_session, user)
+        await create_default_address(db_session, profile.id)
+        category = await create_category(db_session, name="Plumbing")
+        await create_discoverable_provider(db_session, category_label="Plumbing")
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        search_request = await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="completed",
+            category_id=category.id,
+            category_name="Plumbing",
+            structured_criteria={"category_id": str(category.id), "answers": []},
+        )
+        await db_session.commit()
+
+        assert search_request.status == SearchRequestStatus.PENDING_MANUAL_MATCH
+
+        assignment_result = await db_session.execute(
+            select(ManualMatchAssignment).where(
+                ManualMatchAssignment.conversation_session_id == session.id
+            )
+        )
+        assignments = assignment_result.scalars().all()
+        assert len(assignments) == 1
+        assert assignments[0].status == "pending"
+
+        # Never took the automated path -- no `provider_matches`/
+        # `search_event_log` row exists yet (only written at resolution).
+        log_result = await db_session.execute(
+            select(SearchEventLog).where(
+                SearchEventLog.search_request_id == search_request.id
+            )
+        )
+        assert log_result.scalars().all() == []
+
+    async def test_flag_disabled_the_default_leaves_automated_match_unchanged(
+        self, db_session
+    ) -> None:
+        """The explicit regression case -- flag `false` (the default)
+        must leave today's automated-first behavior completely
+        unchanged."""
+        await _seed_feature_flag(db_session, is_enabled=False)
+        user = await create_user(db_session, "920000071")
+        profile = await create_customer_profile(db_session, user)
+        await create_default_address(db_session, profile.id)
+        category = await create_category(db_session, name="Plumbing")
+        provider = await create_discoverable_provider(
+            db_session, category_label="Plumbing"
+        )
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        search_request = await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="completed",
+            category_id=category.id,
+            category_name="Plumbing",
+            structured_criteria={"category_id": str(category.id), "answers": []},
+        )
+        await db_session.commit()
+
+        assert search_request.status == SearchRequestStatus.MATCHED
+        matched = await service.get_matched_providers(search_request)
+        assert [m.id for m in matched] == [provider.id]
+
+        assignment_result = await db_session.execute(
+            select(ManualMatchAssignment).where(
+                ManualMatchAssignment.conversation_session_id == session.id
+            )
+        )
+        assert assignment_result.scalars().all() == []
+
+    async def test_no_seeded_flag_row_leaves_automated_match_unchanged(
+        self, db_session
+    ) -> None:
+        """`FeatureFlagService.is_enabled` returns `False` for a key with
+        no row at all (never raises) -- the automated path must still
+        run exactly as it does today."""
+        user = await create_user(db_session, "920000072")
+        profile = await create_customer_profile(db_session, user)
+        await create_default_address(db_session, profile.id)
+        category = await create_category(db_session, name="Plumbing")
+        await create_discoverable_provider(db_session, category_label="Plumbing")
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        search_request = await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="completed",
+            category_id=category.id,
+            category_name="Plumbing",
+            structured_criteria={"category_id": str(category.id), "answers": []},
+        )
+        await db_session.commit()
+
+        assert search_request.status == SearchRequestStatus.MATCHED
+
+    async def test_flag_enabled_does_not_affect_an_already_routed_to_admin_session(
+        self, db_session
+    ) -> None:
+        """An already-`routed_to_admin` session is unaffected either way
+        -- it was always going to the manual queue regardless of this
+        flag."""
+        await _seed_feature_flag(db_session, is_enabled=True)
+        user = await create_user(db_session, "920000073")
+        profile = await create_customer_profile(db_session, user)
+        category = await create_category(db_session, name="Plumbing")
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        search_request = await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="routed_to_admin",
+            category_id=category.id,
+            category_name="Plumbing",
+            structured_criteria=None,
+        )
+        await db_session.commit()
+
+        assert search_request.status == SearchRequestStatus.PENDING_MANUAL_MATCH
 
 
 class TestGetSearchRequestIdForSession:

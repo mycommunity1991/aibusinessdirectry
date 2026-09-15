@@ -1,6 +1,9 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints.health import router as health_router
+from app.modules.administration.admin_dashboard_api import (
+    router as admin_dashboard_router,
+)
 from app.modules.administration.api import (
     router as admin_unmatched_query_report_router,
 )
@@ -49,6 +52,7 @@ v1_router.include_router(
 v1_router.include_router(
     admin_unmatched_query_report_router, prefix="/admin/unmatched-query-reports"
 )
+v1_router.include_router(admin_dashboard_router, prefix="/admin")
 v1_router.include_router(contact_router, prefix="/contact-views")
 v1_router.include_router(review_router, prefix="/contact-views")
 # CON-001, Decision 2: registered *after* `provider_router` so `/me`,

@@ -21,7 +21,11 @@ SavedAddressService`/`CustomerService` (`search -> customer`, Decision
 2c), and `administration.ManualMatchAssignmentService`/`administration.
 UnmatchedQueryReportService` (`search -> administration`, Decision 3/2
 respectively -- the second is ADM-001's write-time-hook edge,
-`Plan_S11_ADM-001.md`).
+`Plan_S11_ADM-001.md`). ADM-002 (`Plan_S11_ADM-002.md`, Decision 7) adds
+a fourth `search -> administration` edge, `administration.
+FeatureFlagService` -- the same, already-established direction, gating
+`handle_session_completed`'s automated-vs-manual dispatch on
+`manual_matching_force_all` (AC4).
 
 `search -> conversation` (ADM-001, Decision 4, `Plan_S11_ADM-001.md`):
 the write/orchestration path (`handle_session_completed`,
@@ -51,6 +55,7 @@ from app.core.exceptions import (
     SearchRequestNotFoundError,
 )
 from app.modules.administration.models import ManualMatchAssignment
+from app.modules.administration.services.feature_flag_service import FeatureFlagService
 from app.modules.administration.services.manual_match_assignment_service import (
     ManualMatchAssignmentService,
 )
@@ -83,6 +88,10 @@ from app.modules.search.services.search_service import SearchService
 # compares equal to these regardless.
 _CONVERSATION_STATUS_COMPLETED = "completed"
 _CONVERSATION_STATUS_ROUTED_TO_ADMIN = "routed_to_admin"
+
+# ADM-002, Decision 1/7 (`Plan_S11_ADM-002.md`): the one code-defined
+# key `FeatureFlagService.is_enabled` is called with here.
+_FEATURE_FLAG_MANUAL_MATCHING_FORCE_ALL = "manual_matching_force_all"
 
 _EARTH_RADIUS_METERS = 6_371_000.0
 
@@ -122,6 +131,7 @@ class SearchRequestService:
         customer_service: CustomerService,
         message_repository: MessageRepository,
         unmatched_query_report_service: UnmatchedQueryReportService,
+        feature_flag_service: FeatureFlagService,
     ) -> None:
         self.search_request_repository = search_request_repository
         self.provider_match_repository = provider_match_repository
@@ -141,6 +151,10 @@ class SearchRequestService:
         # `ManualMatchAssignmentService` one -- used only by
         # `_finalize_matches`'s write-time hook.
         self.unmatched_query_report_service = unmatched_query_report_service
+        # ADM-002, Decision 7 (`Plan_S11_ADM-002.md`): a fourth `search ->
+        # administration` service edge -- used only by
+        # `handle_session_completed`'s automated-vs-manual dispatch gate.
+        self.feature_flag_service = feature_flag_service
 
     async def handle_session_completed(
         self,
@@ -159,8 +173,30 @@ class SearchRequestService:
         automated-match path or create a manual-match assignment. Either
         way, a `search_requests` row always exists afterward (AC2's
         "never left in limbo with no next step").
+
+        ADM-002, Decision 7 (`Plan_S11_ADM-002.md`, AC4): when `status`
+        is `completed`, first checks `FeatureFlagService.is_enabled(
+        "manual_matching_force_all")` -- if `True`, dispatches to
+        `_handle_routed_to_admin` (the existing manual-queue path)
+        instead of `_handle_completed` (the existing automated path).
+        An already-`routed_to_admin` session is unaffected either way
+        (it was always going to the manual queue regardless of this
+        flag). This is a marketplace matching-policy decision, a
+        separate concern from `conversation`'s own completion-policy
+        semantics -- `conversation_sessions.status` can genuinely,
+        honestly still read `completed` (the AI really did resolve a
+        category) while its `search_requests` row is manually resolved.
         """
         if status == _CONVERSATION_STATUS_COMPLETED:
+            if await self.feature_flag_service.is_enabled(
+                _FEATURE_FLAG_MANUAL_MATCHING_FORCE_ALL
+            ):
+                return await self._handle_routed_to_admin(
+                    conversation_session_id=conversation_session_id,
+                    customer_id=customer_id,
+                    category_id=category_id,
+                    structured_criteria=structured_criteria,
+                )
             return await self._handle_completed(
                 conversation_session_id=conversation_session_id,
                 customer_id=customer_id,
@@ -346,7 +382,7 @@ class SearchRequestService:
             raise SearchRequestNotFoundError()
 
         await self.manual_match_assignment_service.resolve(
-            assignment_id, admin_user_id=admin_user_id
+            assignment_id, admin_user_id=admin_user_id, provider_ids=provider_ids
         )
         # Decision 3 (`Plan_S08_MAT-001.md`): the admin's own supplied
         # order *is* the rank -- never a formula-derived `match_score`,

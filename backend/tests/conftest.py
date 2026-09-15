@@ -150,7 +150,9 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     from app.modules.administration.models import (
         AdminActionLog,
         ClaimReviewRequest,
+        FeatureFlag,
         ManualMatchAssignment,
+        SystemSetting,
         UnmatchedQueryReport,
     )
     from app.modules.audit.models import AuditLog
@@ -208,6 +210,8 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             AuditLog,
             AdminActionLog,
             ClaimReviewRequest,
+            FeatureFlag,
+            SystemSetting,
             ManualMatchAssignment,
             Notification,
             Review,

@@ -6,6 +6,12 @@ outgoing cross-module edge, `administration -> search.SearchEventLogService`
 (see `_get_search_event_log_service_for_administration`'s own docstring
 for why it is constructed directly here rather than imported from
 `search/dependencies.py`).
+
+ADM-002 (`Plan_S11_ADM-002.md`, Decision 5) adds this module's second
+outgoing cross-module edge, `administration -> verification.
+VerificationRecordRepository` (see `_get_verification_record_repository_
+for_administration`'s own docstring for the identical circular-import
+rationale, mirrored from the edge above).
 """
 
 from typing import Annotated
@@ -20,8 +26,14 @@ from app.modules.administration.repositories.admin_action_log_repository import 
 from app.modules.administration.repositories.claim_review_request_repository import (
     ClaimReviewRequestRepository,
 )
+from app.modules.administration.repositories.feature_flag_repository import (
+    FeatureFlagRepository,
+)
 from app.modules.administration.repositories.manual_match_assignment_repository import (
     ManualMatchAssignmentRepository,
+)
+from app.modules.administration.repositories.system_setting_repository import (
+    SystemSettingRepository,
 )
 from app.modules.administration.repositories.unmatched_query_report_repository import (
     UnmatchedQueryReportRepository,
@@ -32,8 +44,13 @@ from app.modules.administration.services.admin_action_log_service import (
 from app.modules.administration.services.claim_review_request_service import (
     ClaimReviewRequestService,
 )
+from app.modules.administration.services.dashboard_service import DashboardService
+from app.modules.administration.services.feature_flag_service import FeatureFlagService
 from app.modules.administration.services.manual_match_assignment_service import (
     ManualMatchAssignmentService,
+)
+from app.modules.administration.services.system_setting_service import (
+    SystemSettingService,
 )
 from app.modules.administration.services.unmatched_query_report_service import (
     UnmatchedQueryReportService,
@@ -42,6 +59,9 @@ from app.modules.search.repositories.search_event_log_repository import (
     SearchEventLogRepository,
 )
 from app.modules.search.services.search_event_log_service import SearchEventLogService
+from app.modules.verification.repositories.verification_record_repository import (
+    VerificationRecordRepository,
+)
 
 
 def get_admin_action_log_repository(
@@ -97,12 +117,20 @@ def get_manual_match_assignment_service(
         ManualMatchAssignmentRepository,
         Depends(get_manual_match_assignment_repository),
     ],
+    admin_action_log_service: Annotated[
+        AdminActionLogService, Depends(get_admin_action_log_service)
+    ],
 ) -> ManualMatchAssignmentService:
     """Provides a `ManualMatchAssignmentService` bound to the
     request-scoped DB session -- imported into `search/dependencies.py`
     the same way `get_claim_review_request_service` is already imported
-    by `provider/dependencies.py`."""
-    return ManualMatchAssignmentService(manual_match_assignment_repository)
+    by `provider/dependencies.py`. Gained `admin_action_log_service`
+    (ADM-002, Decision 6, `Plan_S11_ADM-002.md`) -- a trivial,
+    intra-module constructor-injection addition, closing the real gap
+    where `resolve` previously wrote no `admin_action_log` row (AC3)."""
+    return ManualMatchAssignmentService(
+        manual_match_assignment_repository, admin_action_log_service
+    )
 
 
 def get_unmatched_query_report_repository(
@@ -149,12 +177,121 @@ def get_unmatched_query_report_service(
     search_event_log_service: Annotated[
         SearchEventLogService, Depends(_get_search_event_log_service_for_administration)
     ],
+    admin_action_log_service: Annotated[
+        AdminActionLogService, Depends(get_admin_action_log_service)
+    ],
 ) -> UnmatchedQueryReportService:
     """Provides an `UnmatchedQueryReportService` bound to the
     request-scoped DB session, with `search.SearchEventLogService`
     (`administration -> search`, Decision 6) wired as a cross-module,
     constructor-injected dependency -- imported into `administration/
-    api.py`, `administration`'s first-ever HTTP surface."""
+    api.py`, `administration`'s first-ever HTTP surface. Gained
+    `admin_action_log_service` (ADM-002, Decision 6, `Plan_S11_ADM-002.md`)
+    -- a trivial, intra-module constructor-injection addition, closing
+    the real gap where `mark_reviewed`/`mark_actioned` previously wrote
+    no `admin_action_log` row (AC3)."""
     return UnmatchedQueryReportService(
-        unmatched_query_report_repository, search_event_log_service
+        unmatched_query_report_repository,
+        search_event_log_service,
+        admin_action_log_service,
+    )
+
+
+def get_feature_flag_repository(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> FeatureFlagRepository:
+    """Provides a `FeatureFlagRepository` bound to the request-scoped DB
+    session (ADM-002, Decision 1, `Plan_S11_ADM-002.md`)."""
+    return FeatureFlagRepository(db)
+
+
+def get_feature_flag_service(
+    feature_flag_repository: Annotated[
+        FeatureFlagRepository, Depends(get_feature_flag_repository)
+    ],
+    admin_action_log_service: Annotated[
+        AdminActionLogService, Depends(get_admin_action_log_service)
+    ],
+) -> FeatureFlagService:
+    """Provides a `FeatureFlagService` bound to the request-scoped DB
+    session -- imported into `search/dependencies.py` the same way
+    `get_manual_match_assignment_service` is already imported (Decision
+    7, `Plan_S11_ADM-002.md`, the `search -> administration` edge)."""
+    return FeatureFlagService(feature_flag_repository, admin_action_log_service)
+
+
+def get_system_setting_repository(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SystemSettingRepository:
+    """Provides a `SystemSettingRepository` bound to the request-scoped
+    DB session (ADM-002, Decision 1, `Plan_S11_ADM-002.md`)."""
+    return SystemSettingRepository(db)
+
+
+def get_system_setting_service(
+    system_setting_repository: Annotated[
+        SystemSettingRepository, Depends(get_system_setting_repository)
+    ],
+    admin_action_log_service: Annotated[
+        AdminActionLogService, Depends(get_admin_action_log_service)
+    ],
+) -> SystemSettingService:
+    """Provides a `SystemSettingService` bound to the request-scoped DB
+    session (ADM-002, Decision 1, `Plan_S11_ADM-002.md`)."""
+    return SystemSettingService(system_setting_repository, admin_action_log_service)
+
+
+def _get_verification_record_repository_for_administration(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> VerificationRecordRepository:
+    """
+    Provides a `VerificationRecordRepository` bound to the
+    request-scoped DB session -- `administration`'s second outgoing
+    cross-module edge (`administration -> verification`, ADM-002,
+    Decision 5, `Plan_S11_ADM-002.md`), used only for the read-only,
+    business-logic-free `count_for_review()` query `DashboardService`
+    needs for AC2's pending-verification headline count.
+
+    Deliberately constructs `VerificationRecordRepository` directly here
+    rather than importing `verification.dependencies.
+    get_verification_record_repository` -- `verification/dependencies.py`
+    already imports `get_admin_action_log_service` from *this* module at
+    module level (the existing `verification -> administration` edge,
+    VER-002), so a same-direction import back
+    (`administration.dependencies -> verification.dependencies`) would be
+    a genuine circular import at the Python module level, the identical
+    class of problem `_get_search_event_log_service_for_administration`
+    above already solved for `administration -> search`
+    (`ADM-001`, Decision 6, `ADR-060`). `verification.repositories.
+    verification_record_repository` is a leaf module with no edge back
+    into `administration`, so constructing it directly here avoids the
+    cycle entirely. This is a raw-Repository edge (not a Service), since
+    the only thing needed is `count_for_review()` -- a single,
+    business-logic-free read with no equivalent lightweight Service to
+    reach for (Decision 5; `ADR-047`'s "Services only" rule is a
+    deliberate, narrow exception here, not silently ignored).
+    """
+    return VerificationRecordRepository(db)
+
+
+def get_dashboard_service(
+    manual_match_assignment_repository: Annotated[
+        ManualMatchAssignmentRepository,
+        Depends(get_manual_match_assignment_repository),
+    ],
+    unmatched_query_report_repository: Annotated[
+        UnmatchedQueryReportRepository, Depends(get_unmatched_query_report_repository)
+    ],
+    verification_record_repository: Annotated[
+        VerificationRecordRepository,
+        Depends(_get_verification_record_repository_for_administration),
+    ],
+) -> DashboardService:
+    """Provides a `DashboardService` bound to the request-scoped DB
+    session (ADM-002, Decision 4/5, `Plan_S11_ADM-002.md`) -- imported
+    into `administration/admin_dashboard_api.py` (AC2)."""
+    return DashboardService(
+        manual_match_assignment_repository,
+        unmatched_query_report_repository,
+        verification_record_repository,
     )

@@ -24,6 +24,9 @@ from app.modules.administration.models import UnmatchedQueryReport
 from app.modules.administration.repositories.unmatched_query_report_repository import (
     UnmatchedQueryReportRepository,
 )
+from app.modules.administration.services.admin_action_log_service import (
+    AdminActionLogService,
+)
 from app.modules.search.models import SearchEventLog
 from app.modules.search.services.search_event_log_service import SearchEventLogService
 
@@ -39,9 +42,16 @@ class UnmatchedQueryReportService:
         self,
         repository: UnmatchedQueryReportRepository,
         search_event_log_service: SearchEventLogService,
+        admin_action_log_service: AdminActionLogService,
     ) -> None:
         self.repository = repository
         self.search_event_log_service = search_event_log_service
+        # ADM-002, Decision 6 (`Plan_S11_ADM-002.md`): a trivial,
+        # intra-module constructor-injection addition -- closes the real
+        # gap where `mark_reviewed`/`mark_actioned` previously wrote no
+        # `admin_action_log` row at all, despite AC3's literal "every...
+        # queue action" wording.
+        self.admin_action_log_service = admin_action_log_service
 
     async def create(self, *, search_event_log_id: uuid.UUID) -> UnmatchedQueryReport:
         """
@@ -148,6 +158,12 @@ class UnmatchedQueryReportService:
             raise UnmatchedQueryReportInvalidTransitionError()
 
         await self.repository.session.refresh(report)
+        await self.admin_action_log_service.record_unmatched_query_report_transition(
+            admin_user_id=admin_user_id,
+            report_id=report.id,
+            to_status=to_status,
+            category_gap_notes=category_gap_notes,
+        )
         search_event_logs_by_id = await self.search_event_log_service.get_by_ids(
             [report.search_event_log_id]
         )

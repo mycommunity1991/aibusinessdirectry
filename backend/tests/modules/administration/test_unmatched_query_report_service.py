@@ -10,13 +10,21 @@ fourth application of the same passive-queue-row shape.
 import uuid
 
 import pytest
+from sqlalchemy import select
 
 from app.core.exceptions import (
     UnmatchedQueryReportInvalidTransitionError,
     UnmatchedQueryReportNotFoundError,
 )
+from app.modules.administration.models import AdminActionLog
+from app.modules.administration.repositories.admin_action_log_repository import (
+    AdminActionLogRepository,
+)
 from app.modules.administration.repositories.unmatched_query_report_repository import (
     UnmatchedQueryReportRepository,
+)
+from app.modules.administration.services.admin_action_log_service import (
+    AdminActionLogService,
 )
 from app.modules.administration.services.unmatched_query_report_service import (
     UnmatchedQueryReportService,
@@ -67,6 +75,7 @@ def _service(db_session) -> UnmatchedQueryReportService:
     return UnmatchedQueryReportService(
         UnmatchedQueryReportRepository(db_session),
         SearchEventLogService(SearchEventLogRepository(db_session)),
+        AdminActionLogService(AdminActionLogRepository(db_session)),
     )
 
 
@@ -258,6 +267,32 @@ class TestMarkReviewed:
                 uuid.uuid4(), admin_user_id=uuid.uuid4(), category_gap_notes=None
             )
 
+    async def test_mark_reviewed_writes_exactly_one_admin_action_log_row(
+        self, db_session
+    ) -> None:
+        """ADM-002, Decision 6 (`Plan_S11_ADM-002.md`), AC3 -- closes the
+        real, evidence-based gap where `mark_reviewed` previously wrote
+        no `admin_action_log` row at all."""
+        admin = await _make_user(db_session, "940000013")
+        log = await _make_search_event_log(db_session)
+        service = _service(db_session)
+        report = await service.create(search_event_log_id=log.id)
+        await db_session.commit()
+
+        await service.mark_reviewed(
+            report.id, admin_user_id=admin.id, category_gap_notes="Gap noted."
+        )
+        await db_session.commit()
+
+        result = await db_session.execute(select(AdminActionLog))
+        logs = result.scalars().all()
+        assert len(logs) == 1
+        assert logs[0].admin_user_id == admin.id
+        assert logs[0].action_type == "unmatched_query_report_reviewed"
+        assert logs[0].target_entity_type == "unmatched_query_report"
+        assert logs[0].target_entity_id == report.id
+        assert logs[0].metadata_ == {"category_gap_notes": "Gap noted."}
+
 
 class TestMarkActioned:
     async def test_open_to_actioned_succeeds(self, db_session) -> None:
@@ -318,3 +353,29 @@ class TestMarkActioned:
             await service.mark_actioned(
                 uuid.uuid4(), admin_user_id=uuid.uuid4(), category_gap_notes=None
             )
+
+    async def test_mark_actioned_writes_exactly_one_admin_action_log_row(
+        self, db_session
+    ) -> None:
+        """ADM-002, Decision 6 (`Plan_S11_ADM-002.md`), AC3 -- closes the
+        real, evidence-based gap where `mark_actioned` previously wrote
+        no `admin_action_log` row at all."""
+        admin = await _make_user(db_session, "940000023")
+        log = await _make_search_event_log(db_session)
+        service = _service(db_session)
+        report = await service.create(search_event_log_id=log.id)
+        await db_session.commit()
+
+        await service.mark_actioned(
+            report.id, admin_user_id=admin.id, category_gap_notes=None
+        )
+        await db_session.commit()
+
+        result = await db_session.execute(select(AdminActionLog))
+        logs = result.scalars().all()
+        assert len(logs) == 1
+        assert logs[0].admin_user_id == admin.id
+        assert logs[0].action_type == "unmatched_query_report_actioned"
+        assert logs[0].target_entity_type == "unmatched_query_report"
+        assert logs[0].target_entity_id == report.id
+        assert logs[0].metadata_ == {"category_gap_notes": None}

@@ -15,12 +15,22 @@ actually runs, against the same real Postgres database, on every
 `completed`/`routed_to_admin` transition these tests already exercise.
 """
 
+from app.modules.administration.repositories.admin_action_log_repository import (
+    AdminActionLogRepository,
+)
+from app.modules.administration.repositories.feature_flag_repository import (
+    FeatureFlagRepository,
+)
 from app.modules.administration.repositories.manual_match_assignment_repository import (
     ManualMatchAssignmentRepository,
 )
 from app.modules.administration.repositories.unmatched_query_report_repository import (
     UnmatchedQueryReportRepository,
 )
+from app.modules.administration.services.admin_action_log_service import (
+    AdminActionLogService,
+)
+from app.modules.administration.services.feature_flag_service import FeatureFlagService
 from app.modules.administration.services.manual_match_assignment_service import (
     ManualMatchAssignmentService,
 )
@@ -95,6 +105,9 @@ def make_search_request_service(db_session) -> SearchRequestService:
     given (real Postgres) `db_session` -- every dependency is the real
     implementation, mirroring this codebase's established real-DB
     integration-test philosophy (no mocks)."""
+    admin_action_log_service = AdminActionLogService(
+        AdminActionLogRepository(db_session)
+    )
     customer_service = CustomerService(
         CustomerProfileRepository(db_session),
         CustomerPreferencesRepository(db_session),
@@ -104,11 +117,15 @@ def make_search_request_service(db_session) -> SearchRequestService:
         customer_service=customer_service,
     )
     manual_match_assignment_service = ManualMatchAssignmentService(
-        ManualMatchAssignmentRepository(db_session)
+        ManualMatchAssignmentRepository(db_session), admin_action_log_service
     )
     unmatched_query_report_service = UnmatchedQueryReportService(
         UnmatchedQueryReportRepository(db_session),
         SearchEventLogService(SearchEventLogRepository(db_session)),
+        admin_action_log_service,
+    )
+    feature_flag_service = FeatureFlagService(
+        FeatureFlagRepository(db_session), admin_action_log_service
     )
     provider_service = _make_provider_service(db_session)
     search_service = SearchService(provider_service=provider_service)
@@ -124,4 +141,5 @@ def make_search_request_service(db_session) -> SearchRequestService:
         customer_service=customer_service,
         message_repository=MessageRepository(db_session),
         unmatched_query_report_service=unmatched_query_report_service,
+        feature_flag_service=feature_flag_service,
     )
