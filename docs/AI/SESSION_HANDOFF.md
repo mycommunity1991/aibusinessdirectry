@@ -6,11 +6,13 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 15 September 2026, after Story ADM-002 closeout (tracker sync for ADM-002 still pending — see
-Section 1/5).
+**Last updated:** 15 September 2026, after Story ADM-002 closeout AND tracker sync (Sprint 11 / Milestone ML11
+now fully complete and verified — see Section 1/5). Next story `ENG-001` identified fresh from the tracker —
+see Section 2. Not yet started.
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `3a025d8` (implementation for ADM-002). Prior: `80f01b6` (chore: tracker sync
-for ADM-001; docs closeout `aec0ad4`; implementation `c4411c9`); `6248676` (chore: tracker sync for LEAD-002).
+**Last commit at time of writing:** `ada6dc1` (chore: tracker sync for ADM-002). Prior: `d073f69` (docs closeout
+for ADM-002); `3a025d8` (implementation for ADM-002); `80f01b6` (chore: tracker sync for ADM-001; docs closeout
+`aec0ad4`; implementation `c4411c9`); `6248676` (chore: tracker sync for LEAD-002).
 
 ---
 
@@ -30,14 +32,14 @@ for ADM-001; docs closeout `aec0ad4`; implementation `c4411c9`); `6248676` (chor
   for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
   test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
   PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
-- **Dashboard numbers (as of commit `80f01b6`, tracker sync for ADM-001 confirmed applied and verified):**
-  Overall Progress **67.2%** | Completed Milestones **10/24** | Completed Epics **17/23** | Completed Stories
-  **40/47** | Current Phase **PH2** (progress **0.88**) | Milestone **ML10** — ✅ **Completed** (2/2 stories) |
-  Milestone **ML11** — 🔄 **In Progress** (0.5, 1/2 stories done) | Epic **ML11-EP01** — 🔄 **In Progress** (0.5)
-  | Sprint **SP11** — 🔄 **In Progress** (1/2 stories done). These numbers are current and verified (each of the
-  14 changed cells checked individually via `openpyxl` before and after, plus a structural cell-by-cell diff
-  against the pre-sync file confirming no other cell changed) — no further tracker action is needed for
-  `ADM-001`.
+- **Dashboard numbers (as of commit `ada6dc1`, tracker sync for ADM-002 confirmed applied and verified):**
+  Overall Progress **69.8%** | Completed Milestones **11/24** | Completed Epics **18/23** | Completed Stories
+  **41/47** | Current Phase **PH2** (progress **0.92**) | Milestone **ML10** — ✅ **Completed** (2/2 stories) |
+  Milestone **ML11** — ✅ **Completed** (2/2 stories) | Epic **ML11-EP01** — ✅ **Completed** (1.0) | Sprint
+  **SP11** — ✅ **Completed** (2/2 stories done). These numbers are current and verified (16 changed cells
+  checked individually via `openpyxl` before and after, plus a structural cell-by-cell diff against the
+  pre-sync file confirming no other cell changed) — no further tracker action is needed for `ADM-002`; Sprint 11
+  and Milestone ML11 are fully closed out.
 - **Sprint 9 / Milestone ML9 ("Outcome & Reviews") is now fully complete — 2 of 2 stories done: `REV-001`,
   `REV-002`.** `REV-001` shipped and was signed off 13 September 2026 — see
   `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md` (`architect`: APPROVED, one minor non-blocking
@@ -156,27 +158,66 @@ for ADM-001; docs closeout `aec0ad4`; implementation `c4411c9`); `6248676` (chor
   Sprint has had, with zero implementation-time Plan deviations.** CTO gave a standing instruction for this story
   to proceed straight through closeout without an additional sign-off pause once both verdicts were clean. Final
   counts: 898/898 backend tests (864 baseline + 34 new, zero regressions). Backend-only — no mobile/Flutter work,
-  per the story's own explicit scope. **Tracker sync for `ADM-002` is still pending** (see Section 5) — the
-  Dashboard numbers bullet above still reflects the pre-`ADM-002` sync state and should not be trusted for
-  Sprint 11/Milestone ML11's true completion status; treat this file's own text (both `ADM-001` and `ADM-002`
-  Done, Sprint 11/ML11 fully complete) as authoritative until the tracker sync bullet is refreshed.
+  per the story's own explicit scope. **Tracker sync for `ADM-002` is done and verified** (commit `ada6dc1`) —
+  the Dashboard numbers bullet above reflects the confirmed post-`ADM-002` state: Sprint 11, Milestone ML11, and
+  Epic ML11-EP01 are all now ✅ Completed.
 - Full narrative history of every story shipped so far (Sprints 1–11) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
   historical context on a specific earlier decision; it's over 1200 lines.
 
-## 2. Next story — not yet identified; Sprint 11 / Milestone ML11 are fully complete
+## 2. Next story — `ENG-001` (Sprint 12, Milestone ML12, Epic ML12-EP01) — looked up fresh, NOT yet started
 
 **Sprint 11 ("Marketplace Operations," Milestone ML11, Epic ML11-EP01) is now fully complete — 2 of 2 stories
 done: `ADM-001`, `ADM-002`.** This closes Milestone ML11 in full, alongside Sprints 1–10/Milestones ML1–ML10,
 all already complete.
 
-**The next sprint/milestone's first story has NOT yet been identified.** A fresh lookup against
-`docs/AI/Project_Tracker.xlsx` is needed before any planning begins — mirroring exactly how every previous
-milestone transition in this project has been handled (e.g. `ADM-001`'s own Section 2 entry, prior to this
-story, looked up `ADM-002` fresh from the tracker rather than assuming). **Do NOT start planning the next story
-without first performing that fresh tracker lookup, and do NOT start implementing it without the CTO's explicit
-"Start X" instruction** — this file intentionally does not pre-name a next story this time, since none has been
-looked up yet this session.
+A fresh lookup against `docs/AI/Project_Tracker.xlsx`'s Stories/Sprints sheets (performed this session, after
+`ADM-002`'s tracker sync) identifies Sprint 12's first story as:
+
+- **Story ID:** `ENG-001` — **"Receive marketplace notifications in my preferred channel"**
+- **Sprint 12** (Theme: "Engagement & Trust," Goal: "Users can receive notifications, share profiles, and
+  verify visits.") | **Milestone ML12** | **Epic ML12-EP01**
+- **Priority:** High | **Depends on:** `CON-001`, `VER-002`, `REV-001` (all already shipped) | **Status:**
+  ⏳ Planned
+- **Description (verbatim):** "As a user, I want to be notified about new leads, verification status changes,
+  and outcome-tag prompts through my preferred channel, so that I don't have to keep checking the app manually.
+  This story implements the Notification domain end to end: data model, WhatsApp/SMS/Email delivery adapters
+  behind a single interface, and the trigger wiring for every notification-worthy event already emitted by
+  earlier stories. Scope boundary: does not include the deep-link/Verified-Visit features (`ENG-002`) — this
+  story is notification delivery only."
+- **Acceptance Criteria (verbatim):**
+  1. `notifications`, `notification_preferences`, and `notification_delivery` tables exist via migration.
+  2. A single `NotificationSender` interface has WhatsApp, SMS, and Email adapters; delivery failures surface as
+     typed errors, never a silent no-op.
+  3. Triggers are wired for: new Contact View → Provider, verification status change → Provider, manual match
+     assignment created → Admin, outcome-tag prompt → Customer.
+  4. A disabled channel or muted category in `notification_preferences` is checked before every send and is a
+     hard stop, not a soft suggestion.
+  5. Non-urgent events update a badge/inbox entry without forcing a push notification unless the user has opted
+     in; time-sensitive events may push immediately.
+  6. Notifications Inbox screen groups entries as New/Earlier and deep-links each entry to its relevant context.
+  7. Duplicate sends are prevented via an idempotency key on retry.
+  8. Automated tests cover: preference-disabled blocking a send, and idempotent retry not double-sending.
+- **Sibling story:** Sprint 12's second story is `ENG-002` ("Share a provider profile and verify an arrival,"
+  depends on `CON-001`) — out of scope for `ENG-001`, not to be started alongside it.
+
+**IMPORTANT discrepancy to resolve during planning, flagged here so it isn't missed:** `ENG-001`'s description
+claims to "implement the Notification domain end to end... for the first time," but this session's own history
+shows a real `NotificationService` **already exists and is already wired in**: `REV-001`/`CON-001` (`ADR-050`)
+added `NotificationService.notify_new_contact_view` and `.notify_outcome_tag_prompt`, called synchronously from
+`ContactService`/`OutcomeTagService`, with no scheduling infrastructure and (as far as this session's history
+shows) no `notifications`/`notification_preferences`/`notification_delivery` tables, no multi-channel adapters,
+and no idempotency key — i.e. a same-process, fire-and-forget stub, not the domain `ENG-001` describes. This is
+the same class of tracker-text-vs-reality discrepancy already caught twice this session (`unmatched_query_reports`
+before `ADM-001`; `feature_flags`/`system_settings` before `ADM-002`) — **`tech-lead` must verify the actual
+current state of `NotificationService` and any notification-related schema directly against the code before
+planning `ENG-001`**, not trust either this description or this file's own summary of it. The real scope is
+likely narrower than "end to end from scratch": probably a genuine new schema/multi-channel-adapter/preferences
+build-out, but reusing/replacing the existing synchronous call sites rather than inventing them fresh.
+
+**Do NOT start planning `ENG-001` (or any other story) without the CTO's explicit "Start ENG-001" instruction.**
+This lookup is recorded here purely so the next session doesn't need to re-query the tracker — it is NOT
+authorization to begin work.
 
 ## 3. Standing process (do not skip steps)
 
@@ -500,10 +541,11 @@ starts at **ADR-064**.
 ---
 
 **End of handoff. Sprint 11 and Milestone ML11 are now fully complete — 2 of 2 stories done: `ADM-001` and
-`ADM-002` have both shipped and been signed off** (see Section 1 for `ADM-002`'s full account). `ADM-001`'s
-tracker sync is done and verified; **`ADM-002`'s tracker sync is still pending** — the Dashboard/rollup numbers
-in Section 1's own bullet still reflect the pre-`ADM-002` sync state until that sync is performed (Section 5).
-**The next sprint/milestone's first story has NOT yet been identified** — no lookup against
-`docs/AI/Project_Tracker.xlsx` has been performed this session (Section 2).** When resuming: read this file,
-perform a fresh tracker lookup to identify the next story, confirm the CTO wants to proceed with it, then follow
-Section 3's cycle starting with `tech-lead`.**
+`ADM-002` have both shipped and been signed off** (see Section 1 for `ADM-002`'s full account). **Both
+`ADM-001`'s and `ADM-002`'s tracker syncs are done and verified** (commits `80f01b6` and `ada6dc1`) — the
+Dashboard/rollup numbers in Section 1's own bullet are current and confirmed. **The next sprint/milestone's
+first story has been identified as `ENG-001`** (Sprint 12, Milestone ML12, Epic ML12-EP01 — full details and a
+flagged Notification-domain discrepancy in Section 2), but **has NOT been started**. When resuming: read this
+file, confirm the CTO wants to proceed with `ENG-001` (an explicit "Start ENG-001" instruction), then follow
+Section 3's cycle starting with `tech-lead` — which must first verify `NotificationService`'s actual current
+state against the code before finalizing the Plan's scope.**
