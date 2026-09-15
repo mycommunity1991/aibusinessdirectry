@@ -6,13 +6,10 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 15 September 2026, after Story ADM-001 closeout (documentation closeout complete; tracker sync
-still pending — a separate process performed by the orchestrator, not part of this closeout).
+**Last updated:** 15 September 2026, after Story ADM-001 closeout AND its tracker sync (both complete).
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `c4411c9` (`ADM-001`'s full implementation, committed and pushed as a single
-commit). Prior: `6248676` (chore: tracker sync for LEAD-002; docs closeout `146ff4f`; LEAD-002's implementation
-commits — `30c029c` backend, `e7933a4` frontend, `2543edd` tester's regression test, `e726bb5` anchoring-bug fix,
-`1802c5a` UTC-pin fix).
+**Last commit at time of writing:** `80f01b6` (chore: tracker sync for ADM-001; docs closeout `aec0ad4`;
+implementation `c4411c9`). Prior: `6248676` (chore: tracker sync for LEAD-002).
 
 ---
 
@@ -32,15 +29,14 @@ commits — `30c029c` backend, `e7933a4` frontend, `2543edd` tester's regression
   for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
   test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
   PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
-- **Dashboard numbers (as of commit `6248676`, tracker sync for LEAD-002 confirmed applied and verified):**
-  Overall Progress **64.6%** | Completed Milestones **10/24** | Completed Epics **17/23** | Completed Stories
-  **39/47** | Current Phase **PH2** (progress **0.84**) | Milestone **ML9** — ✅ **Completed** (2/2 stories) |
-  Milestone **ML10** — ✅ **Completed** (2/2 stories) | Epic **ML10-EP01** — ✅ **Completed** | Sprint **SP10** —
-  ✅ **Completed** (2/2 stories). These numbers are current and verified (each of the 16 changed cells checked
-  individually via `openpyxl` before and after, plus a structural cell-by-cell diff against the pre-sync file
-  confirming no other cell changed — including a correction to the Dashboard's separate "Chart Data — Story
-  Status" mini-table, which had independently drifted stale across several prior stories since it's a hardcoded
-  snapshot, not a live formula) — no further tracker action is needed for `LEAD-001`/`LEAD-002`.
+- **Dashboard numbers (as of commit `80f01b6`, tracker sync for ADM-001 confirmed applied and verified):**
+  Overall Progress **67.2%** | Completed Milestones **10/24** | Completed Epics **17/23** | Completed Stories
+  **40/47** | Current Phase **PH2** (progress **0.88**) | Milestone **ML10** — ✅ **Completed** (2/2 stories) |
+  Milestone **ML11** — 🔄 **In Progress** (0.5, 1/2 stories done) | Epic **ML11-EP01** — 🔄 **In Progress** (0.5)
+  | Sprint **SP11** — 🔄 **In Progress** (1/2 stories done). These numbers are current and verified (each of the
+  14 changed cells checked individually via `openpyxl` before and after, plus a structural cell-by-cell diff
+  against the pre-sync file confirming no other cell changed) — no further tracker action is needed for
+  `ADM-001`.
 - **Sprint 9 / Milestone ML9 ("Outcome & Reviews") is now fully complete — 2 of 2 stories done: `REV-001`,
   `REV-002`.** `REV-001` shipped and was signed off 13 September 2026 — see
   `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md` (`architect`: APPROVED, one minor non-blocking
@@ -134,23 +130,50 @@ commits — `30c029c` backend, `e7933a4` frontend, `2543edd` tester's regression
   standing instruction for this story to proceed straight through closeout without an additional sign-off pause
   once both verdicts were clean. Final counts: 864/864 backend tests (821 baseline + 43 new, zero regressions).
   Backend-only — no mobile/Flutter work, per the story's own explicit scope. **This is Sprint 11's first story —
-  1 of 2 done.**
+  1 of 2 done. Tracker sync for `ADM-001` is done and verified.**
 - Full narrative history of every story shipped so far (Sprints 1–11) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
   historical context on a specific earlier decision; it's over 1200 lines.
 
-## 2. Next story — Sprint 11, second story: `ADM-002`
+## 2. Next story — Sprint 11, second and final story: `ADM-002`
 
 **Sprint 11 ("Marketplace Operations," Milestone ML11, Epic ML11-EP01) is now 1 of 2 stories done: `ADM-001`
-shipped.** Its second and final story, `ADM-002` ("Operate the marketplace from an admin dashboard"), depends on
-`VER-002` (already shipped, Sprint 5) + `ADM-001` (now also shipped) — both dependencies are satisfied, so
-`ADM-002` is the next startable story in this sprint. Its full details have not been re-fetched from
-`docs/AI/Project_Tracker.xlsx` this session — a fresh lookup is needed before planning begins, per this
-project's standing practice of reading the tracker fresh at the start of each new story's planning rather than
-relying on a stale summary here.
+shipped.** Looked up fresh from `docs/AI/Project_Tracker.xlsx` (row 41) this session:
 
-**Do NOT start `ADM-002` (or plan it) without the CTO's explicit "Start X" instruction** — noting it as the next
-startable story is not authorization to begin it.
+- **Story ID:** `ADM-002` — "Operate the marketplace from an admin dashboard"
+- **Sprint/Milestone/Epic/Phase:** SP11 / ML11 / ML11-EP01 / PH2
+- **Priority:** Medium | **Depends on:** `VER-002` (shipped, Sprint 5) + `ADM-001` (shipped) — both satisfied |
+  **Status:** ⏳ Planned
+- **Description (verbatim):** "As an administrator, I want a single dashboard summarizing verification queues,
+  manual-match workload, and platform configuration, so that I can operate the marketplace day-to-day without
+  stitching together separate tools. This story consolidates `ADM-001` and `VER-002`'s queues alongside
+  feature-flag and system-configuration management into one operational surface — the capstone of the
+  Marketplace Operations sprint. Scope boundary: does not add new admin capabilities beyond what
+  `ADM-001`/`VER-002` already implemented."
+- **Acceptance Criteria (verbatim):**
+  1. `feature_flags` and `system_settings` tables exist via migration (if not already present) and are editable
+     only by admins.
+  2. Dashboard summarizes: pending verification count, pending manual-match count, and open unmatched-query-
+     report count, each linking to its respective queue.
+  3. `admin_action_log` records every configuration change, feature-flag toggle, and queue action taken from
+     this dashboard.
+  4. Feature flags can be toggled without a deploy and take effect for the next relevant request.
+  5. Non-admin access returns 403 across every dashboard endpoint.
+  6. Automated tests cover feature-flag toggling taking effect and `admin_action_log` recording every action
+     type exercised by this story.
+
+**Note for planning**: `feature_flags`/`system_settings` are the two remaining tables `04_DATABASE.md` still
+lists as "remain unbuilt" (alongside the now-shipped `unmatched_query_reports`) — AC1's "if not already present"
+hedge should be verified directly against the real schema during planning, the same way `ADM-001`'s planning
+caught the `unmatched_query_reports` documentation slip; do not assume either way. This is also this codebase's
+first admin-facing "dashboard" consolidation — check whether it implies a genuinely new UI (mobile/Flutter or a
+separate tool) or, like `ADM-001`, stays backend-API-only; the story's own framing ("consolidates... into one
+operational surface") is more UI-suggestive than `ADM-001`'s was, so this deserves real investigation rather
+than assuming the same backend-only scope carries over unchanged.
+
+This completes Sprint 11 and Milestone ML11 when shipped. **Do NOT start `ADM-002` (or plan it) without the
+CTO's explicit "Start X" instruction** — this lookup only identifies the story, it is not authorization to
+begin it.
 
 ## 3. Standing process (do not skip steps)
 
@@ -446,11 +469,8 @@ recorded at `LEAD-002`'s closeout. Next new ADR starts at **ADR-061**.
 ---
 
 **End of handoff. Sprint 11 / Milestone ML11 is now 1 of 2 stories done: `ADM-001` ("Resolve manual-match and
-unmatched-query work as an administrator") has shipped and been signed off — see Section 1 and
-`docs/implementation/walkthroughs/Walkthrough_S11_ADM-001.md`. Its tracker sync is still pending (a separate
-process performed by the orchestrator, not part of this closeout). Sprint 11's second and final story, `ADM-002`
-("Operate the marketplace from an admin dashboard"), is the next startable story — both of its dependencies
-(`VER-002`, `ADM-001`) are now satisfied, but its full details have not been re-fetched from
-`Project_Tracker.xlsx` this session.** When resuming: read this file, perform the tracker sync for `ADM-001` if
-not already done, confirm the CTO wants to proceed with `ADM-002`, then follow Section 3's cycle starting with
-`tech-lead`.**
+unmatched-query work as an administrator") has shipped, been signed off, and its tracker sync is done and
+verified (Dashboard/rollup numbers in Section 1 are current). Sprint 11's second and final story, `ADM-002`
+("Operate the marketplace from an admin dashboard"), has been identified (Section 2, full verbatim ACs
+recorded) but NOT started.** When resuming: read this file, confirm the CTO wants to proceed with `ADM-002`,
+then follow Section 3's cycle starting with `tech-lead`.**

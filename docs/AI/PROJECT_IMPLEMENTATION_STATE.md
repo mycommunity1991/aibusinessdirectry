@@ -1488,12 +1488,30 @@ standing instruction for this story to proceed straight through closeout without
 once both verdicts were clean. Final counts: 864/864 backend tests (821 baseline + 43 new, zero regressions).
 Backend-only — no mobile/Flutter work, per the story's own explicit scope boundary.
 
-**This completes Sprint 11's first story — 1 of 2 done.** Sprint 11's second and final story, `ADM-002`
-("Operate the marketplace from an admin dashboard"), depends on `VER-002` (already shipped, Sprint 5) +
-`ADM-001` (now also shipped) — both dependencies are satisfied, making `ADM-002` the next startable story in
-this sprint. Its full details have not been re-fetched from `docs/AI/Project_Tracker.xlsx` since `ADM-001`'s own
-planning session; a fresh lookup is needed before planning begins. No engineering agent should plan or start
-`ADM-002` without an explicit CTO "Start X" instruction, matching this document's own established convention.
+**This completes Sprint 11's first story — 1 of 2 done.** Sprint 11's second and final story, looked up fresh
+from `docs/AI/Project_Tracker.xlsx`, is **`ADM-002`** — "Operate the marketplace from an admin dashboard."
+Depends on `VER-002` (shipped, Sprint 5) + `ADM-001` (shipped) — both satisfied; Priority Medium. Verbatim
+description: "As an administrator, I want a single dashboard summarizing verification queues, manual-match
+workload, and platform configuration, so that I can operate the marketplace day-to-day without stitching
+together separate tools. This story consolidates `ADM-001` and `VER-002`'s queues alongside feature-flag and
+system-configuration management into one operational surface — the capstone of the Marketplace Operations
+sprint. Scope boundary: does not add new admin capabilities beyond what `ADM-001`/`VER-002` already
+implemented." Verbatim ACs: (1) `feature_flags` and `system_settings` tables exist via migration (if not
+already present) and are editable only by admins; (2) the dashboard summarizes pending verification count,
+pending manual-match count, and open unmatched-query-report count, each linking to its queue; (3)
+`admin_action_log` records every configuration change, feature-flag toggle, and queue action taken from the
+dashboard; (4) feature flags can be toggled without a deploy and take effect for the next relevant request;
+(5) non-admin access returns 403 across every dashboard endpoint; (6) automated tests cover feature-flag
+toggling taking effect and `admin_action_log` recording every action type this story exercises. Two things
+worth flagging for whoever plans this story: `feature_flags`/`system_settings` are the two remaining tables
+`04_DATABASE.md` still lists as "remain unbuilt" (alongside the now-shipped `unmatched_query_reports`) — AC1's
+"if not already present" hedge should be checked directly against the real schema, mirroring how `ADM-001`'s
+own planning caught a genuine documentation slip the same way; and the story's "dashboard... consolidat[ing]...
+into one operational surface" framing is more UI-suggestive than `ADM-001`'s was, so whether this needs a real
+UI (mobile/Flutter or a separate tool) versus staying backend-API-only deserves genuine investigation, not an
+assumption that `ADM-001`'s backend-only scope carries over unchanged. No engineering agent should plan or
+start `ADM-002` without an explicit CTO "Start X" instruction, matching this document's own established
+convention.
 
 ---
 
