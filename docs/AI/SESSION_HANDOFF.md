@@ -6,13 +6,11 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 15 September 2026, after Story LEAD-002 closeout (tracker sync for LEAD-002 NOT yet performed —
-see Section 5).
+**Last updated:** 15 September 2026, after Story LEAD-002 closeout AND its tracker sync (both complete).
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** LEAD-002's own commits — `30c029c` (backend), `e7933a4` (frontend),
-`2543edd` (tester's regression test for the anchoring bug), `e726bb5` (backend's fix for that bug), `1802c5a`
-(backend's fix for the architect's follow-on UTC-pin finding). Prior: `f614359` (chore: tracker sync for
-LEAD-001; docs closeout `8358551`; docstring fix `8e987c3`; backend `e05747b`, frontend `03f1f5b`).
+**Last commit at time of writing:** `6248676` (chore: tracker sync for LEAD-002; docs closeout `146ff4f`;
+LEAD-002's implementation commits — `30c029c` backend, `e7933a4` frontend, `2543edd` tester's regression test,
+`e726bb5` anchoring-bug fix, `1802c5a` UTC-pin fix). Prior: `f614359` (tracker sync for LEAD-001).
 
 ---
 
@@ -32,14 +30,15 @@ LEAD-001; docs closeout `8358551`; docstring fix `8e987c3`; backend `e05747b`, f
   for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
   test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
   PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
-- **Dashboard numbers (as of commit `f614359`, tracker sync for LEAD-001 confirmed applied and verified):**
-  Overall Progress **62%** | Completed Milestones **9/24** | Completed Epics **16/23** | Completed Stories
-  **38/47** | Current Phase **PH2** (progress **0.8**) | Milestone **ML9** — ✅ **Completed** (2/2 stories) |
-  Epic **ML9-EP01** — ✅ **Completed** | Sprint **SP09** — ✅ **Completed** (2/2 stories) | Milestone **ML10** —
-  🔄 **In Progress** (0.5, 1/2 stories done) | Epic **ML10-EP01** — 🔄 **In Progress** (0.5) | Sprint **SP10** —
-  🔄 **In Progress** (1/2 stories done). These numbers are current and verified (each of the 12 changed cells
-  checked individually via `openpyxl` before and after, plus a structural cell-by-cell diff against the
-  pre-sync file confirming no other cell changed) — no further tracker action is needed for `LEAD-001`.
+- **Dashboard numbers (as of commit `6248676`, tracker sync for LEAD-002 confirmed applied and verified):**
+  Overall Progress **64.6%** | Completed Milestones **10/24** | Completed Epics **17/23** | Completed Stories
+  **39/47** | Current Phase **PH2** (progress **0.84**) | Milestone **ML9** — ✅ **Completed** (2/2 stories) |
+  Milestone **ML10** — ✅ **Completed** (2/2 stories) | Epic **ML10-EP01** — ✅ **Completed** | Sprint **SP10** —
+  ✅ **Completed** (2/2 stories). These numbers are current and verified (each of the 16 changed cells checked
+  individually via `openpyxl` before and after, plus a structural cell-by-cell diff against the pre-sync file
+  confirming no other cell changed — including a correction to the Dashboard's separate "Chart Data — Story
+  Status" mini-table, which had independently drifted stale across several prior stories since it's a hardcoded
+  snapshot, not a live formula) — no further tracker action is needed for `LEAD-001`/`LEAD-002`.
 - **Sprint 9 / Milestone ML9 ("Outcome & Reviews") is now fully complete — 2 of 2 stories done: `REV-001`,
   `REV-002`.** `REV-001` shipped and was signed off 13 September 2026 — see
   `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md` (`architect`: APPROVED, one minor non-blocking
@@ -109,24 +108,54 @@ LEAD-001; docs closeout `8358551`; docstring fix `8e987c3`; backend `e05747b`, f
   counts: 821/821 backend tests (783 baseline + 38 net new across both fix rounds), 280/280 mobile tests (257
   baseline + 23 new). **This is the second story this Sprint/Milestone to need a fix-and-recheck round**
   (`LEAD-001` was clean on the first pass). CTO gave a standing instruction to proceed straight through closeout
-  once both verdicts were clean, without an additional sign-off pause for this story. **Tracker sync for
-  `LEAD-001` AND `LEAD-002` has NOT yet been performed** — see Section 5; the Dashboard numbers in the bullet
-  above are stale until that happens. **The next sprint/milestone's first story has not yet been identified —
-  a fresh tracker lookup is needed before any further planning.**
+  once both verdicts were clean, without an additional sign-off pause for this story. **Tracker sync for both
+  `LEAD-001` and `LEAD-002` is done and verified** (Dashboard numbers in the bullet above are current).
 - Full narrative history of every story shipped so far (Sprints 1–10) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
   historical context on a specific earlier decision; it's over 1200 lines.
 
-## 2. Next story — not yet identified
+## 2. Next story — Sprint 11, first story: `ADM-001`
 
-**Sprint 10 / Milestone ML10 is now fully complete — 2 of 2 stories done: `LEAD-001`, `LEAD-002`.** No further
-story in this sprint/milestone remains.
+**Sprint 10 / Milestone ML10 is now fully complete — 2 of 2 stories done: `LEAD-001`, `LEAD-002`.** Sprint 11
+("Marketplace Operations," Milestone **ML11**, Epic **ML11-EP01**) is next. Its first story, looked up fresh
+from `docs/AI/Project_Tracker.xlsx` (row 40) this session:
 
-**The next sprint/milestone's first story has NOT yet been identified.** A fresh lookup in
-`docs/AI/Project_Tracker.xlsx` is required to find it — do not assume, guess, or carry forward any prior
-session's speculation about what comes next. **Do NOT start or plan any story without the CTO's explicit
-"Start X" instruction**, and do not perform the tracker lookup itself without being asked to (per this
-project's standing process, that lookup happens as a distinct step, separate from story planning).
+- **Story ID:** `ADM-001` — "Resolve manual-match and unmatched-query work as an administrator"
+- **Sprint/Milestone/Epic/Phase:** SP11 / ML11 / ML11-EP01 / PH2
+- **Priority:** High | **Depends on:** `AI-002` (already shipped) | **Status:** ⏳ Planned
+- **Description (verbatim):** "As an administrator, I want a queue of low-confidence sessions needing manual
+  matching and a report of searches that produced no good match, so that I can keep the Wizard-of-Oz fallback
+  working and spot supply/category gaps early. This story gives admins the operational surface for two things
+  already producing data in earlier stories: AI-002's `manual_match_assignments` and MAT-001's `search_event_log`
+  unmatched entries. The admin platform itself (Flutter vs. a separate internal tool) remains an explicitly open
+  decision — this story implements the API layer, which is platform-agnostic, without assuming the answer.
+  Scope boundary: does not include verification review (`VER-002`, already delivered) or the broader admin
+  dashboard shell (`ADM-002`)."
+- **Acceptance Criteria (verbatim):**
+  1. `unmatched_query_reports` table exists via migration, sourced from `search_event_log` rows where
+     `was_matched=false`, supporting admin annotation and a status (open/reviewed/actioned).
+  2. Admin-only endpoint lists pending `manual_match_assignments` with the underlying conversation transcript
+     available for context.
+  3. Admin can select and rank candidate providers for a manual assignment, writing to `provider_matches` exactly
+     as the automated matcher would.
+  4. Completing a manual assignment updates its status and is reflected in the customer's ranked-results screen
+     without further admin action.
+  5. Unmatched query reports can be filtered/sorted and marked reviewed/actioned by an admin.
+  6. Non-admin access to either endpoint returns 403.
+  7. Automated tests cover: manual assignment completion producing a customer-visible result, and unmatched-
+     report status transitions.
+- **Sprint 11's theme/goal**: "Marketplace Operations" — "An administrator can operate verification, matching,
+  and exception workflows." `ADM-002` ("Operate the marketplace from an admin dashboard") is Sprint 11's second
+  story, depends on `VER-002` + `ADM-001`, not yet started.
+
+**Note**: `04_UNMATCHED_QUERY_REPORTS`/`unmatched_query_reports` is referenced in this codebase's own established
+"Pull-based admin queue pattern" precedent (Section 4 below) as if partially anticipated — confirm during
+planning whether this table already exists in any form or whether AC1 is a genuinely new migration; do not
+assume either way without checking `04_DATABASE.md` and the actual shipped schema first.
+
+This is now recorded here and should also be reflected in `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s "Next
+Planned Story" section. **Do NOT start `ADM-001` (or any Sprint 11 story) without the CTO's explicit "Start X"
+instruction** — this lookup only identifies the story, it is not authorization to begin it.
 
 ## 3. Standing process (do not skip steps)
 
@@ -392,8 +421,7 @@ follow-on gap). Prior: ADR-054/055, recorded at `LEAD-001`'s closeout. Next new 
 ---
 
 **End of handoff. Sprint 10 / Milestone ML10 is now fully complete — 2 of 2 stories done: `LEAD-001` and
-`LEAD-002` have both shipped and been signed off. Tracker sync for BOTH stories has NOT yet been performed** —
-see Section 5; the Dashboard/rollup numbers in Section 1 remain stale until that happens. **The next
-sprint/milestone's first story has not yet been identified — a fresh `Project_Tracker.xlsx` lookup is required
-before any further planning begins.** When resuming: read this file, perform (or request) that fresh tracker
-lookup, confirm with the CTO what to start next, then follow Section 3's cycle starting with `tech-lead`.**
+`LEAD-002` have both shipped and been signed off, and their tracker sync is done and verified (Dashboard/rollup
+numbers in Section 1 are current). Sprint 11's first story, `ADM-001` ("Resolve manual-match and unmatched-
+query work as an administrator"), has been identified (Section 2) but NOT started.** When resuming: read this
+file, confirm the CTO wants to proceed with `ADM-001`, then follow Section 3's cycle starting with `tech-lead`.**
