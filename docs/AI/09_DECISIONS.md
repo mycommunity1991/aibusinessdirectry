@@ -4853,6 +4853,252 @@ of that Service moves to avoid the cycle.
 
 ---
 
+# ADR-061
+
+## Title
+
+Feature-Flag Honest-Consumer Requirement (`ADM-002`): A Flag Must Have a Real, Meaningful Runtime Consumer Before
+It Can Honestly Be Considered to "Take Effect" — a New Principle, Distinct From Anti-Fabrication
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`ADM-002` shipped this codebase's first-ever `feature_flags` table. AC4's own literal wording requires a flag to
+"take effect for the next relevant request," and AC6 requires "automated tests cover feature-flag toggling taking
+effect" — both genuinely false to claim for a flag that is merely stored and read by nothing. Every existing
+business-tunable value in this codebase before this story (`CONVERSATION_CONFIDENCE_THRESHOLD`,
+`AI_MATCH_MAX_RESULTS`, `RANKING_WEIGHT_*`, etc.) was a `Settings`/env-config constant requiring a deploy/restart
+to change — none was runtime-toggleable. Building `feature_flags` without also wiring at least one real consumer
+would satisfy AC1's "table exists" requirement while leaving AC4/AC6 honestly unmet, exactly the shape of gap
+this codebase's engineering discipline treats as unacceptable to ship silently.
+
+### Decision
+
+`manual_matching_force_all` gates `SearchRequestService.handle_session_completed`'s existing automated-vs-manual
+dispatch: when the flag is enabled, a session that would otherwise auto-match is instead routed through the
+manual admin queue via `_handle_routed_to_admin`, exactly as if the AI conversation itself had produced a
+low-confidence result. This is a real, meaningful, already-exercised branch point (not a new one invented for
+this story), and it directly operationalizes `13_OPEN_DECISIONS.md` item 10's still-open "degree of manual
+matching" product question — a real, live, no-deploy operational lever a future admin can use, not a decorative
+example. **A no-op flag — one stored in the new table but read by nothing — was explicitly rejected outright as
+a candidate**, on the grounds that it would make AC4's and AC6's own literal wording impossible to satisfy
+honestly: a test asserting "the flag exists in the database and its `is_enabled` column flips" is not the same
+claim as "toggling this flag changes what the system does."
+
+**Generalized principle (the actual reusable lesson):** before shipping any feature flag/toggle whose acceptance
+criteria requires it to "take effect," identify and wire a genuine, meaningful runtime consumer as part of the
+same story — never satisfy a table-existence or CRUD-endpoint AC with a flag nothing reads, even when doing so
+would be the path of least resistance. This is a **new principle, distinct from the anti-fabrication principle**
+(`00_PROJECT_CONTEXT.md` §3, `ADR-038`/`ADR-055`): anti-fabrication governs never inventing a *data value* the
+system cannot honestly produce (a rating, a category, an assigned admin); this principle governs never inventing
+the *appearance of live, working behavior* for a capability that in fact changes nothing at runtime — a distinct
+failure mode (dishonest AC-satisfaction via a dead code path) from a distinct cause (fabricated data).
+
+### Alternatives Considered
+
+- **A no-op flag, stored but read by nothing.** Rejected outright — see Decision above.
+- **A blunt, customer-facing "maintenance mode" kill switch** (e.g. rejecting `POST /conversations` entirely when
+  enabled). Considered as a more conventional first feature-flag example — rejected because it has a much larger
+  blast radius (blocks all new customer intake) for this story's first-ever flag and has no connection to any
+  already-flagged open product question, unlike `manual_matching_force_all`.
+- **Gate `SearchService.search_providers`/`ProviderSearchRepository.search_nearby`** (the customer-facing browse
+  path). Rejected — that path has no Wizard-of-Oz/manual-queue concept at all; gating it would mean inventing an
+  entirely new "browse is disabled" behavior with no existing precedent or open product question motivating it.
+
+### Consequences
+
+- This is this codebase's first real, honestly-effective feature-flag consumer — the concrete precedent any
+  future flag-driven capability should be held to.
+- A future story adding a second feature flag must identify its own real runtime consumer before claiming any
+  "takes effect" AC is satisfied; a flag existing only in `GET`/`PATCH /admin/feature-flags` responses does not
+  clear this bar on its own.
+- `manual_matching_force_all` operationalizes but does not resolve `13_OPEN_DECISIONS.md` item 10 — the
+  underlying product question of how much matching should stay manual long-term remains open for the CTO to
+  decide, now with a real, live lever to act on it without a deploy.
+
+### Related Documents
+
+- 00_PROJECT_CONTEXT.md §3 (the anti-fabrication principle this decision is explicitly distinguished from)
+- 09_DECISIONS.md (ADR-034 — the config-driven confidence-threshold precedent this flag sits alongside as a
+  second, runtime-toggleable business lever; ADR-038/ADR-055 — the anti-fabrication precedent this ADR's
+  principle is a sibling of, not a restatement of)
+- 13_OPEN_DECISIONS.md (Item 10 — the still-open product question this flag operationalizes without resolving)
+- docs/implementation/plans/Plan_S11_ADM-002.md (Decision 7)
+- docs/implementation/walkthroughs/Walkthrough_S11_ADM-002.md
+- backend/app/modules/search/services/search_request_service.py (`handle_session_completed`)
+- backend/app/modules/administration/services/feature_flag_service.py (`is_enabled`)
+
+---
+
+# ADR-062
+
+## Title
+
+Plain Idempotent Overwrite vs. Atomic Conditional Transition: When Not to Reach for the `try_*` Pattern
+(`ADM-002`) — a Negative-Case Precedent
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+This codebase's atomic-conditional-`UPDATE` (`try_*`) pattern — `VerificationRecordRepository.try_claim_for_review`
+(ADR-024), `ProviderRepository.try_claim_for_account` (ADR-030), `ManualMatchAssignmentRepository.try_resolve`
+(ADR-039), `UnmatchedQueryReportRepository.try_transition_status` (`ADM-001`) — exists specifically to guarantee
+"exactly one caller may ever win" a **forward-only workflow-state transition** (resolving a pending queue item
+exactly once). `ADM-002` needed to decide whether toggling a `feature_flags.is_enabled` value or editing a
+`system_settings.value` should reuse this same pattern, purely for stylistic consistency with every other write
+in `administration`.
+
+### Decision
+
+**No** — `feature_flags`/`system_settings` writes use a plain `BaseRepository.update`, keyed by a `get_by_key`
+lookup first (raising a 404 `FeatureFlagNotFoundError`/`SystemSettingNotFoundError` for an unknown key), never a
+`try_*`-prefixed atomic conditional `UPDATE`. Setting a flag's `is_enabled` or a setting's `value` has no
+"exactly once" semantics: it is a plain, idempotent, last-write-wins configuration write, not a state-machine
+transition. If two admins concurrently set the same flag, the **correct** outcome is simply whichever write
+commits last — not a 409 rejection, which is what the `try_*` pattern would produce if misapplied here (the
+second admin's `WHERE`-clause re-check would fail against the first admin's now-committed value, even though
+nothing about that outcome is actually wrong or worth rejecting).
+
+### Alternatives Considered
+
+- **Force every write through the `try_*` atomic pattern regardless, for consistency.** Rejected — mechanically
+  applying a pattern designed for a distinct problem (queue-item race safety, where a second writer's action is
+  genuinely invalid once the first commits) to a problem that doesn't have that race (config value writes, where
+  a second writer's action is always valid, just later) would be pattern-matching without understanding *why*
+  the pattern exists. This codebase's own established discipline (`ADR-053`: reuse an existing mechanism only
+  for a genuinely identical reason, add something new only for a genuinely distinct one) cuts the same way here,
+  applied to a repository-write-shape choice rather than an exception shape.
+
+### Consequences
+
+- This is the first explicit "when **not** to use `try_*`" precedent recorded in this codebase — a negative-case
+  companion to the pattern's four now-established positive applications, letting a future story distinguish "is
+  this a workflow-state transition with an exactly-once winner?" (reach for `try_*`) from "is this a plain,
+  last-write-wins configuration value?" (use `BaseRepository.update` directly) rather than defaulting to `try_*`
+  everywhere out of surface-level consistency.
+- A future admin-editable configuration value (a further `system_settings`/`feature_flags` row, or any similarly
+  plain key-value write) should default to this same plain-`update` shape unless it genuinely gains "exactly one
+  caller may win" semantics of its own.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-024/ADR-030/ADR-039 — the `try_*` pattern's three prior positive applications this
+  decision distinguishes itself from; ADR-053 — the "reuse for an identical reason, add new only for a genuinely
+  distinct one" discipline this decision's reasoning extends from exception shapes to repository-write shapes)
+- docs/implementation/plans/Plan_S11_ADM-002.md (Decision 8)
+- docs/implementation/walkthroughs/Walkthrough_S11_ADM-002.md
+- backend/app/modules/administration/services/feature_flag_service.py (`toggle`)
+- backend/app/modules/administration/services/system_setting_service.py (`update_value`)
+
+---
+
+# ADR-063
+
+## Title
+
+Audit-Log Completeness Check (`ADM-002`): When a New Admin Capability Wraps Around Existing Admin Actions, Verify
+Each One Already Logs to `admin_action_log` — Never Assume It Does
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`ADM-002`'s AC3 requires `admin_action_log` to record "every configuration change, feature-flag toggle, and
+queue action taken from this dashboard." Direct investigation during planning — reading
+`ManualMatchAssignmentService.resolve` and `UnmatchedQueryReportService.mark_reviewed`/`mark_actioned` in full,
+and grepping the whole codebase for `admin_action_log`/`AdminActionLogService` — found that **two of the three
+dashboard-linked queue actions did not write to `admin_action_log` at all**, despite both being genuine,
+already-shipped admin actions predating this story (`manual_match_assignments`' resolution shipped with
+`AI-002`; `unmatched_query_reports`' status transitions shipped with `ADM-001`). Only the verification queue's
+`approve`/`reject` (via `AdminActionLogService.record_verification_review`, `VER-002`) already logged correctly.
+This was a real, evidence-based completeness gap AC3's own literal wording required this story to close — not
+new scope beyond `ADM-001`/`VER-002` (the queue actions themselves were unchanged), but a genuine audit-logging
+gap in already-shipped code that a consolidating dashboard story is exactly positioned to surface and fix.
+
+### Decision
+
+`AdminActionLogService` gains four new explicit methods (`record_manual_match_resolution`,
+`record_unmatched_query_report_transition`, `record_feature_flag_toggle`, `record_system_setting_update`),
+extending its own existing "explicit named methods, never one generic `record()`" convention (established at
+`VER-002`). `ManualMatchAssignmentService` and `UnmatchedQueryReportService` — both already living inside
+`administration` alongside `AdminActionLogService` — each gain a trivial, intra-module constructor-injected
+`AdminActionLogService` dependency (zero new cross-module edges, zero circular-import risk), calling the
+appropriate new method immediately after each successful transition. `verification`'s existing, already-correct
+`record_verification_review` call path is left untouched.
+
+**Generalized principle (the actual reusable lesson):** when a story introduces a new admin capability that
+consolidates, dashboards, or otherwise wraps around a set of *already-existing* admin-actionable queues or
+workflows, explicitly check — by reading the code and grepping for the logging call, not by assuming — whether
+each wrapped action already writes to `admin_action_log`. Do not assume "this is an admin queue, so it must
+already be logged"; verify directly, the same way this story's own planning did, before treating audit-log
+coverage as a given.
+
+### Alternatives Considered
+
+- **Log from the route handler instead of the service layer.** Rejected — every existing precedent
+  (`AdminVerificationService.approve`/`reject`) logs from inside the Service performing the action, not the
+  route; keeping "this counts as a loggable action" out of controllers is `02_ARCHITECTURE.md`'s own explicit
+  rule that business logic must never live inside API routes.
+- **One generic `record(action_type: str, ...)` method** instead of four named ones. Rejected — directly
+  contradicts `AdminActionLogService`'s own existing, explicit docstring convention, established at `VER-002`
+  and never revisited since.
+
+### Consequences
+
+- `admin_action_log` now genuinely records every admin action across all three dashboard-linked queues
+  (verification review, manual-match resolution, unmatched-query-report transitions) plus this story's own two
+  new action types (feature-flag toggle, system-setting update) — a real completeness fix, not merely new
+  coverage for new code.
+- Any future story building a consolidating/dashboard-style capability over already-shipped admin workflows
+  should perform this same completeness check as a standard planning step, not an afterthought discovered only
+  once an AC's literal wording forces the question.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-021 — `admin_action_log`'s own original design and schema-ownership reasoning this
+  completeness fix operates within, unchanged)
+- docs/implementation/plans/Plan_S05_VER-002.md (`AdminActionLogService`'s original "explicit methods, never a
+  generic `record()`" design this decision extends)
+- docs/implementation/plans/Plan_S11_ADM-002.md (Decision 6)
+- docs/implementation/walkthroughs/Walkthrough_S11_ADM-002.md
+- backend/app/modules/administration/services/admin_action_log_service.py
+- backend/app/modules/administration/services/manual_match_assignment_service.py
+- backend/app/modules/administration/services/unmatched_query_report_service.py
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

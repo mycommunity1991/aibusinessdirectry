@@ -342,13 +342,27 @@ threshold remains a `Settings` value specifically so that decision can be tuned 
 This also newly informs the Administration domain's dashboard scope (`ADM-001`/`ADM-002`, Sprint 11): the queue
 this item's UI question was about now has a real backend to build against.
 
-**Blocks:** The Administration domain's dashboard scope (Sprint 11: ADM-001, ADM-002) — now with a real,
-shipped backend queue to design a UI against, rather than a hypothetical one.
+**Update (15 September 2026, Story `ADM-002` shipped):** a real, live, no-deploy operational lever now exists —
+`administration.feature_flags.manual_matching_force_all` (defaulted `false`), checked by
+`SearchRequestService.handle_session_completed`: when enabled, every session that would otherwise auto-match is
+instead routed through the manual admin queue, exactly as a genuine low-confidence AI result would be
+(`09_DECISIONS.md` ADR-061). **This operationalizes item 10; it does not resolve it.** The CTO can now adjust how
+much matching runs manually versus automatically without a deploy, once real usage data exists — but the
+underlying product question this item names (how much of launch-time matching *should* stay manual long-term,
+and whether that's an acceptable steady state or a temporary bootstrap measure) remains a business decision the
+CTO has not made and this story does not make on the CTO's behalf. **This item stays `Open`.**
+
+**Blocks:** Nothing further at the code level — both `ADM-001` and `ADM-002` (Sprint 11's two stories) have now
+shipped against this item's backend. The remaining blocker is purely the CTO's own product decision, informed by
+real usage data once available.
 
 **Related:** `03_DOMAIN_MODEL.md` (Conversation/AI Intake Session, Administration domains); `09_DECISIONS.md`
 ADR-034 (the confidence-threshold `Settings` value), ADR-039 (the pull-based queue implementation), ADR-040 (the
-shared finalization guaranteeing identical customer experience); `docs/implementation/plans/Plan_S07_AI-002.md`;
-`docs/implementation/walkthroughs/Walkthrough_S07_AI-002.md`.
+shared finalization guaranteeing identical customer experience), ADR-061 (the `manual_matching_force_all` flag
+and its honest-runtime-consumer reasoning); `docs/implementation/plans/Plan_S07_AI-002.md`;
+`docs/implementation/walkthroughs/Walkthrough_S07_AI-002.md`;
+`docs/implementation/plans/Plan_S11_ADM-002.md` (Decision 7);
+`docs/implementation/walkthroughs/Walkthrough_S11_ADM-002.md`.
 
 ---
 

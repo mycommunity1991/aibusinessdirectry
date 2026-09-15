@@ -11,6 +11,48 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Operate the marketplace from an admin dashboard (Story ADM-002, Sprint 11 / Milestone ML11's second and final
+  story — **this completes Sprint 11 and Milestone ML11 in full, 2 of 2 stories done: `ADM-001`, `ADM-002`**):
+  `feature_flags` and `system_settings` ship as `administration`'s fifth and sixth aggregate roots — a genuine
+  new migration (planning confirmed directly against the code, mirroring `ADM-001`'s own discipline, that
+  neither table existed yet) built exactly to `04_DATABASE.md`'s pre-existing spec, each seeded with one row so
+  AC1's "editable" claim and AC6's toggle tests have something real to exercise from day one. Keys are a known,
+  finite, code-defined set (migration-seeded only, no admin-facing `POST`); the admin surface is
+  `GET`/`PATCH /admin/feature-flags[/{key}]` and `GET`/`PATCH /admin/system-settings[/{key}]`, both
+  `require_role(ROLE_ADMIN)`. A new `GET /admin/dashboard/summary` endpoint aggregates pending-verification/
+  pending-manual-match/open-unmatched-query counts via three new, dedicated count-only repository methods
+  (never reusing an existing `list_*` method's bundled `(items, total)`, avoiding hydrating PII-bearing rows
+  just to read a headline number) plus each queue's own path. Getting the verification count required a third,
+  correctly-foreseen application of the circular-import-avoidance principle first established at `ADM-001`
+  (**ADR-060**): `administration/dependencies.py` constructs `VerificationRecordRepository(db)` directly from
+  `verification`'s leaf repository module, since `verification.dependencies` already imports
+  `administration.dependencies` at module level. Direct investigation during planning found a real,
+  evidence-based `admin_action_log` completeness gap: two of the three dashboard-linked queue actions
+  (`ManualMatchAssignmentService.resolve`, `UnmatchedQueryReportService.mark_reviewed`/`mark_actioned`) — both
+  already-shipped admin actions from `AI-002`/`ADM-001` — never wrote to `admin_action_log` at all, unlike the
+  verification queue's already-correct `record_verification_review`. Closed by extending `AdminActionLogService`
+  with four new explicit methods and wiring both services to it via a trivial, intra-module dependency
+  (**ADR-063** — a new, reusable principle: when a story wraps around existing admin actions, verify each one
+  already logs, never assume it does). `manual_matching_force_all` is this codebase's first real,
+  honestly-effective feature flag: rather than shipping a decorative flag nothing reads (explicitly rejected, as
+  it would make AC4's/AC6's own "take effect" wording false to claim), it gates
+  `SearchRequestService.handle_session_completed`'s existing automated-vs-manual dispatch — when enabled, a
+  session that would otherwise auto-match is instead routed through the manual admin queue, directly
+  operationalizing (without resolving) `13_OPEN_DECISIONS.md` item 10's still-open "degree of manual matching"
+  product question (**ADR-061**, a new principle distinct from anti-fabrication: this is about never inventing
+  the *appearance* of working behavior, not about never inventing a data value). Feature-flag/system-setting
+  writes deliberately use a plain `BaseRepository.update`, not the `try_*`-prefixed atomic-conditional-`UPDATE`
+  pattern (`try_resolve`/`try_claim_for_review`/`try_claim_for_account`/`try_transition_status`) — toggling a
+  flag is a last-write-wins configuration write with no "exactly one caller wins" semantics, a genuinely
+  different problem than the one that pattern solves (**ADR-062**, the first documented negative-case precedent
+  for when *not* to reach for `try_*`). **`tester` independently verified all 6 verbatim ACs pass, with zero
+  gaps and zero regressions in the already-shipped `VER-002`/`ADM-001`/`AI-002` code; `architect` returned zero
+  blocking findings, no fix-and-recheck round needed** — the third application of the circular-import-avoidance
+  principle, executed correctly with zero implementation-time Plan deviations. CTO gave a standing instruction
+  for this story to proceed straight through closeout without an additional sign-off pause once both verdicts
+  were clean. Final counts: 898/898 backend tests (864 baseline + 34 new, zero regressions). Backend-only — no
+  mobile/Flutter work, per the story's own explicit scope boundary. See
+  `docs/implementation/walkthroughs/Walkthrough_S11_ADM-002.md` for the full account.
 - Resolve manual-match and unmatched-query work as an administrator (Story ADM-001, Sprint 11 / Milestone
   ML11's first story): a genuinely new `administration.unmatched_query_reports` table and migration — planning
   confirmed directly against the code that this table did not exist before this story, correcting a stale

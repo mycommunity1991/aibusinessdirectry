@@ -948,7 +948,9 @@ alongside it as the Administration domain's second slice (Story CLM-001, Sprint 
 (below) has since shipped as its third slice (Story AI-002, Sprint 7); `unmatched_query_reports` (below) has since
 shipped as its fourth slice (Story ADM-001, Sprint 11) — see that table's own section below for its shipped
 shape and the two documentation-only facts about `administration`'s first cross-module edge and first `api.py`
-this story established. `feature_flags` and `system_settings` (below) remain unbuilt.
+this story established. `feature_flags` and `system_settings` (below) have since shipped as `administration`'s
+fifth and sixth slices (Story ADM-002, Sprint 11) — see each table's own section below for its shipped shape,
+seeded row, and (for `feature_flags`) its real runtime consumer.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
@@ -1026,6 +1028,22 @@ unaffected and populate correctly.
 
 ## feature_flags
 
+Shipped by Story ADM-002 (Sprint 11) exactly per this pre-existing spec, no deviation — the tester confirmed the
+shipped columns via a real migration apply matching this table verbatim. `administration`'s fifth aggregate root,
+plus the full `CommonColumnsMixin`. Keys are a known, finite, code-defined set — created only by a migration
+(never by an admin-facing `POST`); the admin-facing surface is `GET /admin/feature-flags` (list) and
+`PATCH /admin/feature-flags/{key}` (edit an existing row's `is_enabled` only, 404 for an unknown key), both
+`require_role(ROLE_ADMIN)`. Writes use a plain `BaseRepository.update`, not the `try_*` atomic-conditional
+pattern — toggling a flag is a last-write-wins configuration write, not a workflow-state transition (see
+`09_DECISIONS.md` ADR-062). Every toggle writes an `admin_action_log` row (`action_type="feature_flag_toggled"`).
+The migration seeds exactly one row: `key="manual_matching_force_all"`, `is_enabled=false`. **Documentation-only
+fact for future readers who might otherwise assume this is a decorative, no-op flag:** `manual_matching_force_all`
+has a real, honest runtime consumer — `SearchRequestService.handle_session_completed` checks it and, when
+enabled, routes a session that would otherwise auto-match through the manual admin queue instead, exactly as a
+genuine low-confidence AI result would be routed. This is a live, no-deploy operational lever for
+`13_OPEN_DECISIONS.md` item 10 (a `no-op` feature flag was explicitly rejected at design time — see
+`09_DECISIONS.md` ADR-061).
+
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | key | VARCHAR(100) | No | Unique |
@@ -1035,6 +1053,16 @@ unaffected and populate correctly.
 **Constraints:** `uq_feature_flags_key`
 
 ## system_settings
+
+Shipped by Story ADM-002 (Sprint 11) exactly per this pre-existing spec, no deviation — confirmed the same way as
+`feature_flags` above. `administration`'s sixth aggregate root, plus the full `CommonColumnsMixin`. Same
+finite-key-set convention as `feature_flags` (migration-seeded keys only, no admin-facing `POST`); admin surface
+is `GET /admin/system-settings` (list) and `PATCH /admin/system-settings/{key}` (edit `value` only, 404 for an
+unknown key), both `require_role(ROLE_ADMIN)`; same plain-`update` write shape (ADR-062); every update writes an
+`admin_action_log` row (`action_type="system_setting_updated"`). The migration seeds exactly one row:
+`key="support_contact_email"`, `value={"email": "support@aimarketplace.example"}` — a placeholder value; nothing
+in this codebase currently reads it at runtime (unlike `feature_flags.manual_matching_force_all`), since no AC
+required a `system_settings` consumer, only that the table be genuinely editable.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
