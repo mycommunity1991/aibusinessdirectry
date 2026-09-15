@@ -44,6 +44,8 @@
   "homePlaceholderTitle": "تم تسجيل الدخول",
   "homePlaceholderMessage": "الصفحة الرئيسية قادمة قريباً.",
 
+  "homeNotificationsEntryLabel": "الإشعارات",
+
   "logOutLabel": "تسجيل الخروج",
 
   "profileSettingsTooltip": "الملف الشخصي والإعدادات",
@@ -309,6 +311,12 @@
   "visibilityAnalyticsTrendDownLabel": "انخفاض",
   "visibilityAnalyticsTrendFlatLabel": "مستقر",
   "visibilityAnalyticsNotEnoughDataMessage": "لا توجد بيانات كافية بعد — بمجرد أن يبدأ العملاء بإيجادك والتواصل معك، ستظهر إحصاءات ظهورك هنا.",
+
+  "notificationsInboxTitle": "الإشعارات",
+  "notificationsNewSectionHeader": "جديد",
+  "notificationsEarlierSectionHeader": "سابقاً",
+  "notificationsEmptyStateMessage": "لا توجد إشعارات بعد",
+  "notificationsOutcomeTagPromptGenericProviderLabel": "مقدّم الخدمة",
 
   "relativeTimeJustNowLabel": "الآن",
   "relativeTimeMinutesAgoLabel": "{minutes, plural, one {منذ دقيقة واحدة} other {منذ {minutes} دقائق}}",

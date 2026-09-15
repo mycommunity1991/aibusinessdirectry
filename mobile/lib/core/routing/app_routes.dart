@@ -145,4 +145,11 @@ class AppRoutes {
   /// visibility analytics are resolved entirely server-side from the
   /// authenticated session, same as [leads]/[storefront].
   static const String visibilityAnalytics = '/visibility-analytics';
+
+  /// `ENG-001` -- Notifications Inbox (AC5/AC6). Reached from
+  /// [homePlaceholder]'s new "Notifications" entry-point tile. Needs no
+  /// `extra` -- the caller's own notifications are resolved entirely
+  /// server-side from the authenticated session, same as [leads]/
+  /// [visibilityAnalytics].
+  static const String notificationsInbox = '/notifications-inbox';
 }

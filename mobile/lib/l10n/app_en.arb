@@ -165,6 +165,11 @@
     "description": "Body copy on the temporary post-authentication placeholder screen."
   },
 
+  "homeNotificationsEntryLabel": "Notifications",
+  "@homeNotificationsEntryLabel": {
+    "description": "Label on the Home placeholder screen's new tappable entry-point tile linking to the Notifications Inbox screen (ENG-001, Plan Frontend item 2) -- mirrors storefrontLeadsEntryLabel's tile shape."
+  },
+
   "logOutLabel": "Log out",
   "@logOutLabel": {
     "description": "Label for the sign-out action on the temporary post-authentication placeholder screen (AUTH-003)."
@@ -1168,6 +1173,27 @@
   "visibilityAnalyticsNotEnoughDataMessage": "Not enough data yet — once customers start finding and contacting you, your visibility stats will show up here.",
   "@visibilityAnalyticsNotEnoughDataMessage": {
     "description": "Empty-state copy on the Visibility Analytics screen shown when hasSufficientData is false (LEAD-002, AC4) -- replaces the stat cards/chart entirely, still pull-to-refresh-able."
+  },
+
+  "notificationsInboxTitle": "Notifications",
+  "@notificationsInboxTitle": {
+    "description": "App bar title on the Notifications Inbox screen (ENG-001, AC5/AC6)."
+  },
+  "notificationsNewSectionHeader": "New",
+  "@notificationsNewSectionHeader": {
+    "description": "Section header above unread notifications (readAt == null) on the Notifications Inbox screen (ENG-001, AC6's literal New/Earlier grouping requirement)."
+  },
+  "notificationsEarlierSectionHeader": "Earlier",
+  "@notificationsEarlierSectionHeader": {
+    "description": "Section header above already-read notifications (readAt != null) on the Notifications Inbox screen (ENG-001, AC6)."
+  },
+  "notificationsEmptyStateMessage": "No notifications yet",
+  "@notificationsEmptyStateMessage": {
+    "description": "Empty-state copy on the Notifications Inbox screen shown when the caller has zero notifications (ENG-001) -- still pull-to-refresh-able, mirrors leadsEmptyStateMessage's pattern."
+  },
+  "notificationsOutcomeTagPromptGenericProviderLabel": "the provider",
+  "@notificationsOutcomeTagPromptGenericProviderLabel": {
+    "description": "Fallback provider-name text passed to the reused OutcomeTagPromptSheet's required providerDisplayName argument when it is reopened from a Notifications Inbox row (ENG-001, Decision 10) -- unlike the Contact Reveal flow's own call site, a notification's own payload (id/type/title/body/relatedEntityType/relatedEntityId) carries no real provider display name to show here, so this honest, generic placeholder is used instead of fabricating one."
   },
 
   "relativeTimeJustNowLabel": "Just now",

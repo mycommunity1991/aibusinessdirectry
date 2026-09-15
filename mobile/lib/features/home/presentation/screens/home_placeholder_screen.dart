@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/routing/app_routes.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../l10n/generated/app_localizations.dart';
+import '../../../../shared/data/unread_notification_count_repository.dart';
 import '../../../auth/data/auth_repository.dart';
 import '../../../auth/state/auth_session_controller.dart';
 import '../../../customer/data/saved_address_repository.dart';
@@ -30,7 +31,11 @@ import '../../../customer/domain/models/saved_address_exception.dart';
 /// AI-001 (`Plan_S07_AI-001.md` Decision 7), the real AI Conversation entry
 /// point (S-06/S-07) also exists here, opening `AiConversationScreen`
 /// directly — the guided, free-text intake path alongside "Find a
-/// Service"'s structured browse.
+/// Service"'s structured browse. As of `ENG-001`
+/// (`Plan_S12_ENG-001.md`, Decision 10/Open Question 4), a "Notifications"
+/// entry-point tile also lives here — this is the only screen every
+/// authenticated account of any role currently lands on, unlike
+/// `storefront`/`profileSettings` which are role-specific.
 class HomePlaceholderScreen extends ConsumerWidget {
   const HomePlaceholderScreen({super.key});
 
@@ -111,6 +116,10 @@ class HomePlaceholderScreen extends ConsumerWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: AppSpacing.xl),
+              // ENG-001, Frontend item 2 -- the Notifications entry-point
+              // tile with a live unread-count badge (AC5/AC6).
+              const _NotificationsEntryPointCard(),
+              const SizedBox(height: AppSpacing.lg),
               // AI-001, Mobile item 27 -- the AI Conversation entry point
               // (S-06/S-07, Decision 7), alongside the existing structured
               // "Find a Service" browse path and the Claim entry point.
@@ -139,6 +148,98 @@ class HomePlaceholderScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// `ENG-001`'s "Notifications" entry point tile -- mirrors
+/// `_LeadsEntryPointCard`'s own shape exactly
+/// (`features/provider/presentation/screens/storefront_screen.dart`): a
+/// tappable card reading only the [AppRoutes.notificationsInbox] constant,
+/// never importing anything from `features/notifications/`
+/// (`docs/AI/02_ARCHITECTURE.md`'s "Features must not depend directly on
+/// each other" rule) -- the live unread-count badge instead reads the
+/// independent `shared/data/unread_notification_count_repository.dart`
+/// (mirroring `_VerificationStatusChip`'s identical "shared, deliberately
+/// independent read" precedent).
+class _NotificationsEntryPointCard extends ConsumerWidget {
+  const _NotificationsEntryPointCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final colorScheme = Theme.of(context).colorScheme;
+    final unreadCount = ref.watch(unreadNotificationCountProvider);
+
+    return InkWell(
+      key: const ValueKey('home-notifications-entry-point'),
+      borderRadius: BorderRadius.circular(AppRadius.small),
+      onTap: () => context.push(AppRoutes.notificationsInbox),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: colorScheme.secondaryContainer,
+          borderRadius: BorderRadius.circular(AppRadius.small),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.notifications_none_outlined,
+              color: colorScheme.onSecondaryContainer,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: Text(
+                l10n.homeNotificationsEntryLabel,
+                style: TextStyle(color: colorScheme.onSecondaryContainer),
+              ),
+            ),
+            unreadCount.when(
+              data: (count) => count > 0
+                  ? _UnreadCountBadge(count: count)
+                  : const SizedBox.shrink(),
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Icon(Icons.chevron_right, color: colorScheme.onSecondaryContainer),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A small, pill-shaped unread-count badge -- `DESIGN.md`'s `rounded.full`
+/// token via [AppRadius.full] (mirroring `VerifiedBadge`'s identical
+/// fully-rounded shape).
+class _UnreadCountBadge extends StatelessWidget {
+  const _UnreadCountBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      key: const ValueKey('home-notifications-unread-badge'),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: colorScheme.error,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: Text(
+        '$count',
+        style: Theme.of(
+          context,
+        ).textTheme.labelSmall?.copyWith(color: colorScheme.onError),
       ),
     );
   }
