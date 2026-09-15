@@ -6,13 +6,13 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 15 September 2026, after Story ADM-002 closeout AND tracker sync (Sprint 11 / Milestone ML11
-now fully complete and verified — see Section 1/5). Next story `ENG-001` identified fresh from the tracker —
-see Section 2. Not yet started.
+**Last updated:** 15 September 2026, after Story ENG-001 closeout AND tracker sync (Sprint 12 / Milestone ML12
+now 1 of 2 stories done — see Section 1/5). Next story `ENG-002` identified fresh from the tracker — see
+Section 2. Not yet started.
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `ada6dc1` (chore: tracker sync for ADM-002). Prior: `d073f69` (docs closeout
-for ADM-002); `3a025d8` (implementation for ADM-002); `80f01b6` (chore: tracker sync for ADM-001; docs closeout
-`aec0ad4`; implementation `c4411c9`); `6248676` (chore: tracker sync for LEAD-002).
+**Last commit at time of writing:** `ba5c60c` (chore: tracker sync for ENG-001). Prior: `b702d76` (docs closeout
+for ENG-001); `8737874` (fix: mark_read ownership-check-layer correction); `6f4e229` (mobile for ENG-001);
+`2442b9f` (backend for ENG-001); `44ed578` (plan for ENG-001); `ada6dc1` (chore: tracker sync for ADM-002).
 
 ---
 
@@ -32,14 +32,20 @@ for ADM-002); `3a025d8` (implementation for ADM-002); `80f01b6` (chore: tracker 
   for the cross-module services-only convention). Final verdicts: `tester` all 8 ACs pass (one genuine
   test-coverage gap closed — AC6's Arabic-locale rendering, confirmed already-working, not a bug); `architect`
   PASS, fully APPROVED. Independently re-confirmed: 702/702 backend tests, 195/195 mobile tests passing.
-- **Dashboard numbers (as of commit `ada6dc1`, tracker sync for ADM-002 confirmed applied and verified):**
-  Overall Progress **69.8%** | Completed Milestones **11/24** | Completed Epics **18/23** | Completed Stories
-  **41/47** | Current Phase **PH2** (progress **0.92**) | Milestone **ML10** — ✅ **Completed** (2/2 stories) |
-  Milestone **ML11** — ✅ **Completed** (2/2 stories) | Epic **ML11-EP01** — ✅ **Completed** (1.0) | Sprint
-  **SP11** — ✅ **Completed** (2/2 stories done). These numbers are current and verified (16 changed cells
-  checked individually via `openpyxl` before and after, plus a structural cell-by-cell diff against the
-  pre-sync file confirming no other cell changed) — no further tracker action is needed for `ADM-002`; Sprint 11
-  and Milestone ML11 are fully closed out.
+- **Dashboard numbers (as of commit `ba5c60c`, tracker sync for ENG-001 confirmed applied and verified):**
+  Overall Progress **72.4%** | Completed Milestones **11/24** | Completed Epics **18/23** | Completed Stories
+  **42/47** | Current Phase **PH2** (progress **0.96**) | Current Milestone **ML12** | Current Sprint **SP12** |
+  Milestone **ML11** — ✅ **Completed** (2/2 stories) | Milestone **ML12** — 🔄 **In Progress** (0.5, 1/2
+  stories done) | Epic **ML12-EP01** — 🔄 **In Progress** (0.5) | Sprint **SP12** — 🔄 **In Progress** (1/2
+  stories done). These numbers are current and verified (22 changed cells checked individually via `openpyxl`
+  before and after, plus a structural cell-by-cell diff against the pre-sync file confirming no other cell
+  changed) — no further tracker action is needed for `ENG-001`. **This sync also fixed two unrelated,
+  pre-existing staleness bugs found while verifying its own numbers**: (1) `Stories!P` for `AI-001`/`AI-002`/
+  `MAT-001`/`CON-001`/`REV-001` had a stale cached formula value of `0` despite their Status column already
+  reading "Done" — the formula itself was always correct, only its cached result had never been refreshed;
+  corrected to `1`. (2) Dashboard's `Current Milestone`/`Current Sprint`/`Upcoming Sprint` hardcoded pointers
+  were stale at `ML9`/`SP09`/`SP10`, several sprints behind actual progress — corrected to `ML12`/`SP12`/`SP13`.
+  Both are recorded per Section 5's "watch for stale cached rollup values" guidance.
 - **Sprint 9 / Milestone ML9 ("Outcome & Reviews") is now fully complete — 2 of 2 stories done: `REV-001`,
   `REV-002`.** `REV-001` shipped and was signed off 13 September 2026 — see
   `docs/implementation/walkthroughs/Walkthrough_S09_REV-001.md` (`architect`: APPROVED, one minor non-blocking
@@ -159,63 +165,91 @@ for ADM-002); `3a025d8` (implementation for ADM-002); `80f01b6` (chore: tracker 
   to proceed straight through closeout without an additional sign-off pause once both verdicts were clean. Final
   counts: 898/898 backend tests (864 baseline + 34 new, zero regressions). Backend-only — no mobile/Flutter work,
   per the story's own explicit scope. **Tracker sync for `ADM-002` is done and verified** (commit `ada6dc1`) —
-  the Dashboard numbers bullet above reflects the confirmed post-`ADM-002` state: Sprint 11, Milestone ML11, and
-  Epic ML11-EP01 are all now ✅ Completed.
-- Full narrative history of every story shipped so far (Sprints 1–11) lives in
+  Sprint 11, Milestone ML11, and Epic ML11-EP01 are all ✅ Completed.
+- **Sprint 12 ("Engagement & Trust," Milestone ML12, Epic ML12-EP01) has since started.** Its first story,
+  `ENG-001` ("Receive marketplace notifications in my preferred channel"), has shipped and been signed off on
+  top of `CON-001`/`VER-002`/`REV-001` — see `docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md`.
+  Planning found the tracker's "implements the Notification domain end to end... for the first time" framing
+  was not literally accurate: a real `NotificationService` already existed (`VER-002`) with three already-wired
+  methods (`notify_verification_status_change`, `notify_new_contact_view`, `notify_outcome_tag_prompt`, called
+  from `AdminVerificationService`/`ContactService`) — each doing exactly one thing, insert an in-app row and
+  return, with no multi-channel delivery, no preference check, and no idempotency key. This story extended all
+  three **in place** (never a parallel mechanism) and added a genuinely new fourth trigger
+  (manual-match-assignment → Admin, via a new `identity.RoleRepository.get_user_ids_for_role` reverse lookup —
+  resolving AC3's literal requirement against the standing "never invent a push-to-admin mechanism" rule by
+  finding a narrower, already-real RBAC-based mechanism that satisfies it honestly). New migration:
+  `notification_preferences`/`notification_delivery` (reusing the existing, previously-inert
+  `customer.notification_channel` enum type and seeding a customer's initial preference from their own existing
+  `customer_preferences.notification_channel` value), plus two genuine additions beyond `04_DATABASE.md`'s
+  pre-written spec (`channel_enabled` boolean, `idempotency_key` unique varchar) and a `notifications.read_at`
+  column via `ALTER TABLE`. `NotificationSender` is the fifth application of the swappable-Protocol pattern
+  (WhatsApp/SMS/Email stub adapters). Idempotency uses a deterministic, server-computed natural key
+  (`f"{notification_id}:{channel}"`), the fourth application of the INSERT-shaped atomic-conflict family
+  (`ADR-049`). Urgency (push vs. inbox-only) is a fixed, code-level classification per trigger type — AC5's
+  "unless the user has opted in" clause has no concrete schema affordance this iteration, flagged as a real,
+  explicit follow-up rather than silently building an unrequested preference dimension. On mobile, a new
+  Notifications Inbox screen (New/Earlier grouping, per-`relatedEntityType` deep-linking, reusing the existing
+  `OutcomeTagPromptSheet` widget rather than building a new screen) plus a live unread-count badge entry point
+  on the home placeholder screen. **`tester` found all 8 verbatim ACs pass, zero real bugs.** **`architect`'s
+  first review found one real, blocking finding**: `NotificationRepository.mark_read` performed its ownership
+  comparison inline inside the repository (a business-rule-in-repository violation of
+  `08_CODING_STANDARDS.md`/`06_SECURITY.md`), and `NotificationNotFoundError`'s docstring falsely claimed
+  `ensure_owner_or_not_found` was already in use — fixed at commit `8737874` (the repository now does a plain,
+  ownership-scoped `UPDATE ... RETURNING`, the service calls `ensure_owner_or_not_found` on the `None` case,
+  mirroring `SavedAddressService`'s established shape; external behavior unchanged, proven by the byte-identical
+  existing test file still passing). **`architect`'s re-check: APPROVED.** CTO's standing instruction (proceed
+  straight through closeout without an additional sign-off pause once both verdicts are clean) applied. Final
+  counts: 929/929 backend tests (898 baseline + 31 new, zero regressions), 303/303 mobile tests (280 baseline +
+  23 new). Records **ADR-064 through ADR-068** — see Section 7. **This is Sprint 12's first story — 1 of 2
+  done. Tracker sync for `ENG-001` is done and verified** (see the Dashboard-numbers bullet above, including two
+  unrelated staleness bugs this sync also fixed).
+- Full narrative history of every story shipped so far (Sprints 1–12) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
   historical context on a specific earlier decision; it's over 1200 lines.
 
-## 2. Next story — `ENG-001` (Sprint 12, Milestone ML12, Epic ML12-EP01) — looked up fresh, NOT yet started
+## 2. Next story — `ENG-002` (Sprint 12, Milestone ML12, Epic ML12-EP01) — looked up fresh, NOT yet started
 
-**Sprint 11 ("Marketplace Operations," Milestone ML11, Epic ML11-EP01) is now fully complete — 2 of 2 stories
-done: `ADM-001`, `ADM-002`.** This closes Milestone ML11 in full, alongside Sprints 1–10/Milestones ML1–ML10,
-all already complete.
+**Sprint 12's first story, `ENG-001`, has shipped** (Section 1). Sprint 12/Milestone ML12/Epic ML12-EP01 remain
+**1 of 2 stories done** — not yet complete.
 
-A fresh lookup against `docs/AI/Project_Tracker.xlsx`'s Stories/Sprints sheets (performed this session, after
-`ADM-002`'s tracker sync) identifies Sprint 12's first story as:
+A fresh lookup against `docs/AI/Project_Tracker.xlsx`'s Stories sheet (performed this session, after `ENG-001`'s
+tracker sync) confirms Sprint 12's second and final story is:
 
-- **Story ID:** `ENG-001` — **"Receive marketplace notifications in my preferred channel"**
-- **Sprint 12** (Theme: "Engagement & Trust," Goal: "Users can receive notifications, share profiles, and
-  verify visits.") | **Milestone ML12** | **Epic ML12-EP01**
-- **Priority:** High | **Depends on:** `CON-001`, `VER-002`, `REV-001` (all already shipped) | **Status:**
-  ⏳ Planned
-- **Description (verbatim):** "As a user, I want to be notified about new leads, verification status changes,
-  and outcome-tag prompts through my preferred channel, so that I don't have to keep checking the app manually.
-  This story implements the Notification domain end to end: data model, WhatsApp/SMS/Email delivery adapters
-  behind a single interface, and the trigger wiring for every notification-worthy event already emitted by
-  earlier stories. Scope boundary: does not include the deep-link/Verified-Visit features (`ENG-002`) — this
-  story is notification delivery only."
+- **Story ID:** `ENG-002` — **"Share a provider profile and verify an arrival"**
+- **Sprint 12** (Theme: "Engagement & Trust") | **Milestone ML12** | **Epic ML12-EP01**
+- **Priority:** Medium | **Depends on:** `CON-001` (already shipped) | **Status:** ⏳ Planned
+- **Description (verbatim):** "As a provider, I want a shareable link to my profile and an optional way to
+  confirm I physically showed up for a job, so that I can drive my own traffic to the platform and build extra
+  trust with future customers. This story delivers two independent, smaller value-layer features: shareable
+  deep links (working even for a user without the app installed, via app-store fallback) and the Verified
+  Visit OTP, which reuses the existing OTP infrastructure from AUTH-001 rather than building a parallel
+  mechanism. Scope boundary: neither feature blocks or gates the core search-to-contact loop — both are
+  optional, provider-initiated additions."
 - **Acceptance Criteria (verbatim):**
-  1. `notifications`, `notification_preferences`, and `notification_delivery` tables exist via migration.
-  2. A single `NotificationSender` interface has WhatsApp, SMS, and Email adapters; delivery failures surface as
-     typed errors, never a silent no-op.
-  3. Triggers are wired for: new Contact View → Provider, verification status change → Provider, manual match
-     assignment created → Admin, outcome-tag prompt → Customer.
-  4. A disabled channel or muted category in `notification_preferences` is checked before every send and is a
-     hard stop, not a soft suggestion.
-  5. Non-urgent events update a badge/inbox entry without forcing a push notification unless the user has opted
-     in; time-sensitive events may push immediately.
-  6. Notifications Inbox screen groups entries as New/Earlier and deep-links each entry to its relevant context.
-  7. Duplicate sends are prevented via an idempotency key on retry.
-  8. Automated tests cover: preference-disabled blocking a send, and idempotent retry not double-sending.
-- **Sibling story:** Sprint 12's second story is `ENG-002` ("Share a provider profile and verify an arrival,"
-  depends on `CON-001`) — out of scope for `ENG-001`, not to be started alongside it.
+  1. `visit_verifications` table exists via migration, tied to a Contact View, referencing an `otp_verifications`
+     row (reusing AUTH-001's OTP service, `purpose=arrival_verification`).
+  2. A provider can request an arrival-verification OTP tied to a specific Contact View; successful verification
+     sets a Verified Visit badge visible on the provider profile.
+  3. The Verified Visit badge is tappable/explainable — a one-line sheet explains what it means.
+  4. A shareable deep link resolves directly to the correct Provider Profile screen even when opened on a device
+     without the app installed (falls back to an app-store listing).
+  5. Neither feature is required to complete a Contact View, Outcome Tag, or Review — both remain fully
+     optional.
+  6. Automated tests cover deep-link resolution (with-app and without-app-installed cases) and that a Verified
+     Visit badge only appears after a genuine OTP confirmation.
+- **Sibling story:** `ENG-001` (Sprint 12's first story) has already shipped — see Section 1.
 
-**IMPORTANT discrepancy to resolve during planning, flagged here so it isn't missed:** `ENG-001`'s description
-claims to "implement the Notification domain end to end... for the first time," but this session's own history
-shows a real `NotificationService` **already exists and is already wired in**: `REV-001`/`CON-001` (`ADR-050`)
-added `NotificationService.notify_new_contact_view` and `.notify_outcome_tag_prompt`, called synchronously from
-`ContactService`/`OutcomeTagService`, with no scheduling infrastructure and (as far as this session's history
-shows) no `notifications`/`notification_preferences`/`notification_delivery` tables, no multi-channel adapters,
-and no idempotency key — i.e. a same-process, fire-and-forget stub, not the domain `ENG-001` describes. This is
-the same class of tracker-text-vs-reality discrepancy already caught twice this session (`unmatched_query_reports`
-before `ADM-001`; `feature_flags`/`system_settings` before `ADM-002`) — **`tech-lead` must verify the actual
-current state of `NotificationService` and any notification-related schema directly against the code before
-planning `ENG-001`**, not trust either this description or this file's own summary of it. The real scope is
-likely narrower than "end to end from scratch": probably a genuine new schema/multi-channel-adapter/preferences
-build-out, but reusing/replacing the existing synchronous call sites rather than inventing them fresh.
+**Things worth verifying during planning, not assumed from this summary:** (1) `AUTH-001`'s exact OTP service
+shape/`purpose` enum — confirm whether adding `arrival_verification` as a new purpose value is additive or
+requires a migration of its own, and whether the existing OTP rate-limiting/expiry logic generalizes cleanly to
+a non-authentication purpose. (2) The deep-link mechanism (AC4) is this codebase's first — check whether any
+existing infrastructure (a `pubspec.yaml` dependency, a backend redirect endpoint) already exists for
+universal/app links, or whether this is fully new scope requiring its own Open Question about approach (a
+backend HTTP-redirect endpoint vs. a native platform deep-link package). (3) Confirm `ADR-046`'s trust-badge
+precedence pattern (`CON-001`) is the right precedent to extend for the new Verified Visit badge, per that
+ADR's own note flagging it as "reusable for a future Review domain's Verified Visit badge."
 
-**Do NOT start planning `ENG-001` (or any other story) without the CTO's explicit "Start ENG-001" instruction.**
+**Do NOT start planning `ENG-002` (or any other story) without the CTO's explicit "Start ENG-002" instruction.**
 This lookup is recorded here purely so the next session doesn't need to re-query the tracker — it is NOT
 authorization to begin work.
 
@@ -453,6 +487,36 @@ well-precedented, not a reason to expect it every time.
   actions) had never written to `admin_action_log` at all; closed by extending `AdminActionLogService` with four
   new explicit methods. Any future dashboard/consolidation-style story over existing admin workflows should
   perform this same completeness check as a standard planning step.
+- **In-place extension of a Service method with live callers in OTHER modules is a distinct, generalized case
+  of the in-place-upgrade principle** (ADR-064, `ENG-001`) — `ADR-042` extended a Repository query read by two
+  callers within one module; this extends three pre-existing Service methods each already called synchronously
+  from a *different* module (`verification`, `contact`), while proving their exact prior behavior (copy
+  templates, in-app-row-creation logic, existing callers' expectations) is genuinely unchanged via the
+  pre-existing test suite passing unmodified — never a second, parallel mechanism alongside the old one.
+- **Cross-schema enum-type reuse plus a one-time, divergence-tolerant seed from an independent, still-live
+  preference column** (ADR-065, `ENG-001`) — `notification_preferences.channel` reuses the already-existing
+  `customer.notification_channel` enum (`create_type=False`, mirroring `CUS-001`'s own `language_code` reuse),
+  seeded once from a customer's existing `customer_preferences.notification_channel` value at first-touch
+  (never kept in sync afterward — editing one does not push into the other, a real, flagged follow-up in
+  `13_OPEN_DECISIONS.md` item 15).
+- **Ship the literal, schema-backed interpretation of an AC; don't invent an unrequested, speculative dimension
+  an AC's prose gestures at but the schema has no affordance for** (ADR-066, `ENG-001`) — AC5's "unless the user
+  has opted in" clause has no concrete preference field anywhere in this story's own schema; urgency (push vs.
+  inbox-only) ships as a fixed, code-level classification per trigger type instead, with the gap flagged
+  honestly (`13_OPEN_DECISIONS.md` item 17) rather than silently building a fourth preference dimension nobody
+  asked for.
+- **A deterministic, server-computed idempotency key (not a caller-supplied header) is correct for an internal,
+  non-client-facing retry scenario** (ADR-067, `ENG-001`) — the fourth application of `ADR-049`'s INSERT-shaped
+  atomic-conflict mechanism, but the *key-sourcing* choice (a natural key over the general REST
+  `Idempotency-Key`-header convention) is the new, citable nuance: none of this story's four triggers are
+  client-facing `POST` calls a caller could retry with a repeated header.
+- **Reconciling an AC's literal requirement against a standing, named prohibition by finding a narrower,
+  already-real mechanism that satisfies the AC without violating the rule's actual intent** (ADR-068, `ENG-001`)
+  — AC3 literally requires a "manual match assignment created → Admin" trigger, apparently colliding with the
+  standing "never invent a push-to-admin mechanism" rule (Section 4, pull-based admin queue pattern); resolved
+  by broadcasting an in-app-only row to every `ROLE_ADMIN` account via a new RBAC reverse lookup
+  (`identity.RoleRepository.get_user_ids_for_role`) — no push is ever attempted, so the standing rule's actual
+  intent (don't invent a push/notify-the-admin-team recipient concept) is never violated.
 
 ## 5. Tracker editing method (raw XML — never openpyxl `.save()`)
 
@@ -507,30 +571,45 @@ September 2026): both `providers.average_rating`/`review_count` (`MAT-001`'s ran
 target, unchanged) and `review.provider_rating_summaries` (the Review domain's own decoupled read-model) are
 needed, written from the same computed values in the same transaction. See `13_OPEN_DECISIONS.md` item 14 for
 the full resolution.
+- **Item 15 — Reconcile `customer.customer_preferences.notification_channel` vs. the new, broader
+  `notification.notification_preferences.channel`.** Open, added by `ENG-001`. The two are seeded once (at
+  `notification_preferences` row creation) but never kept in sync afterward — editing one does not push into
+  the other. Deprecating/migrating the older, narrower field is a real, separate follow-up with its own blast
+  radius (touching `CUS-001`'s shipped `PATCH /customers/me` contract), not built by `ENG-001`.
+- **Item 16 — Real notification-vendor selection (WhatsApp/SMS/Email).** Open, added by `ENG-001`, distinct
+  from item 11 (OCR) and item 13 (LLM). `NotificationSender`'s only implementations are honest stubs
+  (`StubWhatsAppSender`/`StubSmsSender`/`StubEmailSender`) that always succeed — no real vendor is selected or
+  credentialed anywhere in this codebase.
+- **Item 17 — A customer/provider-facing settings screen to edit one's own notification preferences.** Open,
+  added by `ENG-001`. No AC in that story required it — only the backend data model, defaults, and enforcement
+  logic were required. A natural, obvious follow-up for a future sprint.
 
 ## 7. ADR numbering
 
-Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-063** (ADR-061/062/063, all recorded at `ADM-002`'s
-closeout — the feature-flag honest-runtime-consumer requirement, distinct from anti-fabrication; the
-plain-update-vs-`try_*` negative-case precedent; the audit-log completeness-check principle for a new admin
-capability wrapping existing admin actions). Decision 5's third application of `ADR-060`'s circular-import-
-avoidance principle was deliberately **not** given a new ADR entry — a mechanical, correctly-foreseen third
-application of an already-recorded principle with no genuinely new nuance is recorded in
-`Walkthrough_S11_ADM-002.md` instead, per `09_DECISIONS.md`'s own append-only rule (an existing ADR's body
-cannot be edited to add an addendum). Prior: ADR-058/059/060, recorded at `ADM-001`'s closeout. Next new ADR
-starts at **ADR-064**.
+Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-068** (ADR-064–068, all recorded at `ENG-001`'s closeout —
+see Section 4 for each). Decisions 2/3/5/7/10 of `Plan_S12_ENG-001.md` did **not** get new ADR entries —
+mechanical applications of already-recorded principles (`ADR-051`, `ADR-046`/`ADR-015`, AC4's literal text, the
+swappable-Protocol pattern) with no genuinely new nuance, recorded in `Walkthrough_S12_ENG-001.md` instead, per
+`09_DECISIONS.md`'s own append-only rule. The `mark_read` repository-vs-service fix (architect's one real
+finding) also did **not** get a new ADR — `08_CODING_STANDARDS.md` already states "Repositories never contain
+business rules" explicitly; this is an already-standing rule, not a new principle. Prior: ADR-061/062/063,
+recorded at `ADM-002`'s closeout. Next new ADR starts at **ADR-069**.
 
 ## 8. Environment notes
 
-- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `ADM-002`'s closeout, independently
-  verified clean by `tester` (all 6 ACs pass, zero gaps, zero regressions) and `architect` (zero blocking
-  findings, no fix-and-recheck round needed): **898/898 backend tests passing** (864 baseline before `ADM-002`,
-  +34 new, zero regressions). `ruff check .` clean. `mypy` is configured in `pyproject.toml` but is **not
-  installed** in this sandbox's venv — cannot be run here; this is a known, pre-existing environment gap, not a
-  regression to chase.
-- Mobile: Flutter/Riverpod. **280 mobile tests passing**, unchanged since `LEAD-002`'s closeout (257 baseline +
-  23 new) — `ADM-001` and `ADM-002` are both backend-only, no mobile work in scope for either. `flutter analyze`
-  clean as of `LEAD-002`. Flutter
+- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `ENG-001`'s closeout, independently
+  verified clean by `tester` (all 8 ACs pass, zero real bugs) and `architect` (one real finding — a repository
+  performing an authorization check that belongs in the service layer — fixed and re-confirmed APPROVED):
+  **929/929 backend tests passing** (898 baseline before `ENG-001`, +31 new, zero regressions). `ruff check .`
+  clean. `mypy` is configured in `pyproject.toml` but is **not installed** in this sandbox's venv — cannot be
+  run here; this is a known, pre-existing environment gap, not a regression to chase. Note: a bare
+  `python -c "import app.main"` and the `alembic` CLI both fail in this sandbox due to an unrelated Python
+  3.14.0rc2-pre-release/`pydantic` `_eval_type()` incompatibility (`tests/conftest.py` already carries a
+  documented, guarded monkeypatch shim for pytest specifically) — apply the same shim manually (see
+  `tests/conftest.py`'s own comment) when you need to run `alembic` directly outside pytest, as this session did
+  to verify `ENG-001`'s migration end-to-end.
+- Mobile: Flutter/Riverpod. **303 mobile tests passing** (280 baseline before `ENG-001`, +23 new, zero
+  regressions). `flutter analyze` clean as of `ENG-001`. Flutter
   SDK is not preinstalled in a fresh container — a prior session cloned `flutter/stable` to `/root/.flutter_sdk`
   to run `flutter analyze`/`flutter test`/`gen-l10n`; this is outside the repo and won't persist across
   containers, so a fresh session may need to redo this setup step once, before running any mobile agent.
@@ -540,12 +619,13 @@ starts at **ADR-064**.
   spreadsheet themselves (this was a repeated, avoidable source of wasted planning rounds in Sprints 6–7).
 ---
 
-**End of handoff. Sprint 11 and Milestone ML11 are now fully complete — 2 of 2 stories done: `ADM-001` and
-`ADM-002` have both shipped and been signed off** (see Section 1 for `ADM-002`'s full account). **Both
-`ADM-001`'s and `ADM-002`'s tracker syncs are done and verified** (commits `80f01b6` and `ada6dc1`) — the
-Dashboard/rollup numbers in Section 1's own bullet are current and confirmed. **The next sprint/milestone's
-first story has been identified as `ENG-001`** (Sprint 12, Milestone ML12, Epic ML12-EP01 — full details and a
-flagged Notification-domain discrepancy in Section 2), but **has NOT been started**. When resuming: read this
-file, confirm the CTO wants to proceed with `ENG-001` (an explicit "Start ENG-001" instruction), then follow
-Section 3's cycle starting with `tech-lead` — which must first verify `NotificationService`'s actual current
-state against the code before finalizing the Plan's scope.**
+**End of handoff. Sprint 12 (Milestone ML12, Epic ML12-EP01) has started — `ENG-001` has shipped and been
+signed off** (see Section 1 for its full account, including the architect's one real finding and its fix).
+**`ENG-001`'s tracker sync is done and verified** (commit `ba5c60c`) — the Dashboard/rollup numbers in Section
+1's own bullet are current and confirmed, and this sync also fixed two unrelated, pre-existing staleness bugs
+(stale `Stories!P` cache values for five older Done stories; stale Dashboard Current-Milestone/Sprint
+pointers). Sprint 12/Milestone ML12/Epic ML12-EP01 remain **1 of 2 stories done — not yet complete**.
+**Sprint 12's second and final story has been identified as `ENG-002`** ("Share a provider profile and verify
+an arrival" — full details in Section 2), but **has NOT been started**. When resuming: read this file, confirm
+the CTO wants to proceed with `ENG-002` (an explicit "Start ENG-002" instruction), then follow Section 3's
+cycle starting with `tech-lead`.**
