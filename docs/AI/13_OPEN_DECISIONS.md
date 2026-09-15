@@ -6,11 +6,11 @@
 given an explicit CTO risk-acceptance decision (still Open — the underlying legal question is unresolved), item
 13 newly added and given an explicit CTO risk-acceptance decision (still Open — real LLM vendor selection remains
 unresolved), item 14 resolved and implemented (`REV-002` shipped — both `providers.average_rating`/`review_count`
-and `review.provider_rating_summaries` are needed), items 5/8/10/11/12 still pending CTO review, items 2/6/7
-still unrecoverable numbering gaps
+and `review.provider_rating_summaries` are needed), items 15/16/17 newly added (`ENG-001` shipped), items
+5/8/10/11/12/15/16/17 still pending CTO review, items 2/6/7 still unrecoverable numbering gaps
 **Owner:** CTO
 **Audience:** Engineering Team, Product Team, AI Assistants
-**Last Updated:** 14 September 2026
+**Last Updated:** 15 September 2026
 
 ---
 
@@ -554,6 +554,82 @@ MAT-001's ranking formula and rating-source substitution; ADR-051/ADR-052/ADR-05
 
 ---
 
+## Item 15 — Should `customer.customer_preferences.notification_channel` Be Deprecated in Favor of the Broader `notification.notification_preferences.channel`?
+
+**Status:** Open
+
+**Description:** `ENG-001` (Sprint 12) built a new, role-agnostic `notification.notification_preferences` table
+with its own `channel` column, reusing the already-existing `customer.notification_channel` Postgres enum type.
+That type was already live, editable end-to-end via `PATCH /customers/me` since `CUS-001` (Sprint 3) — but,
+before `ENG-001`, was read by zero delivery code anywhere (a stored-but-inert value for six sprints). `ENG-001`
+seeds a customer's new `notification_preferences.channel` from their existing `customer_preferences.
+notification_channel` value once, at row-creation time only — the two columns are **not** kept in sync
+afterward, so they can now genuinely diverge (a customer editing one via `PATCH /customers/me` does not update
+the other).
+
+**Current workaround:** keep both columns; seed once, diverge freely (`09_DECISIONS.md` ADR-065). No AC in
+`ENG-001` required deprecating or migrating `customer_preferences.notification_channel`, and doing so would touch
+`CUS-001`'s already-shipped `PATCH /customers/me` contract plus require a data backfill — real, separate scope.
+
+**Blocks:** Nothing at the code level today — both columns work independently. Resolving this item (deprecate
+`customer_preferences.notification_channel` entirely, keep both permanently as intentionally-separate concepts,
+or build a one-way sync) determines whether a future customer-facing settings screen (item 17) needs to edit one
+field or reconcile two.
+
+**Related:** `04_DATABASE.md` (Customer Domain — `customer_preferences.notification_channel`; Notification Domain
+— `notification_preferences.channel`), `09_DECISIONS.md` ADR-065, `docs/implementation/plans/Plan_S12_ENG-001.md`
+(Decision 4, Open Question 3), `docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md`.
+
+---
+
+## Item 16 — Real Notification-Vendor Selection (WhatsApp/SMS/Email)
+
+**Status:** Open
+
+**Description:** `ENG-001` (Sprint 12) built a real `NotificationSender` Protocol boundary (WhatsApp/SMS/Email
+adapters behind one interface) but shipped only stub implementations (`StubWhatsAppSender`/`StubSmsSender`/
+`StubEmailSender`, all always succeeding, log-only) — no real vendor, SDK, or credential for any of the three
+channels is confirmed anywhere in this codebase or environment. This is a distinct gap from items 11 (OCR
+pipeline) and 13 (LLM vendor) — no existing item covers real notification delivery.
+
+**Current workaround:** the swappable-Protocol boundary means a future real vendor (e.g. Twilio for SMS, WhatsApp
+Business API, an email provider) is one new class plus one dependency-wiring change, zero changes to
+`NotificationService`/`NotificationDeliveryService` themselves. `notification_delivery.provider_message_id`/
+`delivered`/`delivered_at` are already shaped to receive a real vendor's response/webhook once one exists.
+
+**Blocks:** Any real, customer-observable external notification delivery. Does not block `ENG-001`'s own core
+functionality (the stub is a fully honest, working substitute — it never claims delivery succeeded via a real
+channel, only that the in-app record and preference/idempotency logic work correctly).
+
+**Related:** `03_DOMAIN_MODEL.md` (Notification domain), `04_DATABASE.md` (Notification Domain —
+`notification_delivery`), `09_DECISIONS.md` (the swappable-Protocol pattern family — `FileStorage`/
+`DocumentOcrService`/`GooglePlacesClient`/`ConversationAiClient`/`NotificationSender`),
+`docs/implementation/plans/Plan_S12_ENG-001.md` (Decision 7, Open Question 5),
+`docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md`.
+
+---
+
+## Item 17 — Customer/Provider-Facing Notification Preferences Settings Screen
+
+**Status:** Open
+
+**Description:** `ENG-001` (Sprint 12) built the full `notification_preferences` data model, defaults, and
+server-side enforcement (channel, channel-enabled, three category mute flags), but no AC in that story required
+end users to be able to view or edit their own preferences via the app — only the backend model and its
+enforcement logic were required.
+
+**Current workaround:** none needed yet — every account gets sensible, honestly-documented defaults
+(`channel_enabled=true`, all three category flags `true`, `channel=whatsapp` or seeded from
+`customer_preferences.notification_channel` for a customer). No mobile screen exists to change them.
+
+**Blocks:** Nothing today. A natural, obvious follow-up story once prioritized — building it should also resolve
+or at least confront item 15 (whether it edits one field or two).
+
+**Related:** `docs/implementation/plans/Plan_S12_ENG-001.md` (Decision 10, Open Question 6),
+`docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md`.
+
+---
+
 # Changelog
 
 - **08 September 2026** — Document created (reconstructed from citations across the codebase; see
@@ -620,6 +696,14 @@ MAT-001's ranking formula and rating-source substitution; ADR-051/ADR-052/ADR-05
   computed values, in the same transaction, guarded by a `SELECT ... FOR UPDATE`-locked full-recompute
   recalculation (`09_DECISIONS.md` ADR-052) — never independently stale. See item 14 above for the full
   resolution and `docs/implementation/walkthroughs/Walkthrough_S09_REV-002.md` for the full account.
+- **15 September 2026 (Sprint 12, `ENG-001` shipped)** — Items 15, 16, 17 added: `ENG-001` ("receive marketplace
+  notifications in my preferred channel") shipped the real `notification_preferences`/`notification_delivery`
+  tables and multi-channel delivery pipeline, surfacing three new, genuinely open follow-ups: whether
+  `customer.customer_preferences.notification_channel` should be deprecated now that a broader, seeded-but-
+  divergence-tolerant `notification_preferences.channel` exists (item 15); real WhatsApp/SMS/Email vendor
+  selection, since only stub senders were shipped (item 16, distinct from items 11/13 which cover OCR/LLM only);
+  and a future customer-facing notification-preferences settings screen, since no AC required one (item 17). See
+  `docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md` for the full account.
 
 ---
 

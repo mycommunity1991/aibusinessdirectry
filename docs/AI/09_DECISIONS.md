@@ -5099,6 +5099,374 @@ coverage as a given.
 
 ---
 
+# ADR-064
+
+## Title
+
+In-Place Extension of `NotificationService`'s Existing Methods, Each With Live Cross-Module Callers — Not a
+Second, Parallel Notification Mechanism (`ENG-001`, Decision 1)
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`ENG-001` needed to layer real multi-channel delivery, preference enforcement, and idempotency onto
+`NotificationService`'s three pre-existing methods (`notify_verification_status_change`, `notify_new_contact_view`,
+`notify_outcome_tag_prompt`) — each already called synchronously, in production, from a different module entirely
+(`AdminVerificationService` in `verification`, `ContactService` in `contact`, shipped by `VER-002`/`CON-001`/
+`REV-001`). `ADR-042` already established the "in-place upgrade of a shared write path, prove the untouched parts
+really didn't change" principle for `ProviderSearchRepository.search_nearby` — but that instance was a Repository
+query, read by two callers within `search`'s own reasoning (`DIR-001`'s endpoint and `AI-002`'s automated-match
+path), not a Service method with behavioral branching, and not one called from modules other than the one being
+modified. Extending a Service method carries a different risk profile than extending a query's `ORDER BY`
+(constructor-dependency growth, new early-return branches, new side effects), and here the "did the untouched
+behavior really not change" proof has to hold across a cross-module boundary this codebase's own module
+architecture treats as a real seam — not just within one module's own test suite.
+
+### Decision
+
+`NotificationService.notify_verification_status_change`/`.notify_new_contact_view`/`.notify_outcome_tag_prompt`
+are extended in place: each now first checks the caller's category preference; if allowed, creates the existing
+`notifications` row exactly as before (unchanged copy, unchanged shape); only then, for the two urgent trigger
+types, does it optionally dispatch external delivery. Existing signatures, existing copy templates, and existing
+callers are unchanged — no `_v2` method, no duplicate row-creation logic. A genuinely new fourth method,
+`notify_manual_match_assignment_created`, is added for the story's one genuinely new trigger (`ADR-068`). The
+existing 12-test `test_notification_service.py` suite's assertions for the three pre-existing methods were
+re-run unchanged and re-confirmed passing byte-for-byte, the concrete proof this in-place extension broke nothing
+already relied upon by `verification`/`contact`.
+
+### Alternatives Considered
+
+- **A brand-new `NotificationDispatchService` duplicating the three existing methods' row-creation logic**,
+  leaving `NotificationService` untouched. Rejected — exactly the "silently duplicate a second notification
+  mechanism alongside the old one" outcome the CTO's own framing for this story explicitly warned against; two
+  independent code paths could drift over time (e.g. a future copy-template change applied to only one).
+- **Route the existing call sites (`AdminVerificationService`, `ContactService`) directly at new
+  preference/delivery dependencies**, bypassing `NotificationService`. Rejected — `NotificationService` is this
+  codebase's established single choke point for "what happens when a notification-worthy event occurs";
+  pushing delivery concerns out to every caller would duplicate preference-check logic once per caller.
+
+### Consequences
+
+- Generalizes `ADR-042`'s in-place-upgrade principle beyond Repository queries to Service methods that already
+  have live external callers in *other* modules — a future story extending a shared method under the same
+  conditions should cite both this ADR and `ADR-042`, and must include the same "existing tests, unchanged,
+  re-confirmed passing" step as concrete proof, not merely an assertion that behavior was preserved.
+- `NotificationService`'s constructor grew by three dependencies (`NotificationPreferenceService`,
+  `NotificationDeliveryService`, `RoleRepository`) as a straightforward, additive extension — no existing
+  constructor call site outside this story's own updated test fixtures needed to change its *other* arguments.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-042 — the original in-place-upgrade-of-a-shared-write-path principle this extends to
+  Service methods; ADR-068 — the new fourth trigger this Decision's own method addition supports)
+- docs/implementation/plans/Plan_S12_ENG-001.md (Decision 1)
+- docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md
+- backend/app/modules/notification/services/notification_service.py
+
+---
+
+# ADR-065
+
+## Title
+
+Cross-Schema Enum Type Reuse With One-Time, Divergence-Tolerant Seeding From an Independent, Still-Live
+Preference Column (`ENG-001`, Decision 4)
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`notification.notification_preferences.channel` needed the same 3-value channel concept
+`customer.customer_preferences.notification_channel` already defined (`CUS-001`, Sprint 3, a native Postgres
+enum, stored end-to-end editable via `PATCH /customers/me` since that story shipped, but read by zero delivery
+code anywhere — a stored-but-inert value for six sprints). `CUS-001`'s own Plan (`Plan_S03_CUS-001.md` Decision
+2) already established reusing an enum type across schemas as a pattern (`customer_preferences.language` reusing
+`identity.language_code`), but that reuse had no seeding dimension: `language` is set directly from the
+`Accept-Language` header at row-creation time, never copied from another table's pre-existing value. No ADR was
+ever recorded for that Decision 2 itself — only its sibling provisioning-trigger Decision 1 was recorded, as
+`ADR-014` — so this is the first ADR to name the cross-schema-enum-reuse convention explicitly, and the first to
+add a one-time seeding step sourced from an older, independently-live column.
+
+### Decision
+
+`notification_preferences.channel` reuses `customer.notification_channel` (`create_type=False`), the same
+type-reuse shape `language_code` already established. On first touch for a user with no preferences row yet, if
+a `customer.customer_profiles` row exists for that user, `channel` is seeded from that customer's existing
+`customer_preferences.notification_channel` value; otherwise it defaults to `whatsapp`. This is a **one-time
+seed at row-creation time only** — the two columns are never kept in sync afterward; editing one does not push
+into the other, and this divergence is deliberate, not an oversight.
+
+### Alternatives Considered
+
+- **Create a new, duplicate `notification.notification_channel` enum type.** Rejected — an unnecessary duplicate
+  of an identically-shaped, already-existing type, when a direct precedent (`language_code`) already exists for
+  reusing one across schemas.
+- **Deprecate/migrate `customer_preferences.notification_channel` into the new table now**, rather than seeding
+  once and letting both live on. Rejected as out-of-scope for this story — it would touch `CUS-001`'s already-
+  shipped `PATCH /customers/me` contract and require a data backfill; flagged as a new, explicit
+  `13_OPEN_DECISIONS.md` item instead of silently expanded into this story.
+
+### Consequences
+
+- Establishes a citable pattern for a future story that needs to seed a new, broader-scoped preference row from
+  an older, narrower-scoped field it partially overlaps with: reuse the existing type, seed once at creation
+  time, and explicitly document — in the Plan and at closeout, never silently assumed — that the two fields are
+  now allowed to diverge rather than staying in sync.
+- This codebase now has two independent, real "customer's preferred notification channel" values
+  (`customer_preferences.notification_channel`, `notification_preferences.channel`) that can genuinely disagree
+  after this story ships — tracked as a new, explicit `13_OPEN_DECISIONS.md` item, not left implicit.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-014 — `CUS-001`'s recorded provisioning-trigger decision; this ADR records the sibling
+  enum-reuse decision that ADR-014 itself did not cover)
+- docs/implementation/plans/Plan_S03_CUS-001.md (Decision 2 — the original `language_code` reuse precedent this
+  mirrors, without a seeding dimension)
+- docs/implementation/plans/Plan_S12_ENG-001.md (Decision 4)
+- docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md
+- docs/AI/13_OPEN_DECISIONS.md (the new item tracking the two now-independent channel fields)
+- backend/app/modules/notification/models.py, services/notification_preference_service.py
+
+---
+
+# ADR-066
+
+## Title
+
+Fixed, Code-Level Classification Over an AC-Implied but Schema-Unsupported User-Configurable Dimension
+(`ENG-001`, Decision 6)
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+AC5's literal wording ("non-urgent events... without forcing a push... **unless the user has opted in**")
+implies a user-configurable opt-in dimension distinguishing "opted in to push for an otherwise-non-urgent
+category" from the plain category-enabled flag every account already defaults to `true`. Neither
+`04_DATABASE.md`'s pre-existing `notification_preferences` spec nor any of this story's ACs actually names or
+requires a schema field for this fourth dimension. This is a different shape of problem from `ADR-050`/`ADR-061`'s
+own "don't invent capability nobody asked for" reasoning: those addressed a team choosing not to build a
+capability the story's own text or a broader narrative gestured at. Here, an individual AC's own literal prose
+implies a dimension with **no schema backing anywhere in the story's own spec**, and the honest response is
+neither "build the missing field" (unrequested scope invented to make one clause literally true) nor "quietly
+ignore the clause" (silently dropping AC text) — it is picking the interpretation the existing schema actually
+supports and naming the gap explicitly.
+
+### Decision
+
+Urgency (push-immediately vs. inbox-only) is classified as a fixed, code-level constant per trigger type — new
+Contact View and verification status change are urgent; outcome-tag prompt and manual-match-assignment are not —
+never a further user-configurable preference field. AC5's "unless the user has opted in" clause is recorded, in
+the Plan and at this closeout, as honestly unsatisfiable as a *distinct, user-configurable* capability with the
+schema this story ships — a documented, explicitly-named gap, not a silently dropped requirement.
+
+### Alternatives Considered
+
+- **Invent a new `push_non_urgent_too: BOOLEAN` preference field** to literally satisfy the "opted in" clause.
+  Rejected — no AC names this field and `04_DATABASE.md` never specified it; inventing an unrequested preference
+  dimension purely to make one clause's literal text true contradicts this codebase's established discipline
+  against building capability nobody asked for (`ADM-002` Decision 3's identical reasoning for feature-flag keys).
+
+### Consequences
+
+- Establishes a principle distinct from the anti-fabrication family (`00_PROJECT_CONTEXT.md` §3, which governs
+  never inventing a *data value*): when an AC's own literal prose gestures at a capability with no schema
+  affordance anywhere in the story's own spec, ship the fixed, honestly-documented interpretation the schema
+  actually supports, and name the unsupported clause explicitly as a flagged gap in the Plan/closeout — never
+  silently satisfy it by inventing new, unrequested schema, and never silently drop the clause's text either.
+- A future story adding genuine per-category push-opt-in configurability has a clearly-named, pre-flagged gap to
+  close, rather than having to first discover that AC5 was never fully implemented.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-050/ADR-061 — the "don't invent unrequested capability" family this is distinguished
+  from; 00_PROJECT_CONTEXT.md §3 — the anti-fabrication principle this is also distinguished from)
+- docs/implementation/plans/Plan_S12_ENG-001.md (Decision 6, Open Question 2)
+- docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md
+- backend/app/modules/notification/services/notification_service.py
+
+---
+
+# ADR-067
+
+## Title
+
+Deterministic, Server-Computed Idempotency Key for an Internal, Non-Client-Facing Retry — Not a Caller-Supplied
+Header (`ENG-001`, Decision 8)
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`05_API_GUIDELINES.md`'s Idempotency section documents only the general REST convention (a caller-supplied
+`Idempotency-Key` request header for client-facing `POST`s) — never yet implemented anywhere in this codebase.
+AC7 needed a genuinely race-safe, idempotent-on-retry mechanism, but every trigger in this story fires from
+internal, server-side business logic (a service method call), not a client-facing `POST` a caller could retry
+with a repeated header. `ADR-049` already established the INSERT-shaped atomic-conflict mechanism
+(`on_conflict_do_nothing(...).returning(...)`) this story reuses directly as its fourth application — that reuse
+of the *mechanism* is mechanical, not new. What genuinely needed deciding: whether the *key itself* should be a
+caller-supplied header (the general convention) or something else, given this retry scenario is internal rather
+than client-facing.
+
+### Decision
+
+`NotificationDeliveryService` computes the idempotency key itself, deterministically, as
+`f"{notification_id}:{channel}"` — it never accepts one from a caller. `NotificationDeliveryRepository.
+try_create` conflicts and short-circuits on a repeat `(notification_id, channel)` pair, calling the underlying
+sender at most once per pair regardless of how many times the same trigger fires for the same already-created
+`notifications` row.
+
+### Alternatives Considered
+
+- **A caller-supplied `Idempotency-Key` header**, per `05_API_GUIDELINES.md`'s general convention. Rejected —
+  none of this story's four triggers are client-facing `POST` calls a caller could retry with a repeated header;
+  a deterministic natural key requires no new caller contract at all.
+- **Retry a previously-failed send** (treat `status=failed` differently from `status=sent` for idempotency
+  purposes). Rejected for this iteration — no trigger in this story re-invokes a failed send; a genuine
+  retry/outbox mechanism is unbuilt infrastructure nobody asked for yet, mirroring `ADR-050`'s "don't invent
+  scheduling infrastructure" reasoning.
+
+### Consequences
+
+- Clarifies that `05_API_GUIDELINES.md`'s header-based `Idempotency-Key` convention governs client-facing `POST`
+  endpoints specifically. A future internal, server-side retry/outbox mechanism should default to a
+  deterministic, server-computed natural key reusing `ADR-049`'s INSERT-conflict mechanism instead — reserving
+  the header convention for genuinely client-retryable requests.
+- The atomic-conditional-write family's INSERT-shaped member (`ADR-049`) now has a second, documented application
+  (alongside `outcome_tags`/`reviews`), with an explicit precedent for choosing the key's *source*, not only its
+  conflict mechanism.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-049 — the INSERT-shaped atomic-conflict mechanism reused here; ADR-050 — the "don't
+  invent scheduling infrastructure nobody asked for" reasoning this mirrors)
+- docs/AI/05_API_GUIDELINES.md (Idempotency section — the general header convention this decision diverges from
+  for a documented, real reason)
+- docs/implementation/plans/Plan_S12_ENG-001.md (Decision 8)
+- docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md
+- backend/app/modules/notification/repositories/notification_delivery_repository.py
+- backend/app/modules/notification/services/notification_delivery_service.py
+
+---
+
+# ADR-068
+
+## Title
+
+Reconciling a Literal AC Requirement Against a Standing Prohibition by Finding the Narrower, Already-Real
+Mechanism That Satisfies Both — RBAC Reverse Lookup for the Admin Broadcast Trigger (`ENG-001`, Decision 9)
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`docs/AI/SESSION_HANDOFF.md` §4 records an explicit standing rule: never invent a push-notification "notify the
+admin team" mechanism — no such recipient concept exists anywhere in this codebase. AC3 literally requires a
+"manual match assignment created → Admin" trigger, creating a real, named tension. Investigation confirmed
+`ManualMatchAssignmentService.create` attaches no admin identity at creation time (assignment is pull-based;
+`assigned_admin_id` is `NULL` until an admin later claims it via `resolve`) — there genuinely is no admin
+recipient to notify at creation time using any existing per-assignment mechanism. Separately, a real, already-
+seeded RBAC system exists (`identity.roles`/`identity.user_roles`, `ROLE_ADMIN`), with
+`RoleRepository.get_role_names_for_user` (the forward direction) already in production use, but no reverse
+lookup (all user ids holding a given role).
+
+### Decision
+
+A new `RoleRepository.get_user_ids_for_role(role_name) -> list[uuid.UUID]` method — the reverse of the existing
+`get_role_names_for_user` — is added to `identity`. `NotificationService.
+notify_manual_match_assignment_created(assignment_id)` looks up every current `ROLE_ADMIN` user id and creates
+one `notifications` row per admin — an in-app row only: no preference check, no `NotificationDeliveryService`
+call, no external channel dispatch of any kind, ever. This satisfies AC3's literal trigger requirement using an
+already-existing, already-seeded RBAC primitive, and never contradicts the standing rule, because no push is
+ever attempted for this trigger — consistent with every existing admin capability in this codebase being
+pull-based.
+
+### Alternatives Considered
+
+- **Skip AC3's admin trigger entirely**, treating it as unsatisfiable given the standing "no push-to-admin"
+  rule. Rejected — the standing rule specifically targets inventing a *push* mechanism and a new *recipient
+  concept*; a broadcast in-app row using the already-real RBAC system is a materially smaller, different thing,
+  satisfiable honestly without contradicting the rule's actual intent.
+- **A single admin-team notification row with no owning recipient.** Rejected — `notifications.user_id` is
+  `NOT NULL` with no broadcast/no-owner concept anywhere in this schema; one row per admin is a direct,
+  minimal application of the existing schema rather than a new one.
+
+### Consequences
+
+- Establishes a reusable resolution pattern for the recurring shape "a literal AC requirement appears to
+  conflict with a standing, named prohibition": before treating the AC as unsatisfiable, or silently violating
+  the prohibition, look for a narrower, already-real primitive that satisfies the AC's literal wording without
+  doing the specific thing the prohibition actually targets — distinguishing the prohibition's real scope (here,
+  inventing a *push* mechanism / a new *recipient concept*) from a materially smaller, different capability (a
+  broadcast *in-app* row using an *already-existing* recipient concept), rather than reading the prohibition
+  over- or under-broadly.
+- `identity.RoleRepository` now exposes both directions of the role/user relationship — a small, symmetrical,
+  reusable primitive any future admin-broadcast-shaped need can call directly, without re-deriving a reverse
+  query.
+
+### Related Documents
+
+- docs/AI/SESSION_HANDOFF.md §4 (the "never invent a push-to-admin mechanism" standing rule this reconciles
+  against, and the pull-based admin queue pattern this trigger's shape is consistent with)
+- docs/implementation/plans/Plan_S12_ENG-001.md (Decision 9)
+- docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md
+- backend/app/modules/identity/repositories/role_repository.py (`get_user_ids_for_role`)
+- backend/app/modules/notification/services/notification_service.py
+  (`notify_manual_match_assignment_created`)
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

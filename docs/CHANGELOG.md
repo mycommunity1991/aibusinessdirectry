@@ -11,6 +11,49 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Receive marketplace notifications in my preferred channel (Story ENG-001, Sprint 12 / Milestone ML12's first
+  story — Sprint 12 and Milestone ML12/Epic ML12-EP01 are **not yet complete**; `ENG-002` has not started): real
+  `notification.notification_preferences`/`notification.notification_delivery` tables via a new migration —
+  `04_DATABASE.md`'s own pre-written spec followed exactly, plus two genuine additions this story's own literal
+  ACs required (`channel_enabled BOOLEAN`, since the reused 3-value channel enum has no "off" state, and a unique
+  `idempotency_key VARCHAR`) — and a new `notifications.read_at TIMESTAMPTZ` column (this codebase's first
+  column-addition-to-an-already-shipped-table migration). A `NotificationSender` Protocol with stub WhatsApp/SMS/
+  Email adapters (typed `NotificationDeliveryError` subclasses, caught and recorded, never a silent no-op) is the
+  fifth application of the swappable-Protocol pattern. Planning first confirmed directly against the code — not
+  assumed from the tracker's own "end to end... for the first time" framing — that `NotificationService` already
+  existed and was already called synchronously from `AdminVerificationService`/`ContactService` (`VER-002`/
+  `CON-001`/`REV-001`). This story's genuine net-new scope layers preference enforcement, multi-channel delivery,
+  and idempotency onto that service's **three pre-existing methods, extended in place** — never a second,
+  parallel notification mechanism (**ADR-064**, generalizing `ADR-042`'s in-place-upgrade principle from a
+  Repository query to Service methods with live cross-module callers; the existing 12-test suite for those three
+  methods was re-run unchanged and re-confirmed passing byte-for-byte) — plus one genuinely new fourth trigger
+  (manual-match-assignment → Admin) and the mobile Notifications Inbox screen, with zero precedent anywhere in
+  this codebase. The fourth trigger reconciles AC3's literal requirement against `SESSION_HANDOFF.md`'s standing
+  "never invent a push-to-admin mechanism" rule via a new `RoleRepository.get_user_ids_for_role` reverse lookup
+  broadcasting an in-app-only notification to every `ROLE_ADMIN` account — no push, ever, for this trigger
+  (**ADR-068**). `notification_preferences.channel` reuses the already-existing `customer.notification_channel`
+  Postgres enum type, seeded once at row-creation from a customer's existing, previously-inert
+  `customer_preferences.notification_channel` value — the two columns are deliberately not kept in sync
+  afterward (**ADR-065**). Urgency (push-immediately vs. inbox-only) is a fixed, code-level classification per
+  trigger type, not the further user-configurable dimension AC5's own prose gestures at but no schema in this
+  story backs (**ADR-066**). The idempotency key is a deterministic, server-computed natural key
+  (`f"{notification_id}:{channel}"`), never a caller-supplied header, since every trigger fires from internal
+  business logic rather than a client-retryable `POST` (**ADR-067**, the fourth application of `ADR-049`'s
+  INSERT-shaped atomic-conflict family). On mobile, a new `features/notifications/` module delivers the
+  Notifications Inbox screen (New/Earlier grouping, per-`relatedEntityType` deep-links, reusing the existing
+  `OutcomeTagPromptSheet` widget rather than building a new screen) and a shared unread-count badge on the Home
+  placeholder. `architect`'s first review found one real, blocking finding: `NotificationRepository.mark_read`
+  did the ownership comparison inline inside the repository — a business-rule-in-repository violation of
+  `08_CODING_STANDARDS.md`'s already-explicit "Repositories never contain business rules" rule — and a docstring
+  falsely claiming `ensure_owner_or_not_found` was already in use. Fixed at commit `8737874`: the repository now
+  does a plain, ownership-scoped `UPDATE ... RETURNING`, and the service calls `ensure_owner_or_not_found` on the
+  `None` case, mirroring `SavedAddressService`'s established shape exactly; external behavior (404 never 403,
+  idempotency, `read_at` persistence) proven unchanged, not merely asserted. Re-checked by `architect`:
+  **APPROVED**. **`tester` independently verified all 8 verbatim ACs pass with real DB/HTTP evidence and found
+  zero real bugs.** CTO gave a standing instruction to proceed straight through closeout without an additional
+  sign-off pause once both verdicts were clean. Final counts: 929/929 backend tests (898 baseline + 31 new),
+  303/303 mobile tests (280 baseline + 23 new), zero regressions in either suite. See
+  `docs/implementation/walkthroughs/Walkthrough_S12_ENG-001.md` for the full account.
 - Operate the marketplace from an admin dashboard (Story ADM-002, Sprint 11 / Milestone ML11's second and final
   story — **this completes Sprint 11 and Milestone ML11 in full, 2 of 2 stories done: `ADM-001`, `ADM-002`**):
   `feature_flags` and `system_settings` ship as `administration`'s fifth and sixth aggregate roots — a genuine

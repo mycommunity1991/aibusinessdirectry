@@ -889,48 +889,83 @@ See `09_DECISIONS.md` ADR-051/052/053 and
 
 Shipped by Story VER-002 (Sprint 5), exactly per this spec, as the Notification domain's first slice — built
 with the full `CommonColumnsMixin` (versioned, soft-deletable), not exempted like `audit.audit_logs` (see
-`09_DECISIONS.md` ADR-022). Only this table exists so far; `notification_preferences` and
-`notification_delivery` (below) remain unbuilt — there is no real WhatsApp/SMS/Email delivery channel to have a
-status for, and nothing to opt in/out of yet. Written by `NotificationService.notify_verification_status_change`
-on a verification status change (VER-002, AC5), with hardcoded, plain-language `title`/`body` copy — never the
-raw `VerificationStatus` enum value.
+`09_DECISIONS.md` ADR-022). Written by `NotificationService.notify_verification_status_change` on a
+verification status change (VER-002, AC5), with hardcoded, plain-language `title`/`body` copy — never the raw
+`VerificationStatus` enum value. **`notification_preferences`/`notification_delivery` (below) have since shipped
+by Story ENG-001 (Sprint 12)**, and this table gained one new column (`read_at`) in the same story — see each
+table's own section below.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | user_id | UUID | No | FK → `identity.users.id` |
-| type | VARCHAR(50) | No | `new_lead` \| `verification_status_change` \| `outcome_tag_prompt` \| others — VARCHAR, expected to grow |
+| type | VARCHAR(50) | No | `new_lead` \| `verification_status_change` \| `outcome_tag_prompt` \| `manual_match_assignment_created` \| others — VARCHAR, expected to grow |
 | title | VARCHAR(255) | No | |
 | body | TEXT | No | |
-| related_entity_type | VARCHAR(50) | Yes | E.g. `contact_view`, `verification_record` |
+| related_entity_type | VARCHAR(50) | Yes | E.g. `contact_view`, `verification_record`, `manual_match_assignment` |
 | related_entity_id | UUID | Yes | Polymorphic reference — no FK constraint possible across varying target tables; integrity enforced at service layer |
+| read_at | TIMESTAMPTZ | Yes | **New in ENG-001** (`ALTER TABLE`, this codebase's first column-addition-to-an-already-shipped-table migration). `NULL` = unread ("New" in the mobile Inbox's grouping); a real timestamp = read ("Earlier"), set once by `PATCH /notifications/{id}/read`, idempotent on a repeat call. |
 
 **Indexes:** `idx_notifications_user_id`, `idx_notifications_created_at`
 
 ## notification_preferences
 
+Shipped by Story ENG-001 (Sprint 12), exactly per this pre-existing spec plus one genuine addition
+(`channel_enabled`) this story's own AC4 required — see `09_DECISIONS.md` ADR-065 for the `channel` column's
+cross-schema enum-reuse-plus-one-time-seed design. `channel` reuses the already-existing
+`customer.notification_channel` Postgres enum type (`create_type=False`) rather than a duplicate
+`notification`-schema type. `get_or_create_for_user` lazily backfills a row (default-allow, `whatsapp`-or-
+seeded-from-`customer_preferences.notification_channel` for a customer account) the first time any trigger fires
+for an account created before this story shipped — never an error, never a silently-dropped notification for
+"no preferences row yet."
+
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | user_id | UUID | No | FK → `identity.users.id`, unique (1:1) |
-| channel | `notification_channel` | No | Default `whatsapp` |
+| channel | `notification_channel` (reused from `customer` schema, `create_type=False`) | No | Default `whatsapp`; for a customer account, seeded once at row-creation from that customer's existing `customer_preferences.notification_channel` value — the two columns are **not** kept in sync afterward |
+| channel_enabled | BOOLEAN | No | **New in ENG-001, beyond the original spec.** Default `true`. A hard, independent stop on the *external* delivery half only — the pre-existing 3-value `channel` enum has no "off" value, so this boolean expresses "is any external channel currently enabled at all," independent of which channel is the standing preference (re-enabling remembers the prior choice) |
 | leads_enabled | BOOLEAN | No | Default `true` |
 | verification_enabled | BOOLEAN | No | Default `true` |
 | outcome_prompts_enabled | BOOLEAN | No | Default `true` |
 
 **Constraints:** `uq_notification_preferences_user_id`
 
+A muted category (`leads_enabled`/`verification_enabled`/`outcome_prompts_enabled = false`) is a full hard stop —
+no `notifications` row, no `notification_delivery` row, nothing recorded at all. `channel_enabled = false` gates
+only the external-delivery half — the in-app `notifications` row is still created (feeds the Inbox/badge
+unconditionally). Both are independently-checkable hard stops, neither bypassable by the other.
+
 ## notification_delivery
+
+Shipped by Story ENG-001 (Sprint 12), exactly per this pre-existing spec plus one genuine addition
+(`idempotency_key`) this story's own AC7 required — see `09_DECISIONS.md` ADR-067 for the key's deterministic,
+server-computed design (`f"{notification_id}:{channel}"`, never a caller-supplied header). Written by
+`NotificationDeliveryService.send`, gated to only the two urgent trigger types (new Contact View → Provider,
+verification status change → Provider) — outcome-tag-prompt and manual-match-assignment never reach this table
+regardless of preference state (`09_DECISIONS.md` ADR-066). `status` only ever reaches `pending` → `sent`/`failed`
+in this story — `delivered`/`delivered_at` are created per this spec (so a future real-vendor integration needs
+no further migration) but are never set by any code shipped in this story, since no real vendor webhook exists
+yet to set them (tracked as a new `13_OPEN_DECISIONS.md` item).
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
 | notification_id | UUID | No | FK → `notifications.id` |
-| channel | `notification_channel` | No | |
-| status | VARCHAR(20) | No | `pending` \| `sent` \| `delivered` \| `failed` |
+| channel | `notification_channel` (reused from `customer` schema, `create_type=False`) | No | |
+| status | VARCHAR(20) | No | `pending` \| `sent` \| `delivered` \| `failed` — only `pending`→`sent`/`failed` is ever reached by ENG-001's own code |
 | provider_message_id | VARCHAR(255) | Yes | External provider's (e.g. Twilio, WhatsApp Business API) message ID |
 | sent_at | TIMESTAMPTZ | Yes | |
-| delivered_at | TIMESTAMPTZ | Yes | |
+| delivered_at | TIMESTAMPTZ | Yes | Never set by any code shipped so far — no real vendor delivery-receipt webhook exists |
 | failure_reason | TEXT | Yes | |
+| idempotency_key | VARCHAR(255) | No | **New in ENG-001, beyond the original spec.** `UNIQUE`. Deterministic, server-computed (`f"{notification_id}:{channel}"`), never a caller-supplied header — see `09_DECISIONS.md` ADR-067 |
 
+**Constraints:** `uq_notification_delivery_idempotency_key`
 **Indexes:** `idx_notification_delivery_notification_id`
+
+Delivery is dispatched behind a `NotificationSender` Protocol (WhatsApp/SMS/Email adapters, one stub
+implementation per channel — `StubWhatsAppSender`/`StubSmsSender`/`StubEmailSender`, all always succeeding,
+log-only, mirroring `ConsoleSmsSender`'s convention; no real vendor integration exists yet, tracked as a new
+`13_OPEN_DECISIONS.md` item, distinct from items 11/13 which cover OCR/LLM only). A delivery failure raises a
+typed `NotificationDeliveryError` subclass, caught and recorded as `status="failed"` with a non-null
+`failure_reason` — never a silent no-op, and never propagated to fail the triggering request.
 
 ---
 
