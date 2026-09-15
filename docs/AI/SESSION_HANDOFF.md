@@ -6,11 +6,13 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 15 September 2026, after Story LEAD-002 closeout AND its tracker sync (both complete).
+**Last updated:** 15 September 2026, after Story ADM-001 closeout (documentation closeout complete; tracker sync
+still pending — a separate process performed by the orchestrator, not part of this closeout).
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `6248676` (chore: tracker sync for LEAD-002; docs closeout `146ff4f`;
-LEAD-002's implementation commits — `30c029c` backend, `e7933a4` frontend, `2543edd` tester's regression test,
-`e726bb5` anchoring-bug fix, `1802c5a` UTC-pin fix). Prior: `f614359` (tracker sync for LEAD-001).
+**Last commit at time of writing:** `c4411c9` (`ADM-001`'s full implementation, committed and pushed as a single
+commit). Prior: `6248676` (chore: tracker sync for LEAD-002; docs closeout `146ff4f`; LEAD-002's implementation
+commits — `30c029c` backend, `e7933a4` frontend, `2543edd` tester's regression test, `e726bb5` anchoring-bug fix,
+`1802c5a` UTC-pin fix).
 
 ---
 
@@ -110,52 +112,45 @@ LEAD-002's implementation commits — `30c029c` backend, `e7933a4` frontend, `25
   (`LEAD-001` was clean on the first pass). CTO gave a standing instruction to proceed straight through closeout
   once both verdicts were clean, without an additional sign-off pause for this story. **Tracker sync for both
   `LEAD-001` and `LEAD-002` is done and verified** (Dashboard numbers in the bullet above are current).
-- Full narrative history of every story shipped so far (Sprints 1–10) lives in
+- **Sprint 11 ("Marketplace Operations," Milestone ML11, Epic ML11-EP01) has since started.** Its first story,
+  `ADM-001` ("Resolve manual-match and unmatched-query work as an administrator"), has shipped and been signed
+  off on top of `AI-002` — see `docs/implementation/walkthroughs/Walkthrough_S11_ADM-001.md`. It ships the
+  genuinely new `administration.unmatched_query_reports` table (a real migration — this codebase's own
+  documentation-integrity check during planning confirmed the table did not exist before this story, correcting
+  a stale precedent-list entry, see Section 4 below), populated automatically by one additive, write-time hook
+  inside `SearchRequestService._finalize_matches` (`ADR-058`, extending `ADR-042`'s in-place-upgrade principle to
+  a new-dependent-record-creation case), plus `administration`'s first-ever `api.py` (`ADR-059` — an admin
+  capability's HTTP surface lives wherever the write its resolution performs actually lands; this one is
+  self-contained, unlike `administration`'s three prior aggregates). Getting there required avoiding a circular
+  import **twice** in one story — once as planned (`search -> conversation.MessageRepository`, for AC2's
+  transcript embedding) and once as a genuine mid-implementation deviation from the Plan's own literal wiring
+  instruction (`administration -> search.SearchEventLogService`, constructed directly from `search`'s leaf
+  repository rather than via `search/dependencies.py`, since the Plan's own two separately-correct wiring items
+  would otherwise have combined into a second cycle neither one alone created) — both recorded as one shared,
+  generalizable principle (`ADR-060`). AC3/AC4/AC6-for-manual-matches/AC7-bullet-1 were confirmed already fully
+  shipped by `AI-002` with zero new write logic needed, narrowing this story's real net-new engineering to
+  AC1/AC2/AC5. **`tester` found all 7 verbatim ACs pass, zero gaps, zero regressions in the already-shipped
+  `AI-002` code; `architect` returned zero blocking findings, no fix-and-recheck round needed.** CTO gave a
+  standing instruction for this story to proceed straight through closeout without an additional sign-off pause
+  once both verdicts were clean. Final counts: 864/864 backend tests (821 baseline + 43 new, zero regressions).
+  Backend-only — no mobile/Flutter work, per the story's own explicit scope. **This is Sprint 11's first story —
+  1 of 2 done.**
+- Full narrative history of every story shipped so far (Sprints 1–11) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
   historical context on a specific earlier decision; it's over 1200 lines.
 
-## 2. Next story — Sprint 11, first story: `ADM-001`
+## 2. Next story — Sprint 11, second story: `ADM-002`
 
-**Sprint 10 / Milestone ML10 is now fully complete — 2 of 2 stories done: `LEAD-001`, `LEAD-002`.** Sprint 11
-("Marketplace Operations," Milestone **ML11**, Epic **ML11-EP01**) is next. Its first story, looked up fresh
-from `docs/AI/Project_Tracker.xlsx` (row 40) this session:
+**Sprint 11 ("Marketplace Operations," Milestone ML11, Epic ML11-EP01) is now 1 of 2 stories done: `ADM-001`
+shipped.** Its second and final story, `ADM-002` ("Operate the marketplace from an admin dashboard"), depends on
+`VER-002` (already shipped, Sprint 5) + `ADM-001` (now also shipped) — both dependencies are satisfied, so
+`ADM-002` is the next startable story in this sprint. Its full details have not been re-fetched from
+`docs/AI/Project_Tracker.xlsx` this session — a fresh lookup is needed before planning begins, per this
+project's standing practice of reading the tracker fresh at the start of each new story's planning rather than
+relying on a stale summary here.
 
-- **Story ID:** `ADM-001` — "Resolve manual-match and unmatched-query work as an administrator"
-- **Sprint/Milestone/Epic/Phase:** SP11 / ML11 / ML11-EP01 / PH2
-- **Priority:** High | **Depends on:** `AI-002` (already shipped) | **Status:** ⏳ Planned
-- **Description (verbatim):** "As an administrator, I want a queue of low-confidence sessions needing manual
-  matching and a report of searches that produced no good match, so that I can keep the Wizard-of-Oz fallback
-  working and spot supply/category gaps early. This story gives admins the operational surface for two things
-  already producing data in earlier stories: AI-002's `manual_match_assignments` and MAT-001's `search_event_log`
-  unmatched entries. The admin platform itself (Flutter vs. a separate internal tool) remains an explicitly open
-  decision — this story implements the API layer, which is platform-agnostic, without assuming the answer.
-  Scope boundary: does not include verification review (`VER-002`, already delivered) or the broader admin
-  dashboard shell (`ADM-002`)."
-- **Acceptance Criteria (verbatim):**
-  1. `unmatched_query_reports` table exists via migration, sourced from `search_event_log` rows where
-     `was_matched=false`, supporting admin annotation and a status (open/reviewed/actioned).
-  2. Admin-only endpoint lists pending `manual_match_assignments` with the underlying conversation transcript
-     available for context.
-  3. Admin can select and rank candidate providers for a manual assignment, writing to `provider_matches` exactly
-     as the automated matcher would.
-  4. Completing a manual assignment updates its status and is reflected in the customer's ranked-results screen
-     without further admin action.
-  5. Unmatched query reports can be filtered/sorted and marked reviewed/actioned by an admin.
-  6. Non-admin access to either endpoint returns 403.
-  7. Automated tests cover: manual assignment completion producing a customer-visible result, and unmatched-
-     report status transitions.
-- **Sprint 11's theme/goal**: "Marketplace Operations" — "An administrator can operate verification, matching,
-  and exception workflows." `ADM-002` ("Operate the marketplace from an admin dashboard") is Sprint 11's second
-  story, depends on `VER-002` + `ADM-001`, not yet started.
-
-**Note**: `04_UNMATCHED_QUERY_REPORTS`/`unmatched_query_reports` is referenced in this codebase's own established
-"Pull-based admin queue pattern" precedent (Section 4 below) as if partially anticipated — confirm during
-planning whether this table already exists in any form or whether AC1 is a genuinely new migration; do not
-assume either way without checking `04_DATABASE.md` and the actual shipped schema first.
-
-This is now recorded here and should also be reflected in `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s "Next
-Planned Story" section. **Do NOT start `ADM-001` (or any Sprint 11 story) without the CTO's explicit "Start X"
-instruction** — this lookup only identifies the story, it is not authorization to begin it.
+**Do NOT start `ADM-002` (or plan it) without the CTO's explicit "Start X" instruction** — noting it as the next
+startable story is not authorization to begin it.
 
 ## 3. Standing process (do not skip steps)
 
@@ -209,10 +204,18 @@ well-precedented, not a reason to expect it every time.
   shape without credentials to test against.
   **Currently unresolved real-vendor gap:** no real LLM provider is selected anywhere (tracked as
   `13_OPEN_DECISIONS.md` item 13) — `ConversationAiClient`'s only implementation is fully rule-based.
-- **Pull-based admin queue pattern** (four applications: `admin_action_log`, `claim_review_requests`,
-  `unmatched_query_reports`, `manual_match_assignments`): backend-API-only, no dashboard UI yet (that's
-  `ADM-001`/`ADM-002`, a later story), admin polls a `GET .../queue` endpoint. Never invent a push-notification
-  "notify the admin team" mechanism — no such recipient concept exists in this codebase.
+- **Pull-based admin queue pattern** (four applications, all genuinely shipped as of `ADM-001`'s completion:
+  `admin_action_log`, `claim_review_requests`, `manual_match_assignments`, `unmatched_query_reports`):
+  backend-API-only, no dashboard UI yet (that's `ADM-002`, a later story), admin polls a `GET .../queue`
+  endpoint. Never invent a push-notification "notify the admin team" mechanism — no such recipient concept
+  exists in this codebase. **Documentation-integrity note:** prior to `ADM-001` shipping, this same entry listed
+  `unmatched_query_reports` as if it were already a fourth shipped application, alongside the other three — this
+  was a genuine documentation slip, not fact: `administration/models.py` defined only three model classes at the
+  time, no migration referenced `unmatched_query_reports` anywhere, and `04_DATABASE.md` itself already labeled
+  it "remain unbuilt" in the same breath. `ADM-001`'s own planning caught this directly against the real code
+  before any implementation began, and the table has genuinely shipped since. Recorded here so a future reader
+  isn't confused about why an "already shipped" claim needed correcting mid-project — the entry above is now
+  accurate as of `ADM-001`'s completion, not before.
 - **Soft-delete is the default** for any `CommonColumnsMixin`-based table (`deleted_at`/`is_active`) —
   `04_DATABASE.md`'s Soft Delete section only exempts `audit_logs`/`search_event_log` (append-only-by-design).
   AI-001 shipped a real bug (hard-deleting `messages` on a factually wrong premise) by not checking this —
@@ -340,6 +343,27 @@ well-precedented, not a reason to expect it every time.
   timezone GUC (ADR-057, `LEAD-002`) — established at this codebase's first such query, after `architect`'s
   review found the fix above's new queries hadn't pinned UTC, a latent risk of reintroducing the same divergence
   via a future session/config difference.
+- **Auto-create a dependent record inside an existing shared write path, keyed off a specific outcome of that
+  write** (ADR-058, `ADM-001`) — `unmatched_query_reports` rows are created by one additive call inside
+  `SearchRequestService._finalize_matches` whenever the row it just wrote has `was_matched = false`, never by a
+  lazy list-time query or a batch/cron job. Extends `ADR-042`'s "in-place upgrade of a shared write path" to a
+  new shape: creating a new, dependent record in a different module's schema, not just changing what the shared
+  write itself records.
+- **An admin capability's HTTP surface lives in whichever module performs the write its resolution requires; a
+  self-contained resolution (no cross-module write) belongs in the aggregate's own home module even if that
+  module has never had an `api.py` before** (ADR-059, `ADM-001`) — a sibling rule to `ADR-051`/`ADR-054`'s
+  schema-ownership placement rule, for a different question (route placement, not table placement).
+  `administration` got its first-ever `api.py` for `unmatched_query_reports` specifically because reviewing it
+  needs no write into another module's schema, unlike all three of `administration`'s prior aggregates.
+- **When a planned cross-module wiring path would itself create a circular import — whether foreseen at planning
+  time or only surfacing from the interaction of two of the same Plan's own separately-reasoned wiring items —
+  construct the dependency directly from the target module's leaf repository instead, and document why in the
+  wiring function's own docstring** (ADR-060, `ADM-001`) — a second, distinct justification under `ADR-047`'s
+  raw-dependency exception, applied twice in one story (`search -> conversation.MessageRepository`, as planned;
+  `administration -> search.SearchEventLogService`, as a genuine mid-implementation deviation from the Plan's
+  own literal text). Re-check for a fresh circular import whenever a new edge touches a `dependencies.py` file
+  already modified earlier in the same story — a Plan can reason correctly about each wiring edge in isolation
+  and still combine two of its own items into a cycle neither one alone would have produced.
 
 ## 5. Tracker editing method (raw XML — never openpyxl `.save()`)
 
@@ -395,33 +419,38 @@ the full resolution.
 
 ## 7. ADR numbering
 
-Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-057** (ADR-056/057, both recorded at `LEAD-002`'s closeout —
-the dependency-direction-symmetry module-placement tiebreaker, extending `ADR-054` to the "no single owner"
-case; the shared-window-boundary principle for two derived views of the same data, plus explicit UTC-pinning
-for `date_trunc`/day-bucketing SQL, both prompted by a real tester-found bug and a real architect-found
-follow-on gap). Prior: ADR-054/055, recorded at `LEAD-001`'s closeout. Next new ADR starts at **ADR-058**.
+Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-060** (ADR-058/059/060, all recorded at `ADM-001`'s
+closeout — the write-time dependent-record-creation hook extending `ADR-042` to a new-record-creation case;
+the admin-capability HTTP-surface placement rule, a sibling to `ADR-051`/`ADR-054` for the route-placement
+question rather than the table-placement one; the circular-import-avoidance principle, applied twice in one
+story, a second distinct justification under `ADR-047`'s raw-dependency exception). Prior: ADR-056/057,
+recorded at `LEAD-002`'s closeout. Next new ADR starts at **ADR-061**.
 
 ## 8. Environment notes
 
-- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `LEAD-002`'s closeout, independently
-  re-run/re-confirmed by `tester` across two fix-and-recheck rounds (a real anchoring-divergence bug, then a
-  real UTC-pin hardening finding): **821/821 backend tests passing** (783 baseline before `LEAD-002`, +38 net
-  new, zero regressions). `ruff check .` clean. `mypy` is configured in `pyproject.toml` but is **not installed**
-  in this sandbox's venv — cannot be run here; this is a known, pre-existing environment gap, not a regression to
-  chase.
-- Mobile: Flutter/Riverpod. **280 mobile tests passing** as of `LEAD-002`'s closeout (257 baseline before
-  `LEAD-002`, +23 new, zero regressions). `flutter analyze` clean. Flutter SDK is not preinstalled in a fresh
-  container — a prior session cloned `flutter/stable` to `/root/.flutter_sdk` to run `flutter
-  analyze`/`flutter test`/`gen-l10n`; this is outside the repo and won't persist across containers, so a fresh
-  session may need to redo this setup step once, before running any mobile agent.
+- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `ADM-001`'s closeout, independently
+  verified clean by `tester` (all 7 ACs pass, zero gaps, zero regressions) and `architect` (zero blocking
+  findings, no fix-and-recheck round needed): **864/864 backend tests passing** (821 baseline before `ADM-001`,
+  +43 new, zero regressions). `ruff check .` clean. `mypy` is configured in `pyproject.toml` but is **not
+  installed** in this sandbox's venv — cannot be run here; this is a known, pre-existing environment gap, not a
+  regression to chase.
+- Mobile: Flutter/Riverpod. **280 mobile tests passing**, unchanged since `LEAD-002`'s closeout (257 baseline +
+  23 new) — `ADM-001` is backend-only, no mobile work in scope. `flutter analyze` clean as of `LEAD-002`. Flutter
+  SDK is not preinstalled in a fresh container — a prior session cloned `flutter/stable` to `/root/.flutter_sdk`
+  to run `flutter analyze`/`flutter test`/`gen-l10n`; this is outside the repo and won't persist across
+  containers, so a fresh session may need to redo this setup step once, before running any mobile agent.
 - `Project_Tracker.xlsx` is readable by direct `openpyxl`/shell access in this orchestrating session, but the
   specialist agents (tech-lead, tester, architect, backend, frontend) do **not** have Bash/openpyxl tools —
   always relay verbatim tracker text to them directly in the task prompt rather than asking them to read the
   spreadsheet themselves (this was a repeated, avoidable source of wasted planning rounds in Sprints 6–7).
 ---
 
-**End of handoff. Sprint 10 / Milestone ML10 is now fully complete — 2 of 2 stories done: `LEAD-001` and
-`LEAD-002` have both shipped and been signed off, and their tracker sync is done and verified (Dashboard/rollup
-numbers in Section 1 are current). Sprint 11's first story, `ADM-001` ("Resolve manual-match and unmatched-
-query work as an administrator"), has been identified (Section 2) but NOT started.** When resuming: read this
-file, confirm the CTO wants to proceed with `ADM-001`, then follow Section 3's cycle starting with `tech-lead`.**
+**End of handoff. Sprint 11 / Milestone ML11 is now 1 of 2 stories done: `ADM-001` ("Resolve manual-match and
+unmatched-query work as an administrator") has shipped and been signed off — see Section 1 and
+`docs/implementation/walkthroughs/Walkthrough_S11_ADM-001.md`. Its tracker sync is still pending (a separate
+process performed by the orchestrator, not part of this closeout). Sprint 11's second and final story, `ADM-002`
+("Operate the marketplace from an admin dashboard"), is the next startable story — both of its dependencies
+(`VER-002`, `ADM-001`) are now satisfied, but its full details have not been re-fetched from
+`Project_Tracker.xlsx` this session.** When resuming: read this file, perform the tracker sync for `ADM-001` if
+not already done, confirm the CTO wants to proceed with `ADM-002`, then follow Section 3's cycle starting with
+`tech-lead`.**

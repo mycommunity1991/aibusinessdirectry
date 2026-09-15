@@ -11,6 +11,47 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Resolve manual-match and unmatched-query work as an administrator (Story ADM-001, Sprint 11 / Milestone
+  ML11's first story): a genuinely new `administration.unmatched_query_reports` table and migration — planning
+  confirmed directly against the code that this table did not exist before this story, correcting a stale
+  `SESSION_HANDOFF.md` precedent-list entry that had inaccurately listed it as already shipped — built exactly
+  to `04_DATABASE.md`'s pre-existing column spec, no deviation. Rows are created automatically, never lazily:
+  `SearchRequestService._finalize_matches` (the sole writer of `search.search_event_log` for both the automated
+  and manual match paths) gains one additive, write-time call, creating the corresponding report row whenever
+  the row it just wrote has `was_matched = false` — a strict 1:1 guarantee with zero risk of a missed or
+  duplicated report (**ADR-058**, extending `ADR-042`'s in-place-upgrade-of-a-shared-write-path principle to a
+  new-dependent-record-creation case). `administration` gains its own `api.py` for the first time
+  (`GET`/`POST /admin/unmatched-query-reports/...`, filter by status, sort by `created_at`, atomic
+  `open → reviewed`/`{open,reviewed} → actioned` transitions, mirroring the existing `try_resolve`-family
+  atomic-conditional-write pattern): unlike `administration`'s three prior aggregates (`admin_action_log`,
+  `claim_review_requests`, `manual_match_assignments`), each of which needed a *cross-module write* to resolve
+  and so hosted its routes in the *other* module, `unmatched_query_reports`' review/action workflow is entirely
+  self-contained within `administration`'s own table (**ADR-059**, a new placement rule specific to where an
+  admin action's HTTP surface belongs, a sibling to `ADR-051`/`ADR-054`'s schema-ownership rule for a different
+  question). The existing `GET /admin/search/manual-matches` list endpoint now embeds each pending assignment's
+  full conversation transcript inline (reusing `conversation.schemas.MessageResponse` verbatim, batched via a
+  new `MessageRepository.list_for_sessions` to avoid N+1). Building this required avoiding a circular import
+  **twice** in one story: once as planned (`search -> conversation.repositories.MessageRepository`, constructed
+  directly rather than via `conversation.dependencies`, since that module already imports back into `search`);
+  and once as a genuine mid-implementation deviation from the Plan's own literal wiring instruction
+  (`administration -> search.SearchEventLogService`, a new, minimal read-only service for admin display-context
+  enrichment) — the Plan's own two separately-correct wiring items would otherwise have combined into a second
+  cycle neither one alone created, resolved the same way, by constructing directly from `search`'s leaf
+  repository rather than via `search/dependencies.py`. Both instances are recorded as one shared, generalizable
+  principle (**ADR-060**), a second, distinct justification under `ADR-047`'s raw-dependency exception beyond
+  its original "no equivalent Service exists" reasoning. Reading the already-shipped `AI-002` code in full
+  during planning confirmed AC3/AC4/AC6-for-manual-matches/AC7-bullet-1 were already fully satisfied — no new
+  write logic needed there, only independent re-verification as a regression gate — narrowing this story's real
+  net-new engineering to AC1/AC2/AC5. The response exposes `customer_id`/`query_text`/`category_id` directly,
+  judged the same category of admin operational tool `claim_review_requests` already is (which exposes
+  `claimant_user_id` unmasked), not `06_SECURITY.md`'s Analytics-surface restriction. **`tester` independently
+  verified all 7 verbatim ACs pass, with zero gaps and zero regressions in the already-shipped `AI-002` code;
+  `architect` returned zero blocking findings, no fix-and-recheck round needed.** CTO gave a standing
+  instruction for this story to proceed straight through closeout without an additional sign-off pause once
+  both verdicts were clean. Final counts: 864/864 backend tests (821 baseline + 43 new, zero regressions).
+  Backend-only — no mobile/Flutter work, per the story's own explicit scope boundary. See
+  `docs/implementation/walkthroughs/Walkthrough_S11_ADM-001.md` for the full account. **This is Sprint 11 /
+  Milestone ML11's first story — 1 of 2 done.**
 - Understand my listing visibility (Story LEAD-002, Sprint 10 / Milestone ML10's second and final story — **this
   completes Sprint 10 and Milestone ML10 in full**): a new, read-only `VisibilityAnalyticsService`/`GET
   /providers/me/visibility-analytics` slice of the existing `contact` domain module (its fourth capability) —

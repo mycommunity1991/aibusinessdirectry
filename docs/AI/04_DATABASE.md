@@ -945,8 +945,10 @@ reasoning). Written by `AdminActionLogService.record_verification_review` on eve
 (AC6) — `metadata` carries `provider_id` and, for a rejection, `rejection_reason`, since `target_entity_id` is a
 single polymorphic reference and cannot itself hold a second id. `claim_review_requests` (below) has since shipped
 alongside it as the Administration domain's second slice (Story CLM-001, Sprint 6); `manual_match_assignments`
-(below) has since shipped as its third slice (Story AI-002, Sprint 7); `unmatched_query_reports`, `feature_flags`,
-and `system_settings` (below) remain unbuilt.
+(below) has since shipped as its third slice (Story AI-002, Sprint 7); `unmatched_query_reports` (below) has since
+shipped as its fourth slice (Story ADM-001, Sprint 11) — see that table's own section below for its shipped
+shape and the two documentation-only facts about `administration`'s first cross-module edge and first `api.py`
+this story established. `feature_flags` and `system_settings` (below) remain unbuilt.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
@@ -1004,7 +1006,7 @@ by `ClaimReviewRequestService.create` (`ClaimService.request_admin_review`, AC6)
 
 ## unmatched_query_reports
 
-Admin-facing view over `search.search_event_log` entries where `was_matched = false`, with admin annotation/workflow state attached — kept as a physical table (not a DB view) because admin review status must be writable and durable.
+Admin-facing view over `search.search_event_log` entries where `was_matched = false`, with admin annotation/workflow state attached — kept as a physical table (not a DB view) because admin review status must be writable and durable. Shipped by Story ADM-001 (Sprint 11) exactly per this pre-existing spec, no deviation — the tester confirmed the shipped columns via `psql \d` match this table verbatim. Rows are created automatically, never lazily: `SearchRequestService._finalize_matches` (the sole writer of `search_event_log`, for both the automated and manual match paths) gains one additive, write-time call — whenever the row it just wrote has `was_matched = false`, it also creates the corresponding `unmatched_query_reports` row in the same operation, guaranteeing a strict 1:1 correspondence with zero risk of a missed or duplicated report (see `09_DECISIONS.md` ADR-058). `administration/api.py` (this table's admin review/action routes, `GET`/`POST /admin/unmatched-query-reports/...`) is `administration`'s first-ever `api.py` file — documentation-only fact for future readers: every one of this module's three prior aggregates (`admin_action_log`, `claim_review_requests`, `manual_match_assignments`) hosted its admin-facing routes in whichever *other* module's schema the resolving admin action needed to write into; `unmatched_query_reports`' review/action workflow needs no such cross-module write, so its routes live in `administration` itself for the first time (ADR-059). Enrichment reads (`category_id`/`customer_id`/`query_text`/`result_count`) come from a new, minimal `search.SearchEventLogService` — `administration`'s first-ever outgoing cross-module edge (`administration -> search`), a Service (per `ADR-047`), constructed directly from `search`'s leaf repository rather than via `search/dependencies.py`, to avoid a circular import (ADR-060).
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|
@@ -1015,6 +1017,12 @@ Admin-facing view over `search.search_event_log` entries where `was_matched = fa
 | reviewed_at | TIMESTAMPTZ | Yes | |
 
 **Constraints:** `uq_unmatched_query_reports_search_event_log_id`
+
+**Flagged, non-blocking limitation inherited from AI-002, not fixed by ADM-001:** `search_event_log.query_text` is
+written as a hardcoded `None` in every call to `_finalize_matches` today — no code path anywhere populates it
+with the customer's actual free text. Every `unmatched_query_reports` row's enriched `query_text` field therefore
+reads `null` until a future story wires the real value through; `category_id`/`customer_id`/`result_count` are
+unaffected and populate correctly.
 
 ## feature_flags
 

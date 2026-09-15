@@ -4552,6 +4552,307 @@ Two principles, both now established precedent:
 
 ---
 
+# ADR-058
+
+## Title
+
+Unmatched Query Report Auto-Creation (`ADM-001`): A Write-Time Hook Inside `_finalize_matches`, Keyed Off
+`not ranked_matches` — Extends `ADR-042`'s In-Place-Upgrade Principle to a New-Dependent-Record-Creation Case
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`ADM-001`'s AC1 requires `administration.unmatched_query_reports` to hold one row per `search.search_event_log`
+row where `was_matched = false`, supporting admin annotation and a status workflow. `04_DATABASE.md`'s own
+pre-existing spec (unbuilt until this story) is explicit that this must be a physical, writable, durable table,
+not a DB view. `SearchRequestService._finalize_matches` is confirmed (`AI-002`, `ADR-040`) as the sole writer of
+`search_event_log`, for both the automated match path and the admin manual-match path — the same shared helper
+`ADR-042` previously upgraded in place for `MAT-001`'s ranking formula. The open question was when/how
+`unmatched_query_reports` rows come into existence, given the source table is new.
+
+### Decision
+
+`_finalize_matches` gains one additive, in-place call: immediately after creating the `search_event_log` row,
+if `not ranked_matches` (i.e. the just-written row's own `was_matched` is `False`), it calls a new
+`UnmatchedQueryReportService.create(search_event_log_id=...)`. This generalizes `ADR-042`'s "in-place upgrade of
+a shared write path, never a second parallel implementation" principle to a new shape: not merely changing what
+an existing shared write records, but **conditionally creating a new, dependent record in a different module's
+schema, keyed off a specific outcome of that already-existing shared write**. Because both the automated and
+manual match paths already funnel through this one helper (the same guarantee `ADR-040` established for
+`search_event_log` itself), a strict 1:1 correspondence between an unmatched `search_event_log` row and its
+`unmatched_query_reports` row is guaranteed by construction — no report can ever be missed (a lazy, list-time
+query would need to re-derive "unreported" on every read) or double-created (a batch/cron job would need its own
+idempotency guard). `SearchRequestService` gains a second `search -> administration` service-to-service
+dependency (`UnmatchedQueryReportService`, alongside the pre-existing `ManualMatchAssignmentService` one) — the
+same, already-established edge direction, so no new cross-module architecture risk.
+
+### Alternatives Considered
+
+- **Lazily materialize report rows from a query at list-time** (e.g. the admin `GET` endpoint queries
+  `search_event_log WHERE was_matched = false AND NOT EXISTS (a report row)` and creates rows on the fly).
+  Rejected — `04_DATABASE.md`'s own spec calls this "a physical table... because admin review status must be
+  writable and durable," which only makes sense if rows exist independently of when an admin happens to browse
+  the list; it would also put row-creation inside a `GET` handler, a side effect that should never live in a
+  read.
+- **A separate batch/cron job periodically scanning `search_event_log` for new unmatched rows.** Rejected — no
+  scheduling infrastructure exists anywhere in this codebase (`ADR-050`'s "fire immediately/synchronously rather
+  than inventing scheduling infrastructure nobody asked for" applies directly); the write-time hook is simpler,
+  synchronous, and cannot fall behind or double-process.
+
+### Consequences
+
+- Establishes a new, generalizable pattern beyond `ADR-042`'s original scope: **auto-create a dependent record
+  inside an existing shared write path, keyed off a specific outcome of that write**, rather than inventing a
+  second write path or a lazy materialize-on-read query. A future story needing to react to a specific result of
+  an already-shared write (in this codebase or a similar one) should cite this ADR alongside `ADR-042`.
+- `search_event_log.query_text`'s pre-existing always-`None` limitation (an `AI-002` gap, not fixed by this
+  story) means every `unmatched_query_reports` row's enriched `query_text` field reads `null` until a future
+  story wires the real customer free text through `_finalize_matches` — flagged, not fixed, at this story's
+  closeout.
+- `test_search_request_service.py`'s extended `_finalize_matches` coverage independently proves both directions:
+  an unmatched resolution creates exactly one report row pointing at the correct `search_event_log_id`; a
+  **matched** resolution creates zero such rows (the negative case, explicitly asserted).
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-042 — the in-place-upgrade-of-a-shared-query principle this ADR extends to a new-record-
+  creation case; ADR-040 — `_finalize_matches`'s shared-write, identical-outcome guarantee this decision relies
+  on; ADR-050 — the no-invented-scheduling-infrastructure precedent underlying the write-time-hook choice)
+- 04_DATABASE.md (Administration Domain — `unmatched_query_reports`, now marked shipped)
+- docs/implementation/plans/Plan_S11_ADM-001.md (Decision 2)
+- docs/implementation/walkthroughs/Walkthrough_S11_ADM-001.md
+- backend/app/modules/search/services/search_request_service.py (`_finalize_matches`)
+- backend/app/modules/administration/services/unmatched_query_report_service.py (`create`)
+
+---
+
+# ADR-059
+
+## Title
+
+Admin-Capability HTTP-Surface Placement Rule (`ADM-001`): An Admin Action's Routes Live in Whichever Module
+Performs the Write It Resolves — `administration` Gets Its First-Ever `api.py` When the Resolving Write Is
+Self-Contained
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`administration` held three existing aggregate roots before `ADM-001` (`admin_action_log`, `claim_review_requests`,
+`manual_match_assignments`) but had never had its own `api.py` — every one of its admin-facing HTTP routes was
+hosted by the *other* module orchestrating the underlying business action: `verification/admin_api.py` (approving
+a verification flips `providers.is_discoverable`), `provider/admin_claim_api.py` (approving/rejecting a claim
+finalizes or leaves a provider unclaimed), `search/admin_manual_match_api.py` (resolving a manual match writes
+`provider_matches`). `ADR-051`/`ADR-054` already answer a related but distinct question — where a new **table**'s
+model/repository/service should live, based on Postgres schema ownership — but say nothing about where an admin
+**action's HTTP route** should live when the table it targets and the write its resolution performs are not the
+same thing (as all three of `administration`'s existing aggregates already demonstrate: each aggregate's table
+lives in `administration`, but its route lives elsewhere).
+
+### Decision
+
+Marking an `unmatched_query_reports` row `reviewed`/`actioned` is a self-contained state transition entirely
+within `administration`'s own table — unlike all three prior aggregates, resolving it requires **no write into
+any other module's schema** at all; the only cross-module need is a read (`search_event_log` context, for display).
+`administration` therefore gets its own `api.py` for the first time, hosting the new
+`GET`/`POST /admin/unmatched-query-reports/...` routes directly. This establishes a new, more specific placement
+rule, a sibling to `ADR-051`/`ADR-054`'s schema-ownership rule rather than a restatement of it: **an admin
+capability's HTTP surface belongs in the module that performs the write the admin action resolves.** When that
+write is self-contained within the aggregate's own home module, the routes belong there too, even if that module
+has never hosted an `api.py` before; when resolving the action genuinely requires writing into a different
+module's schema (as all three of `administration`'s prior aggregates do), the routes belong in that other module,
+exactly as this codebase has always done.
+
+### Alternatives Considered
+
+- **Host the new routes in `search/admin_manual_match_api.py` instead**, purely to preserve the superficial "no
+  `api.py` in `administration`" pattern. Rejected — there is no genuine cross-module write-orchestration need
+  here, so forcing it into `search` would misrepresent which module truly owns the capability, and would need
+  *more* cross-module surface (a `search -> search_event_log` read plus an *additional* `search ->
+  administration.UnmatchedQueryReportService` write edge for status transitions) than placing it correctly in
+  `administration` to begin with.
+- **A cross-schema SQL `JOIN` inside `UnmatchedQueryReportRepository`** (importing `search.models.SearchEventLog`
+  directly into `administration`'s own query, mirroring `search_request_service.py`'s existing direct import of
+  `administration.models.ManualMatchAssignment`). Considered as technically leaf-safe (no import cycle), but
+  rejected as a materially different and riskier pattern than this codebase's established Services-only
+  cross-module rule (`ADR-047`), which a real, minimal `search.SearchEventLogService` satisfies cleanly instead.
+
+### Consequences
+
+- `administration` now has four aggregate roots but hosts its own HTTP routes for exactly one of them
+  (`unmatched_query_reports`); the other three continue to be hosted by the module performing the resolving
+  write, per the pre-existing pattern — both shapes coexist deliberately, not by accident.
+- A future story adding a further aggregate to `administration` (or to any module holding more than one
+  aggregate root) should ask: does resolving this admin action require writing into another module's schema? If
+  yes, host the route in that other module (the pre-existing pattern this ADR does not change); if no, host it
+  in the aggregate's own home module, even at the cost of that module's first `api.py`.
+- `administration`'s first-ever outgoing cross-module edge (`administration -> search.SearchEventLogService`,
+  a Service per `ADR-047`) exists solely to support this placement — see `ADR-060` for why it is wired
+  differently than the Plan's own literal instruction specified.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-047 — the services-only cross-module rule this decision's new `SearchEventLogService`
+  edge satisfies; ADR-048 — `administration`'s own multi-aggregate-root precedent; ADR-051/ADR-054 — the
+  schema-ownership module-placement rule this ADR is a sibling to, for a different question)
+- 04_DATABASE.md (Administration Domain — `unmatched_query_reports`, now noting `administration`'s first `api.py`)
+- docs/implementation/plans/Plan_S11_ADM-001.md (Decision 6)
+- docs/implementation/walkthroughs/Walkthrough_S11_ADM-001.md
+- backend/app/modules/administration/api.py (`administration`'s first-ever `api.py`)
+- backend/app/modules/search/services/search_event_log_service.py
+
+---
+
+# ADR-060
+
+## Title
+
+Circular-Import Avoidance Principle (`ADM-001`): When a Planned Cross-Module Wiring Path Would Itself Cycle,
+Construct Directly From the Target Module's Leaf Repository Instead — a Second, Distinct `ADR-047`
+Raw-Dependency Justification, Applied Twice in One Story
+
+**Date**
+
+2026-09-15
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`ADM-001` needed two new cross-module read edges, and both hit a genuine Python-level circular-import obstacle
+if wired the "obvious" way a naive reading of `ADR-047`'s "Services only, via the target module's
+`dependencies.py`" default would suggest.
+
+**Instance 1 (foreseen at planning time — AC2's transcript embedding):** `conversation.dependencies` already
+imports `search.dependencies.get_search_request_service` (`AI-001`/`AI-002`'s existing `conversation -> search`
+edge). Had `search` depended on `conversation.services.ConversationService` via `conversation.dependencies` to
+fetch a transcript, `search.dependencies` and `conversation.dependencies` would import each other at module
+level — a real Python circular import, identified and planned around before implementation began
+(`Plan_S11_ADM-001.md` Decision 4).
+
+**Instance 2 (a genuine, mid-implementation deviation from the Plan's own literal instruction — Decision 6's
+`administration -> search` edge):** the Plan's own Backend item 14 literally instructed
+`administration/dependencies.py` to wire in `search.dependencies.get_search_event_log_service`. But the same
+Plan's item 7/8 had already given `search/dependencies.py` a *new* edge of its own: `SearchRequestService`'s
+constructor gained a second `search -> administration` dependency,
+`administration.services.unmatched_query_report_service.UnmatchedQueryReportService` (`ADR-058`'s write-time
+hook), wired inside `search/dependencies.py` itself. Following item 14 literally — `administration.dependencies`
+importing `search.dependencies.get_search_event_log_service` — would therefore have made
+`administration.dependencies` and `search.dependencies` import each other at module level: a **second**,
+genuine circular import, created not by any single wiring instruction being wrong in isolation, but by the
+interaction between two of the Plan's own separately-reasoned items (7/8 and 14) once both were actually
+implemented. This was discovered by `backend` during implementation, not anticipated by the Plan itself.
+
+### Decision
+
+Both instances are resolved the same way: construct the dependency directly from the target module's
+**leaf-level repository**, never importing the target module's `dependencies.py` (or its `services` package) at
+all.
+
+- **Instance 1** (as planned, unchanged): `search/dependencies.py`'s `get_message_repository` constructs
+  `conversation.repositories.message_repository.MessageRepository(db)` directly — `conversation.repositories.
+  message_repository` is a leaf module with no edge back into `search`, so this is safe.
+- **Instance 2** (deviating from the Plan's literal item 14 text): `administration/dependencies.py`'s
+  `_get_search_event_log_service_for_administration` constructs `search.services.search_event_log_service.
+  SearchEventLogService(search.repositories.search_event_log_repository.SearchEventLogRepository(db))` directly
+  — never importing `search.dependencies` — since `search.repositories.search_event_log_repository`/`search.
+  services.search_event_log_service` import only `search.models`/`app.repositories.base_repository`, leaf
+  modules with no edge back into `administration`. The deviation and its reasoning are documented directly in
+  this function's own docstring, per `ADR-054`'s closeout note that this naming duty is mandatory at
+  implementation time, not left for `architect` to catch.
+
+**Generalized principle (the actual reusable lesson, broader than either single instance):** when a planned
+cross-module wiring instruction would itself introduce a circular import — whether that risk is foreseen at
+planning time (instance 1) or only surfaces from the interaction of two of the same Plan's own separately-
+reasoned wiring items once both are actually implemented (instance 2) — construct the dependency directly from
+the target module's leaf-level repository/model rather than importing the target module's `dependencies.py`/
+`services` package, and document why in the wiring function's own docstring. This is a **second, distinct**
+justification under `ADR-047`'s raw-dependency exception clause, alongside its original "no equivalent Service
+primitive exists" justification (`CON-001`/`LEAD-001`/`LEAD-002`'s applications): here, an equivalent Service
+*does* exist (or is being built in the very same story) on the other side, but reaching it through the normal
+`dependencies.py` path is architecturally unreachable due to a real Python-level import cycle, not a missing
+primitive. Both instances still keep the edge a **Service**, never a raw Repository crossing a module boundary
+in application code — `ADR-047`'s "Services only" rule is satisfied in both cases; only the *construction site*
+of that Service moves to avoid the cycle.
+
+### Alternatives Considered
+
+- **Instance 1 — route handler calls `ConversationService` directly, bypassing `SearchRequestService`.**
+  Rejected — breaks `list_pending_manual_matches`'s own documented convention that `search/api.py`'s admin route
+  depends only on this module's own service, and still hits the same cycle if wired via `conversation.
+  dependencies`.
+- **Instance 1 — relocate `manual_match_assignments`' admin routes into `conversation` instead**, since
+  `conversation` already owns `Message`. Rejected — would relocate an already-shipped, already-tested endpoint
+  purely to solve an import-direction problem, a far larger and riskier change than one new leaf-level import.
+- **Instance 2 — follow the Plan's item 14 literally and accept a cross-schema SQL `JOIN` inside
+  `administration`'s own repository instead of a Service.** Rejected — a materially different, riskier pattern
+  than this codebase's Services-only default, per `ADR-059`'s own reasoning; the leaf-construction fix satisfies
+  `ADR-047` cleanly instead.
+- **Instance 2 — restructure `search/dependencies.py` to avoid its own new `search -> administration` edge
+  instead**, to preserve the Plan's original literal wiring instruction for `administration`'s edge. Rejected —
+  `ADR-058`'s `search -> administration.UnmatchedQueryReportService` edge is itself required, well-justified,
+  and already the established edge direction; unwinding it would be a larger, unnecessary redesign purely to
+  keep a different decision's wiring instruction literal.
+
+### Consequences
+
+- This is the first story in this project's history where a Plan's own literal wiring instruction, followed
+  exactly, would have produced a circular import discovered only during implementation, not at planning time —
+  a new category of Plan-execution deviation, distinct from every prior "architect found X during review, fixed
+  at commit Y" pattern: here the deviation was caught and resolved by `backend` during implementation itself,
+  before `tester`/`architect` ever saw a broken import.
+- Future Plans should treat each newly-planned cross-module edge as provisional until the *other* new edges the
+  same Plan introduces are also accounted for together — a Plan item reasoning about one wiring edge in
+  isolation (e.g. item 14) can be individually correct yet still combine with a second, separately-correct edge
+  from a different item (e.g. items 7/8) to create a cycle neither one alone would have produced.
+- `backend` should re-check for a fresh circular import immediately after wiring any new edge that touches a
+  `dependencies.py` file already modified earlier in the same story, not only against the pre-existing
+  dependency graph from before the story started.
+- `architect`'s review independently confirmed no accidental import of `conversation.services`/`conversation.
+  dependencies` or `search.dependencies` exists anywhere in the final diff, and that both new docstrings name
+  the deviation explicitly.
+
+### Related Documents
+
+- 09_DECISIONS.md (ADR-047 — the services-only rule and its original raw-dependency exception justification,
+  extended here with a second, distinct justification; ADR-054 — the docstring-naming duty for a raw
+  cross-module edge; ADR-058 — the `search -> administration` edge whose existence created instance 2's cycle;
+  ADR-059 — the placement rule instance 2's edge exists to support)
+- docs/implementation/plans/Plan_S11_ADM-001.md (Decision 4, Decision 6, Backend items 7/8/14)
+- docs/implementation/walkthroughs/Walkthrough_S11_ADM-001.md
+- backend/app/modules/search/dependencies.py (`get_message_repository`, `get_search_event_log_service`)
+- backend/app/modules/administration/dependencies.py
+  (`_get_search_event_log_service_for_administration`)
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:
