@@ -609,3 +609,86 @@ class TestMessageOrderingInvariant:
         sequence_numbers = [m.sequence_number for m in all_messages]
         assert sequence_numbers == sorted(sequence_numbers)
         assert len(sequence_numbers) == len(set(sequence_numbers))
+
+
+class TestListForSessions:
+    """
+    ADM-001, Decision 4 (`Plan_S11_ADM-001.md`): `MessageRepository.
+    list_for_sessions`'s batched, per-session-grouped transcript lookup
+    -- `SearchRequestService.list_pending_manual_matches`'s own
+    mechanism for attaching each pending assignment's transcript in a
+    single query.
+    """
+
+    async def test_correct_grouping_and_ordering_across_two_sessions(
+        self, db_session
+    ) -> None:
+        user_a = await _create_user(db_session, "701000050")
+        user_b = await _create_user(db_session, "701000051")
+        await _seed_category(db_session)
+        service = _make_service(db_session)
+
+        started_a = await service.start_conversation(
+            user_a.id, message="Session A turn 1"
+        )
+        started_b = await service.start_conversation(
+            user_b.id, message="Session B turn 1"
+        )
+        await service.submit_turn(
+            user_a.id, started_a.session.id, content="Session A turn 2"
+        )
+
+        message_repo = MessageRepository(db_session)
+        by_session = await message_repo.list_for_sessions(
+            [started_a.session.id, started_b.session.id]
+        )
+
+        session_a_messages = by_session[started_a.session.id]
+        session_b_messages = by_session[started_b.session.id]
+        assert all(
+            m.conversation_session_id == started_a.session.id
+            for m in session_a_messages
+        )
+        assert all(
+            m.conversation_session_id == started_b.session.id
+            for m in session_b_messages
+        )
+        assert session_a_messages[0].content == "Session A turn 1"
+        session_a_seqs = [m.sequence_number for m in session_a_messages]
+        assert session_a_seqs == sorted(session_a_seqs)
+        # The no-cross-contamination proof: session A has strictly more
+        # turns than session B, and neither's messages leak into the
+        # other's group.
+        assert len(session_a_messages) > len(session_b_messages)
+
+    async def test_soft_deleted_messages_are_excluded(self, db_session) -> None:
+        user = await _create_user(db_session, "701000052")
+        await _seed_category(db_session)
+        service = _make_service(db_session)
+        started = await service.start_conversation(
+            user.id, message="Original answer"
+        )
+
+        message_repo = MessageRepository(db_session)
+        transcript_before = list(
+            await message_repo.list_for_session(started.session.id)
+        )
+        await message_repo.delete_after_sequence(
+            started.session.id, transcript_before[0].sequence_number
+        )
+        await db_session.commit()
+
+        by_session = await message_repo.list_for_sessions([started.session.id])
+
+        remaining_ids = {m.id for m in by_session[started.session.id]}
+        deleted_ids = {m.id for m in transcript_before[1:]}
+        assert remaining_ids.isdisjoint(deleted_ids)
+
+    async def test_an_empty_input_list_returns_an_empty_dict(
+        self, db_session
+    ) -> None:
+        message_repo = MessageRepository(db_session)
+
+        result = await message_repo.list_for_sessions([])
+
+        assert result == {}

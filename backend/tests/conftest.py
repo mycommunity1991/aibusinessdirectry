@@ -151,6 +151,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         AdminActionLog,
         ClaimReviewRequest,
         ManualMatchAssignment,
+        UnmatchedQueryReport,
     )
     from app.modules.audit.models import AuditLog
     from app.modules.category.models import (
@@ -214,6 +215,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             OutcomeTag,
             ContactView,
             ProviderMatch,
+            UnmatchedQueryReport,
             SearchEventLog,
             SearchRequest,
             ConfidenceScore,

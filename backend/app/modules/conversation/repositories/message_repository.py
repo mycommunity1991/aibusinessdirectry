@@ -52,6 +52,41 @@ class MessageRepository(BaseRepository[Message]):
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def list_for_sessions(
+        self, session_ids: list[uuid.UUID]
+    ) -> dict[uuid.UUID, list[Message]]:
+        """
+        Batched transcript lookup across multiple sessions at once
+        (ADM-001, Decision 4, `Plan_S11_ADM-001.md`) -- `SearchRequest
+        Service.list_pending_manual_matches`'s own mechanism for
+        attaching each pending assignment's transcript in a single
+        query, never N+1. Mirrors `list_for_session`'s single-session
+        filtering/ordering (excludes soft-deleted rows, orders by
+        `sequence_number` ascending), grouped per session. An empty
+        `session_ids` list returns an empty dict without issuing a
+        query.
+        """
+        if not session_ids:
+            return {}
+        stmt = (
+            select(Message)
+            .where(
+                Message.conversation_session_id.in_(session_ids),
+                Message.is_active.is_(True),
+            )
+            .order_by(
+                Message.conversation_session_id.asc(),
+                Message.sequence_number.asc(),
+            )
+        )
+        result = await self.session.execute(stmt)
+        messages_by_session: dict[uuid.UUID, list[Message]] = {
+            session_id: [] for session_id in session_ids
+        }
+        for message in result.scalars().all():
+            messages_by_session[message.conversation_session_id].append(message)
+        return messages_by_session
+
     async def get_next_sequence_number(self, conversation_session_id: uuid.UUID) -> int:
         """The next available `sequence_number` for a session -- `1` for
         a brand-new session's first message, otherwise one past the

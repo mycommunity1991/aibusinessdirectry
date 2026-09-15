@@ -1,6 +1,9 @@
 from fastapi import APIRouter
 
 from app.api.v1.endpoints.health import router as health_router
+from app.modules.administration.api import (
+    router as admin_unmatched_query_report_router,
+)
 from app.modules.contact.api import router as contact_router
 from app.modules.contact.provider_lead_api import router as provider_lead_router
 from app.modules.contact.provider_visibility_api import (
@@ -42,6 +45,9 @@ v1_router.include_router(conversation_router, prefix="/conversations")
 v1_router.include_router(search_request_router, prefix="/search-requests")
 v1_router.include_router(
     admin_manual_match_router, prefix="/admin/search/manual-matches"
+)
+v1_router.include_router(
+    admin_unmatched_query_report_router, prefix="/admin/unmatched-query-reports"
 )
 v1_router.include_router(contact_router, prefix="/contact-views")
 v1_router.include_router(review_router, prefix="/contact-views")

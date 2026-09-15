@@ -42,6 +42,8 @@ from app.core.exceptions.exceptions import (
     SelfDealingContactError,
     SessionNotFoundError,
     SubtypeDetailsMismatchError,
+    UnmatchedQueryReportInvalidTransitionError,
+    UnmatchedQueryReportNotFoundError,
     VerificationDocumentInvalidTypeError,
     VerificationDocumentNotFoundError,
     VerificationDocumentRequiredError,
@@ -98,4 +100,6 @@ __all__ = [
     "OutcomeTagAlreadyExistsError",
     "ReviewAnchorNotVerifiedError",
     "ReviewAlreadyExistsError",
+    "UnmatchedQueryReportNotFoundError",
+    "UnmatchedQueryReportInvalidTransitionError",
 ]

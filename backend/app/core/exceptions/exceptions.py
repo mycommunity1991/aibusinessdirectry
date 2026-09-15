@@ -762,3 +762,36 @@ class ReviewAlreadyExistsError(BusinessException):
 
     def __init__(self, message: str = "A review was already submitted."):
         super().__init__(message=message, status_code=409)
+
+
+class UnmatchedQueryReportNotFoundError(BusinessException):
+    """
+    Raised by `UnmatchedQueryReportService` (ADM-001, Decision 6,
+    `Plan_S11_ADM-001.md`) when an `unmatched_query_reports` row does not
+    exist for the given id -- mirrors `ManualMatchAssignmentNotFoundError`/
+    `ClaimReviewRequestNotFoundError`'s identical 404 shape.
+    """
+
+    def __init__(self, message: str = "Unmatched query report not found."):
+        super().__init__(message=message, status_code=404)
+
+
+class UnmatchedQueryReportInvalidTransitionError(BusinessException):
+    """
+    Raised by `UnmatchedQueryReportService.mark_reviewed`/`mark_actioned`
+    (ADM-001, Decision 8) when the report's current `status` does not
+    allow the requested transition (a repeat call, or an attempted
+    backward move) -- mirrors `ManualMatchAssignmentAlreadyResolvedError`'s
+    409 shape (`ADR-053`'s "reuse for an identical underlying reason,
+    add new only for a genuinely distinct reason": both failure paths
+    here collapse to "this transition isn't valid from the report's
+    current status", so one exception covers both entry points).
+    """
+
+    def __init__(
+        self,
+        message: str = (
+            "This status transition is not valid from the report's current status."
+        ),
+    ):
+        super().__init__(message=message, status_code=409)

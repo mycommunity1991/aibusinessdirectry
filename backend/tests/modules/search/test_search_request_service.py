@@ -21,7 +21,10 @@ from app.core.exceptions import (
     ManualMatchAssignmentNotFoundError,
     SearchRequestNotFoundError,
 )
-from app.modules.administration.models import ManualMatchAssignment
+from app.modules.administration.models import (
+    ManualMatchAssignment,
+    UnmatchedQueryReport,
+)
 from app.modules.search.models import ProviderMatch, SearchEventLog, SearchRequestStatus
 
 from ._helpers import (
@@ -174,6 +177,191 @@ class TestHandleSessionCompletedAutomatedPath:
 
         assert search_request.category_id is None
         assert search_request.status == SearchRequestStatus.PENDING_MANUAL_MATCH
+
+
+class TestUnmatchedQueryReportCreation:
+    """
+    ADM-001, Decision 2 (`Plan_S11_ADM-001.md`): `_finalize_matches`'s
+    write-time hook -- a strict 1:1 `unmatched_query_reports` row for
+    every unmatched `search_event_log` row, and exactly zero for a
+    matched one, regardless of which path (automated or manual)
+    resolved it.
+    """
+
+    async def test_an_unmatched_automated_resolution_creates_exactly_one_report(
+        self, db_session
+    ) -> None:
+        user = await create_user(db_session, "920000060")
+        profile = await create_customer_profile(db_session, user)
+        category = await create_category(db_session, name="Electrical")
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        search_request = await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="completed",
+            category_id=category.id,
+            category_name="Electrical",
+            structured_criteria={"category_id": str(category.id), "answers": []},
+        )
+        await db_session.commit()
+
+        log_result = await db_session.execute(
+            select(SearchEventLog).where(
+                SearchEventLog.search_request_id == search_request.id
+            )
+        )
+        log = log_result.scalar_one()
+
+        report_result = await db_session.execute(
+            select(UnmatchedQueryReport).where(
+                UnmatchedQueryReport.search_event_log_id == log.id
+            )
+        )
+        reports = report_result.scalars().all()
+        assert len(reports) == 1
+        assert reports[0].status == "open"
+
+    async def test_a_matched_automated_resolution_creates_zero_reports(
+        self, db_session
+    ) -> None:
+        """The negative case, explicitly asserted -- a matched
+        resolution must never create an `unmatched_query_reports` row."""
+        user = await create_user(db_session, "920000061")
+        profile = await create_customer_profile(db_session, user)
+        await create_default_address(db_session, profile.id)
+        category = await create_category(db_session, name="Plumbing")
+        await create_discoverable_provider(db_session, category_label="Plumbing")
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        search_request = await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="completed",
+            category_id=category.id,
+            category_name="Plumbing",
+            structured_criteria={"category_id": str(category.id), "answers": []},
+        )
+        await db_session.commit()
+
+        log_result = await db_session.execute(
+            select(SearchEventLog).where(
+                SearchEventLog.search_request_id == search_request.id
+            )
+        )
+        log = log_result.scalar_one()
+
+        report_result = await db_session.execute(
+            select(UnmatchedQueryReport).where(
+                UnmatchedQueryReport.search_event_log_id == log.id
+            )
+        )
+        assert report_result.scalars().all() == []
+
+    async def test_a_manual_resolution_with_an_empty_provider_list_creates_one_report(
+        self, db_session
+    ) -> None:
+        user = await create_user(db_session, "920000062")
+        profile = await create_customer_profile(db_session, user)
+        category = await create_category(db_session, name="Plumbing")
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="routed_to_admin",
+            category_id=category.id,
+            category_name="Plumbing",
+            structured_criteria=None,
+        )
+        await db_session.commit()
+
+        assignment_result = await db_session.execute(
+            select(ManualMatchAssignment).where(
+                ManualMatchAssignment.conversation_session_id == session.id
+            )
+        )
+        assignment = assignment_result.scalar_one()
+        admin = await create_user(db_session, "920000063")
+
+        resolved = await service.resolve_manual_match(
+            assignment.id, admin_user_id=admin.id, provider_ids=[]
+        )
+        await db_session.commit()
+
+        log_result = await db_session.execute(
+            select(SearchEventLog).where(
+                SearchEventLog.search_request_id == resolved.id
+            )
+        )
+        log = log_result.scalar_one()
+
+        report_result = await db_session.execute(
+            select(UnmatchedQueryReport).where(
+                UnmatchedQueryReport.search_event_log_id == log.id
+            )
+        )
+        assert len(report_result.scalars().all()) == 1
+
+    async def test_a_manual_resolution_with_provider_ids_creates_zero_reports(
+        self, db_session
+    ) -> None:
+        user = await create_user(db_session, "920000064")
+        profile = await create_customer_profile(db_session, user)
+        category = await create_category(db_session, name="Plumbing")
+        provider = await create_discoverable_provider(
+            db_session, category_label="Plumbing"
+        )
+        session = await create_conversation_session(
+            db_session, profile.id, category_id=category.id
+        )
+        service = make_search_request_service(db_session)
+
+        await service.handle_session_completed(
+            conversation_session_id=session.id,
+            customer_id=profile.id,
+            status="routed_to_admin",
+            category_id=category.id,
+            category_name="Plumbing",
+            structured_criteria=None,
+        )
+        await db_session.commit()
+
+        assignment_result = await db_session.execute(
+            select(ManualMatchAssignment).where(
+                ManualMatchAssignment.conversation_session_id == session.id
+            )
+        )
+        assignment = assignment_result.scalar_one()
+        admin = await create_user(db_session, "920000065")
+
+        resolved = await service.resolve_manual_match(
+            assignment.id, admin_user_id=admin.id, provider_ids=[provider.id]
+        )
+        await db_session.commit()
+
+        log_result = await db_session.execute(
+            select(SearchEventLog).where(
+                SearchEventLog.search_request_id == resolved.id
+            )
+        )
+        log = log_result.scalar_one()
+
+        report_result = await db_session.execute(
+            select(UnmatchedQueryReport).where(
+                UnmatchedQueryReport.search_event_log_id == log.id
+            )
+        )
+        assert report_result.scalars().all() == []
 
 
 class TestMeritRankingPersistence:

@@ -18,9 +18,16 @@ actually runs, against the same real Postgres database, on every
 from app.modules.administration.repositories.manual_match_assignment_repository import (
     ManualMatchAssignmentRepository,
 )
+from app.modules.administration.repositories.unmatched_query_report_repository import (
+    UnmatchedQueryReportRepository,
+)
 from app.modules.administration.services.manual_match_assignment_service import (
     ManualMatchAssignmentService,
 )
+from app.modules.administration.services.unmatched_query_report_service import (
+    UnmatchedQueryReportService,
+)
+from app.modules.conversation.repositories.message_repository import MessageRepository
 from app.modules.customer.repositories.customer_preferences_repository import (
     CustomerPreferencesRepository,
 )
@@ -59,6 +66,7 @@ from app.modules.search.repositories.search_event_log_repository import (
 from app.modules.search.repositories.search_request_repository import (
     SearchRequestRepository,
 )
+from app.modules.search.services.search_event_log_service import SearchEventLogService
 from app.modules.search.services.search_request_service import SearchRequestService
 from app.modules.search.services.search_service import SearchService
 
@@ -98,6 +106,10 @@ def make_search_request_service(db_session) -> SearchRequestService:
     manual_match_assignment_service = ManualMatchAssignmentService(
         ManualMatchAssignmentRepository(db_session)
     )
+    unmatched_query_report_service = UnmatchedQueryReportService(
+        UnmatchedQueryReportRepository(db_session),
+        SearchEventLogService(SearchEventLogRepository(db_session)),
+    )
     provider_service = _make_provider_service(db_session)
     search_service = SearchService(provider_service=provider_service)
 
@@ -110,4 +122,6 @@ def make_search_request_service(db_session) -> SearchRequestService:
         saved_address_service=saved_address_service,
         manual_match_assignment_service=manual_match_assignment_service,
         customer_service=customer_service,
+        message_repository=MessageRepository(db_session),
+        unmatched_query_report_service=unmatched_query_report_service,
     )

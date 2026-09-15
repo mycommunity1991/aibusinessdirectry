@@ -19,6 +19,7 @@ from app.core.constants import ROLE_ADMIN, ROLE_CUSTOMER
 from app.core.security import create_access_token
 from app.database.session import get_db
 from app.main import app
+from app.modules.conversation.models import Message, MessageSender
 from app.modules.identity.models import User
 from app.modules.search.models import SearchEventLog
 
@@ -108,6 +109,24 @@ async def _create_pending_manual_match(db_session, user: User):
     )
     assignment = result.scalar_one()
     return search_request, assignment
+
+
+async def _add_messages(
+    db_session, conversation_session_id: uuid.UUID, contents: list[str]
+) -> None:
+    """Adds a real, ordered transcript to a session (ADM-001, Decision 3,
+    `Plan_S11_ADM-001.md`) -- alternating customer/AI senders."""
+    for index, content in enumerate(contents, start=1):
+        sender = MessageSender.CUSTOMER if index % 2 == 1 else MessageSender.AI
+        db_session.add(
+            Message(
+                conversation_session_id=conversation_session_id,
+                sender=sender,
+                content=content,
+                sequence_number=index,
+            )
+        )
+    await db_session.commit()
 
 
 class TestGetSearchRequestAuthorization:
@@ -269,6 +288,102 @@ class TestAdminListPendingManualMatches:
         assert body["pagination"]["total_items"] == 1
         assert body["data"][0]["id"] == str(assignment.id)
         assert body["data"][0]["status"] == "pending"
+
+    async def test_each_assignment_includes_its_own_session_transcript(
+        self, client: TestClient, db_session
+    ) -> None:
+        """AC2: the list endpoint's `transcript` field genuinely reflects
+        each assignment's own session's real messages, oldest first."""
+        user = await create_user(db_session, "930000032")
+        admin = await create_user(db_session, "930000033")
+        search_request, assignment = await _create_pending_manual_match(
+            db_session, user
+        )
+        await _add_messages(
+            db_session,
+            search_request.conversation_session_id,
+            ["I need a plumber", "What area are you in?", "Downtown Dubai"],
+        )
+
+        response = client.get(
+            "/api/v1/admin/search/manual-matches",
+            headers=_headers(admin.id, [ROLE_ADMIN]),
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        row = next(item for item in body["data"] if item["id"] == str(assignment.id))
+        assert [m["content"] for m in row["transcript"]] == [
+            "I need a plumber",
+            "What area are you in?",
+            "Downtown Dubai",
+        ]
+        assert [m["sequence_number"] for m in row["transcript"]] == [1, 2, 3]
+
+    async def test_a_session_with_no_messages_has_an_empty_transcript(
+        self, client: TestClient, db_session
+    ) -> None:
+        user = await create_user(db_session, "930000034")
+        admin = await create_user(db_session, "930000035")
+        _search_request, assignment = await _create_pending_manual_match(
+            db_session, user
+        )
+
+        response = client.get(
+            "/api/v1/admin/search/manual-matches",
+            headers=_headers(admin.id, [ROLE_ADMIN]),
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        row = next(item for item in body["data"] if item["id"] == str(assignment.id))
+        assert row["transcript"] == []
+
+    async def test_one_assignments_transcript_never_contains_anothers_messages(
+        self, client: TestClient, db_session
+    ) -> None:
+        """The batching correctness check -- `list_for_sessions` groups
+        every session's messages in one query, never leaking across
+        sessions."""
+        user_a = await create_user(db_session, "930000036")
+        user_b = await create_user(db_session, "930000037")
+        admin = await create_user(db_session, "930000038")
+        search_request_a, assignment_a = await _create_pending_manual_match(
+            db_session, user_a
+        )
+        search_request_b, assignment_b = await _create_pending_manual_match(
+            db_session, user_b
+        )
+        await _add_messages(
+            db_session,
+            search_request_a.conversation_session_id,
+            ["Assignment A's first message"],
+        )
+        await _add_messages(
+            db_session,
+            search_request_b.conversation_session_id,
+            ["Assignment B's first message"],
+        )
+
+        response = client.get(
+            "/api/v1/admin/search/manual-matches?page_size=50",
+            headers=_headers(admin.id, [ROLE_ADMIN]),
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        row_a = next(
+            item for item in body["data"] if item["id"] == str(assignment_a.id)
+        )
+        row_b = next(
+            item for item in body["data"] if item["id"] == str(assignment_b.id)
+        )
+        assert [m["content"] for m in row_a["transcript"]] == [
+            "Assignment A's first message"
+        ]
+        assert [m["content"] for m in row_b["transcript"]] == [
+            "Assignment B's first message"
+        ]
 
 
 class TestAdminResolveManualMatch:

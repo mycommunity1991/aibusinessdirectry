@@ -121,7 +121,7 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
     unless the schema namespace itself already exists, even though none
     of its tables are created here.
 
-    One further, table-level (not schema-level) exclusion is needed:
+    Two further, table-level (not schema-level) exclusions are needed:
     `administration.manual_match_assignments` (AI-002) lives in the
     *included* `administration` schema, but has its own real FKs into
     both excluded schemas (`conversation.conversation_sessions`,
@@ -131,6 +131,10 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
     `administration`, since `admin_action_log`/`claim_review_requests`
     (the schema's other two tables) have no such cross-schema FK and are
     still needed, unmodified, by tests elsewhere in this fixture's scope.
+    `administration.unmatched_query_reports` (ADM-001,
+    `Plan_S11_ADM-001.md`) is excluded for the identical reason: its own
+    real, unique FK into the excluded `search.search_event_log` would
+    fail here the same way.
 
     `contact` (CON-001) is excluded the same way `conversation`/`search`
     are -- `contact.contact_views` has its own real FK into the excluded
@@ -161,7 +165,10 @@ async def migration_engine() -> AsyncGenerator[AsyncEngine]:
     from app.database.base import Base
 
     _excluded_schemas = {"category", "contact", "conversation", "search", "review"}
-    _excluded_table_names = {"administration.manual_match_assignments"}
+    _excluded_table_names = {
+        "administration.manual_match_assignments",
+        "administration.unmatched_query_reports",
+    }
     non_category_tables = [
         t
         for t in Base.metadata.sorted_tables

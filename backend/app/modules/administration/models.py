@@ -175,3 +175,48 @@ class ManualMatchAssignment(CommonColumnsMixin, Base):
     completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class UnmatchedQueryReport(CommonColumnsMixin, Base):
+    """
+    `administration`'s fourth aggregate root (ADM-001, Decision 1/2,
+    `Plan_S11_ADM-001.md`) -- a strict 1:1 admin-review row for every
+    `search.search_event_log` entry with `was_matched=false`, auto-
+    created by `SearchRequestService._finalize_matches` (the same shared
+    helper that writes `search_event_log` itself, Decision 2) --
+    never lazily computed at list-time.
+
+    Full `CommonColumnsMixin` (versioned, soft-deletable), matching
+    `AdminActionLog`/`ClaimReviewRequest`/`ManualMatchAssignment`'s own
+    precedent -- `04_DATABASE.md`'s Soft Delete section names only
+    `audit_logs`/`search_event_log` as exempt.
+
+    `status` is a plain `VARCHAR`, not a native Postgres enum, mirroring
+    every other administration aggregate's own convention -- `open` ->
+    `reviewed`/`actioned` (forward-only, Decision 8).
+    """
+
+    __tablename__ = "unmatched_query_reports"
+    __table_args__ = (
+        Index("idx_unmatched_query_reports_status", "status"),
+        {"schema": SCHEMA},
+    )
+
+    search_event_log_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{_SEARCH_SCHEMA}.search_event_log.id"),
+        nullable=False,
+        unique=True,
+    )
+    category_gap_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default=text("'open'")
+    )
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey(f"{_IDENTITY_SCHEMA}.users.id"),
+        nullable=True,
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

@@ -8,10 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.session import get_db
 from app.modules.administration.dependencies import (
     get_manual_match_assignment_service,
+    get_unmatched_query_report_service,
 )
 from app.modules.administration.services.manual_match_assignment_service import (
     ManualMatchAssignmentService,
 )
+from app.modules.administration.services.unmatched_query_report_service import (
+    UnmatchedQueryReportService,
+)
+from app.modules.conversation.repositories.message_repository import MessageRepository
 from app.modules.customer.dependencies import (
     get_customer_service,
     get_saved_address_service,
@@ -29,6 +34,7 @@ from app.modules.search.repositories.search_event_log_repository import (
 from app.modules.search.repositories.search_request_repository import (
     SearchRequestRepository,
 )
+from app.modules.search.services.search_event_log_service import SearchEventLogService
 from app.modules.search.services.search_request_service import SearchRequestService
 from app.modules.search.services.search_service import SearchService
 
@@ -71,6 +77,38 @@ def get_search_event_log_repository(
     return SearchEventLogRepository(db)
 
 
+def get_search_event_log_service(
+    search_event_log_repository: Annotated[
+        SearchEventLogRepository, Depends(get_search_event_log_repository)
+    ],
+) -> SearchEventLogService:
+    """Provides a `SearchEventLogService` bound to the request-scoped DB
+    session (ADM-001, Decision 6, `Plan_S11_ADM-001.md`) -- imported
+    directly (not via this file) by `administration/dependencies.py`'s
+    own `_get_search_event_log_service_for_administration`, to avoid a
+    circular import; this provider exists for consistency with every
+    other `get_*_service` provider in this file and for any future
+    `search`-internal caller."""
+    return SearchEventLogService(search_event_log_repository)
+
+
+def get_message_repository(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> MessageRepository:
+    """
+    Provides a `MessageRepository` bound to the request-scoped DB
+    session (ADM-001, Decision 4, `Plan_S11_ADM-001.md`) -- constructs
+    `conversation.repositories.message_repository.MessageRepository`
+    directly, **never** importing `conversation.dependencies`/
+    `conversation.services`, since `conversation.dependencies` already
+    imports `get_search_request_service` from *this* file -- a
+    same-direction import back would be a genuine circular import.
+    `conversation.repositories.message_repository` is a leaf module with
+    no edge back into `search`, so this is safe.
+    """
+    return MessageRepository(db)
+
+
 def get_search_request_service(
     search_request_repository: Annotated[
         SearchRequestRepository, Depends(get_search_request_repository)
@@ -90,15 +128,23 @@ def get_search_request_service(
         ManualMatchAssignmentService, Depends(get_manual_match_assignment_service)
     ],
     customer_service: Annotated[CustomerService, Depends(get_customer_service)],
+    message_repository: Annotated[MessageRepository, Depends(get_message_repository)],
+    unmatched_query_report_service: Annotated[
+        UnmatchedQueryReportService, Depends(get_unmatched_query_report_service)
+    ],
 ) -> SearchRequestService:
     """
     Provides a `SearchRequestService` bound to the request-scoped DB
     session (AI-002, Decision 1) -- wires in `customer.
     SavedAddressService`/`CustomerService` (`search -> customer`) and
-    `administration.ManualMatchAssignmentService` (`search ->
-    administration`) as cross-module, constructor-injected dependencies,
-    alongside the already-shipped `SearchService`/`ProviderService`
-    (`search -> provider`, DIR-001, reused unchanged -- Decision 5).
+    `administration.ManualMatchAssignmentService`/`administration.
+    UnmatchedQueryReportService` (`search -> administration`, the second
+    added by ADM-001, Decision 2, `Plan_S11_ADM-001.md`) as cross-module,
+    constructor-injected dependencies, alongside the already-shipped
+    `SearchService`/`ProviderService` (`search -> provider`, DIR-001,
+    reused unchanged -- Decision 5). `message_repository` (ADM-001,
+    Decision 4) is `search`'s only import from `conversation`, wired via
+    `get_message_repository` above -- never `conversation.dependencies`.
     """
     return SearchRequestService(
         search_request_repository=search_request_repository,
@@ -109,4 +155,6 @@ def get_search_request_service(
         saved_address_service=saved_address_service,
         manual_match_assignment_service=manual_match_assignment_service,
         customer_service=customer_service,
+        message_repository=message_repository,
+        unmatched_query_report_service=unmatched_query_report_service,
     )

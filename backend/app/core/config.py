@@ -194,6 +194,12 @@ class Settings(BaseSettings):
     # which has its own dedicated zero-baseline handling instead.
     VISIBILITY_ANALYTICS_TREND_FLAT_THRESHOLD_PCT: float = 10.0
 
+    # Unmatched query reports (ADM-001, Backend Proposed Changes item 15,
+    # `Plan_S11_ADM-001.md`) -- the fifth instance of this codebase's
+    # established per-domain page-size-cap pattern (`SEARCH_MAX_PAGE_
+    # SIZE`/`CLAIM_SEARCH_MAX_PAGE_SIZE`/`LEADS_MAX_PAGE_SIZE`).
+    UNMATCHED_QUERY_REPORT_MAX_PAGE_SIZE: int = 50
+
     # Config dict to support loading from parent .env or current .env
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

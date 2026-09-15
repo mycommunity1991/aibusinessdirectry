@@ -23,6 +23,8 @@ from app.core.config import settings
 from app.core.constants import ROLE_ADMIN
 from app.database.session import get_db
 from app.modules.administration.models import ManualMatchAssignment
+from app.modules.conversation.models import Message
+from app.modules.conversation.schemas import message_to_response
 from app.modules.search.dependencies import get_search_request_service
 from app.modules.search.schemas import (
     ManualMatchAssignmentSummaryResponse,
@@ -43,6 +45,7 @@ _DEFAULT_PAGE_SIZE = 20
 
 def _to_summary(
     assignment: ManualMatchAssignment,
+    transcript: list[Message],
 ) -> ManualMatchAssignmentSummaryResponse:
     return ManualMatchAssignmentSummaryResponse(
         id=assignment.id,
@@ -50,6 +53,7 @@ def _to_summary(
         search_request_id=assignment.search_request_id,
         status=assignment.status,
         created_at=assignment.created_at,
+        transcript=[message_to_response(message) for message in transcript],
     )
 
 
@@ -64,9 +68,9 @@ def _to_summary(
     summary="List Pending Manual Match Assignments",
     description=(
         "Lists `status=pending` assignments (AC2), oldest first -- the "
-        "pull-based 'notify an admin' mechanism (Decision 3). Does not "
-        "include the session's `messages` transcript (out of this "
-        "story's scope, `ADM-001`'s job)."
+        "pull-based 'notify an admin' mechanism (Decision 3) -- with "
+        "each assignment's underlying conversation transcript embedded "
+        "for context (`ADM-001`, Decision 3/4)."
     ),
 )
 async def list_pending_manual_matches(
@@ -80,9 +84,14 @@ async def list_pending_manual_matches(
         get_search_request_service
     ),
 ) -> CollectionResponse[ManualMatchAssignmentSummaryResponse]:
-    """Returns one page of the pending manual-match queue, oldest first."""
+    """Returns one page of the pending manual-match queue, oldest first,
+    each with its session's real transcript embedded."""
     page_size = min(page_size, settings.SEARCH_MAX_PAGE_SIZE)
-    assignments, total = await search_request_service.list_pending_manual_matches(
+    (
+        assignments,
+        transcripts_by_session,
+        total,
+    ) = await search_request_service.list_pending_manual_matches(
         page=page, page_size=page_size
     )
     total_pages = math.ceil(total / page_size) if page_size > 0 else 0
@@ -90,7 +99,13 @@ async def list_pending_manual_matches(
     return CollectionResponse[ManualMatchAssignmentSummaryResponse](
         success=True,
         message="Pending manual match assignments retrieved.",
-        data=[_to_summary(assignment) for assignment in assignments],
+        data=[
+            _to_summary(
+                assignment,
+                transcripts_by_session.get(assignment.conversation_session_id, []),
+            )
+            for assignment in assignments
+        ],
         pagination=PaginationMeta(
             page=page,
             page_size=page_size,

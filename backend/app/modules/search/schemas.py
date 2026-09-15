@@ -11,6 +11,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
+from app.modules.conversation.schemas import MessageResponse
 from app.modules.provider.models import ProviderType
 from app.modules.search.models import SearchRequestStatus
 
@@ -111,11 +112,16 @@ class SearchRequestResultResponse(BaseModel):
 class ManualMatchAssignmentSummaryResponse(BaseModel):
     """
     One admin-queue list item for `GET /admin/search/manual-matches`
-    (AI-002, Decision 3) -- the pull-based "notify an admin" mechanism.
-    Deliberately does not include the session's `messages` transcript
-    (Explicitly Out of Scope, `Plan_S07_AI-002.md`) -- `ADM-001`'s job to
-    design; `conversation_session_id` is included so a future admin UI
-    has everything it needs to add that later.
+    (AI-002, Decision 3; transcript added by ADM-001, Decision 3/4,
+    `Plan_S11_ADM-001.md`) -- the pull-based "notify an admin" mechanism.
+
+    `transcript` embeds the session's full conversation directly in this
+    same list-item response, in place (Decision 3, precedented by
+    `verification/admin_api.py`'s own per-row context embedding) --
+    reuses `conversation.schemas.MessageResponse`/`message_to_response`
+    verbatim rather than duplicating a parallel DTO in `search`
+    (precedented by `provider/claim_api.py`'s cross-module `identity.
+    schemas.RequestOtpResponse` reuse).
     """
 
     id: uuid.UUID
@@ -123,6 +129,7 @@ class ManualMatchAssignmentSummaryResponse(BaseModel):
     search_request_id: uuid.UUID | None
     status: str
     created_at: datetime
+    transcript: list[MessageResponse] = Field(default_factory=list)
 
 
 class ResolveManualMatchRequest(BaseModel):

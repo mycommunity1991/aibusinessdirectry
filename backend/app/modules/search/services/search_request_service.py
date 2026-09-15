@@ -18,12 +18,25 @@ AI-002's Decision 5 reused this unchanged, and MAT-001's Decision 1/3,
 `Plan_S08_MAT-001.md`, extends it in place to be merit-ranked -- still
 the same shared query, never a second, divergent one, AC2), `customer.
 SavedAddressService`/`CustomerService` (`search -> customer`, Decision
-2c), and `administration.ManualMatchAssignmentService` (`search ->
-administration`, Decision 3). `search` has zero imports from
-`conversation` -- `handle_session_completed` receives plain primitives
-only (never a `ConversationSession` ORM object), and `status` is a plain
-string compared against this module's own local constants, not
-`conversation.models.ConversationStatus`.
+2c), and `administration.ManualMatchAssignmentService`/`administration.
+UnmatchedQueryReportService` (`search -> administration`, Decision 3/2
+respectively -- the second is ADM-001's write-time-hook edge,
+`Plan_S11_ADM-001.md`).
+
+`search -> conversation` (ADM-001, Decision 4, `Plan_S11_ADM-001.md`):
+the write/orchestration path (`handle_session_completed`,
+`_handle_completed`, `_handle_routed_to_admin`, `_finalize_matches`,
+`resolve_manual_match`) still has zero imports from `conversation` and
+still receives only plain primitives (AI-002's original guarantee,
+unchanged) -- `status` remains a plain string compared against this
+module's own local constants, never `conversation.models.
+ConversationStatus`. `search`'s *only* import from `conversation` is
+`conversation.repositories.message_repository.MessageRepository`, a raw
+Repository (not `ConversationService`, to avoid a genuine circular
+import -- `conversation.dependencies` already imports `search.
+dependencies.get_search_request_service`), used exclusively by the
+read-only admin-transcript path (`list_pending_manual_matches`) --
+never `conversation.services`/`conversation.dependencies`.
 """
 
 import math
@@ -41,6 +54,11 @@ from app.modules.administration.models import ManualMatchAssignment
 from app.modules.administration.services.manual_match_assignment_service import (
     ManualMatchAssignmentService,
 )
+from app.modules.administration.services.unmatched_query_report_service import (
+    UnmatchedQueryReportService,
+)
+from app.modules.conversation.models import Message
+from app.modules.conversation.repositories.message_repository import MessageRepository
 from app.modules.customer.models import SavedAddress
 from app.modules.customer.services.customer_service import CustomerService
 from app.modules.customer.services.saved_address_service import SavedAddressService
@@ -102,6 +120,8 @@ class SearchRequestService:
         saved_address_service: SavedAddressService,
         manual_match_assignment_service: ManualMatchAssignmentService,
         customer_service: CustomerService,
+        message_repository: MessageRepository,
+        unmatched_query_report_service: UnmatchedQueryReportService,
     ) -> None:
         self.search_request_repository = search_request_repository
         self.provider_match_repository = provider_match_repository
@@ -111,6 +131,16 @@ class SearchRequestService:
         self.saved_address_service = saved_address_service
         self.manual_match_assignment_service = manual_match_assignment_service
         self.customer_service = customer_service
+        # Decision 4 (`Plan_S11_ADM-001.md`): the *only* `search ->
+        # conversation` edge, a raw Repository (never `ConversationService`)
+        # to avoid a genuine circular import, scoped strictly to the
+        # read-only admin-transcript path (`list_pending_manual_matches`).
+        self.message_repository = message_repository
+        # Decision 2 (`Plan_S11_ADM-001.md`): a second `search ->
+        # administration` service edge, alongside the existing
+        # `ManualMatchAssignmentService` one -- used only by
+        # `_finalize_matches`'s write-time hook.
+        self.unmatched_query_report_service = unmatched_query_report_service
 
     async def handle_session_completed(
         self,
@@ -244,13 +274,24 @@ class SearchRequestService:
 
     async def list_pending_manual_matches(
         self, *, page: int, page_size: int
-    ) -> tuple[list[ManualMatchAssignment], int]:
-        """Thin pass-through to `ManualMatchAssignmentService.
-        list_pending` (Decision 3) -- lets `search/api.py`'s admin route
-        depend only on this module's own service."""
-        return await self.manual_match_assignment_service.list_pending(
+    ) -> tuple[list[ManualMatchAssignment], dict[uuid.UUID, list[Message]], int]:
+        """
+        Fetches the pending-assignment page from `ManualMatchAssignment
+        Service.list_pending` (Decision 3), then batch-fetches every
+        assignment's own session transcript via `MessageRepository.
+        list_for_sessions` in one query (Decision 3/4, `ADM-001`,
+        `Plan_S11_ADM-001.md`) -- page size is capped, so this remains a
+        single batched query, never N+1. Lets `search/admin_manual_
+        match_api.py`'s admin route depend only on this module's own
+        service.
+        """
+        assignments, total = await self.manual_match_assignment_service.list_pending(
             page=page, page_size=page_size
         )
+        transcripts_by_session = await self.message_repository.list_for_sessions(
+            [assignment.conversation_session_id for assignment in assignments]
+        )
+        return assignments, transcripts_by_session, total
 
     async def resolve_manual_match(
         self,
@@ -433,7 +474,7 @@ class SearchRequestService:
         updated = await self.search_request_repository.update_status(
             search_request, final_status
         )
-        await self.search_event_log_repository.create(
+        search_event_log = await self.search_event_log_repository.create(
             {
                 "search_request_id": updated.id,
                 "customer_id": updated.customer_id,
@@ -443,6 +484,16 @@ class SearchRequestService:
                 "was_matched": bool(ranked_matches),
             }
         )
+        # Decision 2 (`ADM-001`, `Plan_S11_ADM-001.md`): a strict 1:1
+        # `unmatched_query_reports` row for every unmatched
+        # `search_event_log` row, guaranteed at this one shared write
+        # site -- both the automated and manual paths funnel through
+        # `_finalize_matches`, so a report can never be missed or
+        # double-created.
+        if not ranked_matches:
+            await self.unmatched_query_report_service.create(
+                search_event_log_id=search_event_log.id
+            )
         return updated
 
     async def _get_default_address(self, customer_id: uuid.UUID) -> SavedAddress | None:

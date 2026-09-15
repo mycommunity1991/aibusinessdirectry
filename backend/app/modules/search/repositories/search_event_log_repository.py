@@ -1,3 +1,6 @@
+import uuid
+
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.search.models import SearchEventLog
@@ -16,3 +19,16 @@ class SearchEventLogRepository(BaseRepository[SearchEventLog]):
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(model=SearchEventLog, session=session)
+
+    async def list_by_ids(self, ids: list[uuid.UUID]) -> list[SearchEventLog]:
+        """
+        Batch lookup by id (ADM-001, Decision 6) -- backs `search
+        EventLogService.get_by_ids`'s keyed enrichment of an
+        `unmatched_query_reports` page. An empty `ids` list short-
+        circuits to `[]` without issuing a query.
+        """
+        if not ids:
+            return []
+        stmt = select(SearchEventLog).where(SearchEventLog.id.in_(ids))
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
