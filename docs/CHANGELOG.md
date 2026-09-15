@@ -11,6 +11,46 @@ Current Version: 0.1.0 (Pre-MVP)
 ## [Unreleased]
 
 ### Added
+- Understand my listing visibility (Story LEAD-002, Sprint 10 / Milestone ML10's second and final story — **this
+  completes Sprint 10 and Milestone ML10 in full**): a new, read-only `VisibilityAnalyticsService`/`GET
+  /providers/me/visibility-analytics` slice of the existing `contact` domain module (its fourth capability) —
+  **zero new tables, zero new columns, zero new migration** — surfacing `CON-001`'s `contact_views` and
+  `AI-002`'s `search.provider_matches` as two headline stats (search appearances, contact views) plus a 30-day
+  daily trend chart. Unlike `LEAD-001` (one clearly dominant owning module), this story's data ownership split
+  50/50 between `contact` and `search`, resolved via a new **dependency-direction-symmetry** tiebreaker
+  extending `ADR-054`'s module-placement rule to the "no single owner" case: `contact` already held a
+  one-directional edge toward `search` (established by `LEAD-001`), so extending `contact` again needed only one
+  more edge in that same direction (`search.ProviderMatchRepository`, a second `ADR-047` raw-Repository
+  exception) rather than inventing a brand-new, opposite-direction `search → contact` edge with no precedent
+  anywhere in this codebase (**ADR-056**). The AC's literal text named `search_event_log` as a source table for
+  "search appearances," but that table has no `provider_id` column at all and cannot answer a per-provider
+  question — corrected to source that stat from `search.provider_matches` instead (same already-shipped
+  `search` schema, written in the same `_finalize_matches` operation, zero new tables — a table-reference
+  correction, not a data-availability gap, per this codebase's existing anti-fabrication discipline, `ADR-038`).
+  A three-state `up`/`down`/`flat` trend enum (a new `VISIBILITY_ANALYTICS_TREND_FLAT_THRESHOLD_PCT` config
+  default `10.0`) compares the current 30-day window against the immediately preceding one, never fabricating a
+  percentage against a zero baseline; `has_sufficient_data` is an explicit server-computed boolean gating a
+  "not enough data yet" state, never left for the mobile client to infer from zero values. On mobile, a new
+  `features/visibility_analytics/` module delivers the Visibility Analytics screen and `VisibilityTrendChart`, a
+  small, dependency-free `CustomPainter`-based dual-series chart — **this codebase's first chart of any kind,
+  shipped without adding a new charting dependency** — plus a third Storefront entry-point card. **`tester`
+  found one real bug**: the headline 30-day total and the 30-day chart series were computed from two
+  independently-derived time windows (an exact-instant anchor for the headline, a calendar-day anchor for the
+  chart), which could disagree by up to a few hours' worth of events near a day boundary — caught with a
+  genuinely reproducing fixture, not a theoretical concern, and fixed by aligning the headline window's start
+  boundary to the same calendar-day boundary the chart already used, so both are now computed from one shared
+  window-boundary calculation. **`architect`'s subsequent review then found one further, non-blocking gap the
+  fix itself exposed**: the new `date_trunc('day', ...)` day-bucketing queries (this codebase's first such
+  queries) relied implicitly on the database session's timezone GUC rather than pinning UTC explicitly, a latent
+  risk of silently reintroducing the same divergence via a future config difference — fixed by pinning UTC
+  explicitly in both queries. Both principles (shared window-boundary computation between two views of the same
+  data; explicit UTC-pinning for day-bucketing SQL) are now recorded as a shared precedent (**ADR-057**). Both
+  fix rounds independently re-verified with zero regressions. Final counts: 821/821 backend tests (783 baseline
+  + 38 net new across both fix rounds), 280/280 mobile tests (257 baseline + 23 new). See
+  `docs/implementation/walkthroughs/Walkthrough_S10_LEAD-002.md` for the full account, including the anchoring
+  bug's complete narrative. **This is the second story this Sprint/Milestone to need a fix-and-recheck round**
+  (`LEAD-001` was clean on the first pass) — **Sprint 10 and Milestone ML10 are now both fully complete, 2 of 2
+  stories done.**
 - See and manage my provider leads (Story LEAD-001, Sprint 10 / Milestone ML10's first story): a new, read-only
   `LeadService`/`GET /providers/me/leads` slice of the existing `contact` domain module — **zero new tables, zero
   new columns, zero new migration** — surfacing `CON-001`'s `contact_views` and `REV-001`'s `outcome_tags` as a

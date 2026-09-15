@@ -4359,6 +4359,199 @@ View with `search_request_id = NULL`, and a second, distinct Contact View with a
 
 ---
 
+# ADR-056
+
+## Title
+
+Visibility Analytics (`LEAD-002`) Module Placement, No Single Owner: Dependency-Direction Symmetry as the
+Tiebreaker When `ADR-054`'s Rule Doesn't Resolve the Question
+
+**Date**
+
+2026-09-14
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`LEAD-002` ("understand my listing visibility") needs data from **two different modules' own schemas** in
+roughly equal measure — `contact.contact_views` (one headline stat) and `search.provider_matches` (the other
+headline stat) — with zero new schema of its own, same as `LEAD-001`. `ADR-054` had just established that a
+capability introducing no new schema at all belongs inside "whichever existing module's own data it is
+primarily a view over," but that rule assumed one module's data would clearly dominate. Here it doesn't: the
+two headline stats are symmetric, one per module, so `ADR-054`'s own test does not by itself resolve which
+module should host the new service.
+
+### Decision
+
+`VisibilityAnalyticsService`/`GET /providers/me/visibility-analytics` are added to the existing
+`backend/app/modules/contact/` module (its fourth capability), not a new standalone module and not folded into
+`search`. When a story's primary data ownership genuinely splits with no single dominant module (the "50/50"
+case `ADR-054` didn't cover), this ADR establishes **dependency-direction symmetry** as the concrete tiebreaker:
+prefer extending the module that already holds a one-directional, precedented edge toward the other module's
+schema, over the module that would need to invent a brand-new, opposite-direction edge. `contact` already held a
+one-directional edge toward `search` (`contact → search.SearchRequestRepository`, established by `LEAD-001`
+itself); `search` held zero edges toward `contact`. Extending `contact` again needed only one more edge in the
+already-established direction (a second `search`-module Repository, `ProviderMatchRepository`); building this
+inside `search` instead would have required inventing a brand-new `search → contact.ContactViewRepository` edge
+with no precedent anywhere in this codebase, and would risk the exact circular cross-module shape
+`02_ARCHITECTURE.md` prohibits if a future story ever needed the reverse direction too.
+
+### Alternatives Considered
+
+- **A new standalone `analytics`/`visibility` module.** Rejected for the same reason `ADR-054` already
+  established for `LEAD-001`: this story introduces zero new schema, so there is nothing for a new module to
+  meaningfully own — it would only relocate two existing modules' data access behind an extra hop.
+- **Folding into `search` instead**, since `provider_matches` is `search`'s own table and "search appearances"
+  reads as the more search-flavored of the two stats. Rejected — this is the reverse-direction problem: `search`
+  would need a brand-new `search → contact` edge that does not exist today and would break the codebase's
+  currently-consistent one-directional `contact → search` flow.
+- **Folding into `provider`**, since the mobile framing is "provider self-service" (the same alternative
+  `LEAD-001` considered and rejected, per `ADR-054`). Rejected for the identical reason: `provider` has no
+  existing edge to either `contact_views` or `provider_matches`; `contact` already has (or, after this story,
+  will have) both.
+
+### Consequences
+
+- `ADR-054`'s module-placement rule (zero-new-schema capability → the module that already owns the primary
+  data) now has an explicit tiebreaker for the case it didn't anticipate: when ownership splits roughly evenly
+  between two modules, extend whichever module already holds a one-directional edge toward the other, rather
+  than inventing a new edge in the opposite direction. Future zero-new-schema stories spanning two modules'
+  data should apply `ADR-051` (schema ownership) → `ADR-054` (single dominant owner) → this ADR (dependency-
+  direction symmetry), in that order, before considering a new standalone module.
+- `contact`'s `dependencies.py` gained a second raw cross-module Repository edge into `search`
+  (`search.ProviderMatchRepository`, alongside the existing `SearchRequestRepository`) under the documented
+  `ADR-047` exception, named explicitly in the docstring at implementation time (per `ADR-054`'s own closeout
+  note that this naming duty is mandatory, not optional).
+
+### Related Documents
+
+- 02_ARCHITECTURE.md (cross-module dependency direction / no-cycles rule)
+- 04_DATABASE.md (Search Domain — `provider_matches` now noting `VisibilityAnalyticsService` as a second
+  read-only consumer)
+- 09_DECISIONS.md (ADR-047 — the raw-Repository exception and its docstring-naming requirement; ADR-051 — the
+  schema-ownership placement rule; ADR-054 — the zero-new-schema/single-dominant-owner rule this ADR extends to
+  the no-single-owner case)
+- docs/implementation/plans/Plan_S10_LEAD-002.md (Decision 1)
+- docs/implementation/walkthroughs/Walkthrough_S10_LEAD-002.md
+- backend/app/modules/contact/services/visibility_analytics_service.py, dependencies.py
+
+---
+
+# ADR-057
+
+## Title
+
+Visibility Analytics (`LEAD-002`): Two Derived Views of the Same Underlying Activity Must Share One Window-
+Boundary Computation, Never Two Independently "Reasonable" Ones — Plus Explicit UTC-Pinning for Day-Bucketing SQL
+
+**Date**
+
+2026-09-14
+
+**Status**
+
+Accepted
+
+**Owner**
+
+CTO
+
+### Context
+
+`LEAD-002`'s AC1 (two headline stats) and AC2 (a 30-day trend chart) are, by construction, two different views
+over the *same* underlying 30-day window of activity — a summary total and a daily-bucketed series that must
+agree with each other for the same provider on the same request. The initial implementation computed each
+independently, each choosing its own individually reasonable anchor: the headline total's window started at
+`datetime.now(UTC) - timedelta(days=30)` (an exact, sub-day-precision instant), while the chart's daily buckets
+started at the current calendar day minus 29 days (a whole-day boundary). Both anchors are individually
+defensible, but they are **not the same instant** — near a day boundary, a real customer/search event falling
+in the few-hour gap between the two anchors was counted in one view and not the other. `tester` caught this
+with a genuinely reproducing test (a fixture with events placed in that exact gap, not a theoretical timing
+argument), proving the headline total and the chart's own summed series could disagree for the same request.
+
+Fixing this exposed a second, related gap: the two new repository methods added for this story
+(`count_daily_for_provider_since` on both `ContactViewRepository` and `ProviderMatchRepository`) use
+`date_trunc('day', ...)` for day-bucketing — the first such queries in this codebase. `date_trunc('day', ...)`
+without an explicit timezone argument buckets according to the database session's configured timezone GUC, not
+necessarily UTC. Every `TIMESTAMPTZ` column in this codebase is stored and reasoned about in UTC; an implicit
+dependency on a session-level config value that happens to default to UTC today is a latent risk of silently
+reintroducing this exact class of divergence bug in the future, purely from a session/connection-pool
+configuration difference, with no code change at all. `architect`'s review caught this as a non-blocking
+follow-on finding once the headline/chart anchoring fix was already in place.
+
+### Decision
+
+Two principles, both now established precedent:
+
+1. **When two derived views (a summary statistic and a detail series) must agree with each other, they must
+   share one, single window-boundary computation — never two independently derived "reasonable" anchors.**
+   `VisibilityAnalyticsService` now computes the current window's start boundary once, aligned to the same
+   calendar-day boundary the 30-day chart series already used, and both the headline totals and the chart series
+   are computed from that one shared boundary. This is a general principle, not specific to dates/times: any
+   future story computing two outputs that are supposed to be consistent views of the same underlying data must
+   derive both from one shared computation of whatever boundary/filter defines "the same window," rather than
+   letting each output's implementation choose its own individually-reasonable-looking version of that boundary.
+2. **Any `date_trunc`/day-bucketing SQL query in this codebase must pin UTC explicitly**
+   (`date_trunc('day', column AT TIME ZONE 'UTC')`, or the SQLAlchemy equivalent), never rely on the database
+   session's implicit timezone GUC, even though it defaults to UTC today. This is the first such query in this
+   codebase; establishing the convention now, at its first application, avoids a future session/connection-pool
+   configuration change silently reintroducing the same class of bug this ADR's Decision 1 just fixed.
+
+### Alternatives Considered
+
+- **Anchor the headline window to the exact instant (`datetime.now(UTC)`) and instead adjust the chart to also
+  use an exact-instant boundary, rather than a calendar-day one.** Rejected — the chart's calendar-day
+  granularity is the more natural fit for "one data point per day" (AC2's literal ask), and a fractional first
+  day (e.g. day 30 starting at 14:32 rather than midnight) would produce a visibly partial first bar with no
+  clear labeling for it. Aligning the headline to the chart's calendar-day boundary (rather than the reverse)
+  keeps the chart's presentation simplest and gives the headline stat the same, cleanly-explainable window.
+- **Leave the two independently-computed windows as they were, on the reasoning that a few hours' discrepancy
+  near a day boundary is immaterial.** Rejected — the entire point of showing a headline total *and* a chart
+  together is that a user can visually cross-check one against the other (the total should look like it equals
+  the sum of the bars); a real, reproducible disagreement between them is a correctness bug, not a rounding
+  nicety, regardless of how small the window happens to be in any single case.
+- **Rely on the database session's timezone GUC defaulting to UTC, since it does today, rather than pinning it
+  explicitly.** Rejected — an implicit dependency on a config value that isn't asserted or tested is exactly the
+  kind of latent, silent-failure-mode risk this codebase's engineering discipline consistently avoids elsewhere
+  (e.g. the swappable-Protocol pattern's "never guess, make the honest thing explicit"); pinning UTC costs
+  nothing and removes the risk entirely.
+
+### Consequences
+
+- Any future story computing more than one output (a summary + a detail series, two related aggregates, etc.)
+  that must stay consistent with each other must derive them from one shared window/filter-boundary computation,
+  never two independently-reasonable ones computed in parallel — treat this as a correctness requirement to
+  design in up front, not something to catch only via a cross-checking test after the fact.
+- Every future `date_trunc`/day-bucketing (or any other DB-timezone-sensitive) query in this codebase must pin
+  UTC explicitly. `ContactViewRepository.count_daily_for_provider_since` and
+  `ProviderMatchRepository.count_daily_for_provider_since` are the first two applications of this convention.
+- This is the second story this Sprint/Milestone (Sprint 10 / Milestone ML10) to need a fix-and-recheck round
+  during review (after `LEAD-001`'s clean first pass) — both the `tester`-found bug and the `architect`-found
+  follow-on gap were fixed and independently re-verified before sign-off, per this project's standing review
+  process.
+
+### Related Documents
+
+- 04_DATABASE.md (Search Domain / Contact Domain — `provider_matches`/`contact_views` as the two sources this
+  story's windows are computed over)
+- 09_DECISIONS.md (ADR-038 — the anti-fabrication/no-silent-divergence discipline this principle is a sibling
+  of; ADR-054/ADR-056 — this story's module-placement decisions)
+- docs/implementation/plans/Plan_S10_LEAD-002.md (Decision 4/5 — the daily-series and trend-window computations
+  this ADR corrects)
+- docs/implementation/walkthroughs/Walkthrough_S10_LEAD-002.md (the full anchoring-bug account)
+- backend/app/modules/contact/services/visibility_analytics_service.py
+- backend/app/modules/contact/repositories/contact_view_repository.py
+- backend/app/modules/search/repositories/provider_match_repository.py
+
+---
+
 # Future Decisions
 
 Future architectural decisions should include topics such as:

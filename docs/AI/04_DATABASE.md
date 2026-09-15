@@ -710,9 +710,26 @@ The ranked result set of a Search Request against Provider data — explicitly n
 **Constraints:** `uq_provider_matches_request_provider (search_request_id, provider_id)`
 **Indexes:** `idx_provider_matches_search_request_id`, `idx_provider_matches_provider_id`
 
+**Read-only consumer (`LEAD-002`, Sprint 10, 14 September 2026):** `contact.VisibilityAnalyticsService`/`GET
+/providers/me/visibility-analytics` reads `provider_matches` (`provider_id`, `created_at`) to compute a
+provider's own "search appearances" headline stat and 30-day daily trend — no schema change, no new writer, a
+second read-only consumer alongside the existing ranking/matching read paths. See `provider_matches` is the
+correct source for this, **not** `search_event_log` below (which structurally cannot answer a per-provider
+question).
+
 ## search_event_log
 
-Every Search Request, matched or not. Feeds provider visibility analytics and admin unmatched-query analytics (`administration.unmatched_query_reports`). Append-only; no soft delete.
+Every Search Request, matched or not. Admin unmatched-query analytics (`administration.unmatched_query_reports`)
+read this table directly. Append-only; no soft delete.
+
+**Important for future readers (`LEAD-002`, Sprint 10):** despite this table's name, it carries **no
+`provider_id` column at all** — it is a per-*search-request* event ("a search happened, N results, matched or
+not"), not a per-provider one, and cannot answer "how many times did this specific provider appear in search."
+A future story reaching for "search appearances"/"how often did provider X show up" data should read
+`search.provider_matches` instead (one row per `(search_request, provider)` pair that actually appeared in a
+result set, written in the same `_finalize_matches` operation as this table's own row) — confirmed and corrected
+in `LEAD-002`'s Plan (Decision 2) after the story's own AC literally, but incorrectly, named this table as the
+source. Don't rediscover this the hard way a second time.
 
 | Column | Type | Nullable | Notes |
 |---|---|---|---|

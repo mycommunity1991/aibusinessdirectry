@@ -6,10 +6,13 @@ in full — to save tokens. This file is refreshed at the end of every story clo
 stale (doesn't match the latest git log / `09_DECISIONS.md` ADR numbers), trust the repo over this
 file and update this file once caught up.
 
-**Last updated:** 14 September 2026, after Story LEAD-001 closeout AND its tracker sync (both complete).
+**Last updated:** 15 September 2026, after Story LEAD-002 closeout (tracker sync for LEAD-002 NOT yet performed —
+see Section 5).
 **Repo:** `mycommunity1991/aibusinessdirectry` | **Branch:** `claude/provider-storefront-pro-001-qnicuj`
-**Last commit at time of writing:** `f614359` (chore: tracker sync for LEAD-001; docs closeout `8358551`;
-docstring fix `8e987c3`; backend `e05747b`, frontend `03f1f5b`).
+**Last commit at time of writing:** LEAD-002's own commits — `30c029c` (backend), `e7933a4` (frontend),
+`2543edd` (tester's regression test for the anchoring bug), `e726bb5` (backend's fix for that bug), `1802c5a`
+(backend's fix for the architect's follow-on UTC-pin finding). Prior: `f614359` (chore: tracker sync for
+LEAD-001; docs closeout `8358551`; docstring fix `8e987c3`; backend `e05747b`, frontend `03f1f5b`).
 
 ---
 
@@ -61,12 +64,13 @@ docstring fix `8e987c3`; backend `e05747b`, frontend `03f1f5b`).
   **`REV-001` and `MAT-001` remain the only two stories in this project's history to ship with zero real bugs
   found during review; `REV-002` is the first story to also return a fully clean `architect` verdict on the
   first pass alongside a bug-free `tester` pass.**
-- **Sprint 10 ("Provider Leads & Analytics," Milestone ML10, Epic ML10-EP01) has since started. Its first
-  story, `LEAD-001` ("see and manage my provider leads"), has shipped and been signed off on top of
-  `REV-001`/`CON-001`** — see `docs/implementation/walkthroughs/Walkthrough_S10_LEAD-001.md` (`architect`: one
-  documentation-only finding, an `ADR-047` docstring-naming gap, fixed at commit `8e987c3` and re-confirmed
-  clean; `tester`: all 5 ACs pass, no bugs and no gaps found). It extends the existing `contact` module in place
-  with a new, read-only `LeadService`/`GET /providers/me/leads` — zero new schema, zero new migration —
+- **Sprint 10 ("Provider Leads & Analytics," Milestone ML10, Epic ML10-EP01) has since started and is now
+  fully complete — 2 of 2 stories done: `LEAD-001`, `LEAD-002`.** Its first story, `LEAD-001` ("see and manage
+  my provider leads"), shipped and was signed off on top of `REV-001`/`CON-001`** — see
+  `docs/implementation/walkthroughs/Walkthrough_S10_LEAD-001.md` (`architect`: one documentation-only finding,
+  an `ADR-047` docstring-naming gap, fixed at commit `8e987c3` and re-confirmed clean; `tester`: all 5 ACs pass,
+  no bugs and no gaps found). It extends the existing `contact` module in place with a new, read-only
+  `LeadService`/`GET /providers/me/leads` — zero new schema, zero new migration —
   generalizing `ADR-051`'s module/schema placement rule from the opposite direction: a capability with no new
   schema of its own belongs inside whichever existing module already owns the primary data being surfaced, even
   when it needs new cross-module raw-Repository edges into schemas it had no prior relationship with
@@ -77,40 +81,52 @@ docstring fix `8e987c3`; backend `e05747b`, frontend `03f1f5b`).
   with more than one distinct absence reason (ADR-055). `LeadResponse` carries zero customer-identifying fields;
   `outcome_status` is a server-computed three-value enum. On mobile, a new `features/leads/` module delivers the
   Leads screen (pull-to-refresh, a distinct empty state, three outcome chip variants) and a new, dependency-free
-  relative-time utility. Final counts: 783/783 backend tests, 257/257 mobile tests. **Tracker sync for
-  `LEAD-001` has NOT yet been performed** — see Section 5; the Dashboard numbers in the bullet above are stale
-  until that happens.
+  relative-time utility. Final counts: 783/783 backend tests, 257/257 mobile tests.
+- **`LEAD-002` ("understand my listing visibility") has since shipped and been signed off on top of `LEAD-001`,
+  completing Sprint 10 and Milestone ML10 in full** — see
+  `docs/implementation/walkthroughs/Walkthrough_S10_LEAD-002.md`. It extends the existing `contact` module in
+  place a fourth time with a new, read-only `VisibilityAnalyticsService`/`GET
+  /providers/me/visibility-analytics` — zero new schema, zero new migration — surfacing `contact_views` and
+  `search.provider_matches` as two headline stats (search appearances, contact views) plus a 30-day daily trend
+  chart. Unlike `LEAD-001`, this story's data ownership split 50/50 between `contact` and `search`, resolved via
+  a new **dependency-direction-symmetry** tiebreaker extending `ADR-054` to the "no single owner" case: extend
+  the module that already holds a one-directional edge toward the other, rather than inventing a new,
+  opposite-direction edge (`ADR-056`). AC2's literal text named `search_event_log` as a source table, but that
+  table has no `provider_id` column and cannot answer a per-provider question — corrected to source
+  "search appearances" from `search.provider_matches` instead (a table-reference correction, `ADR-038`-style,
+  zero new tables). A three-state `up`/`down`/`flat` trend enum and an explicit server-computed
+  `has_sufficient_data` boolean gate the "not enough data yet" state. On mobile, a new
+  `features/visibility_analytics/` module delivers the screen and this codebase's **first chart of any kind** —
+  a small, dependency-free `CustomPainter`-based widget, no new charting package added. **`tester` found one
+  real bug**: the headline 30-day total and the chart series were computed from two independently-derived time
+  windows (an exact-instant anchor vs. a calendar-day anchor), which could disagree near a day boundary — caught
+  with a genuinely reproducing test, fixed by aligning both to one shared calendar-day window boundary.
+  **`architect`'s subsequent review found one further, non-blocking gap the fix exposed**: the new
+  `date_trunc('day', ...)` day-bucketing queries (this codebase's first) relied implicitly on the DB session's
+  timezone GUC rather than pinning UTC explicitly — fixed by pinning UTC in both queries. Both principles (a
+  shared window-boundary computation between two views of the same data; explicit UTC-pinning for day-bucketing
+  SQL) are recorded together as `ADR-057`. Both fix rounds independently re-verified, zero regressions. Final
+  counts: 821/821 backend tests (783 baseline + 38 net new across both fix rounds), 280/280 mobile tests (257
+  baseline + 23 new). **This is the second story this Sprint/Milestone to need a fix-and-recheck round**
+  (`LEAD-001` was clean on the first pass). CTO gave a standing instruction to proceed straight through closeout
+  once both verdicts were clean, without an additional sign-off pause for this story. **Tracker sync for
+  `LEAD-001` AND `LEAD-002` has NOT yet been performed** — see Section 5; the Dashboard numbers in the bullet
+  above are stale until that happens. **The next sprint/milestone's first story has not yet been identified —
+  a fresh tracker lookup is needed before any further planning.**
 - Full narrative history of every story shipped so far (Sprints 1–10) lives in
   `docs/AI/PROJECT_IMPLEMENTATION_STATE.md`'s Executive Summary — only open that file if you need deep
   historical context on a specific earlier decision; it's over 1200 lines.
 
-## 2. Next story — Sprint 10, second story: `LEAD-002`
+## 2. Next story — not yet identified
 
-**Sprint 10 / Milestone ML10 is now 1 of 2 stories done — `LEAD-001` shipped, `LEAD-002` is next and final.**
-Looked up fresh from `docs/AI/Project_Tracker.xlsx` (row 39) this session:
+**Sprint 10 / Milestone ML10 is now fully complete — 2 of 2 stories done: `LEAD-001`, `LEAD-002`.** No further
+story in this sprint/milestone remains.
 
-- **Story ID:** `LEAD-002` — "Understand my listing visibility"
-- **Sprint/Milestone/Epic/Phase:** SP10 / ML10 / ML10-EP01 / PH2
-- **Priority:** Medium | **Depends on:** `LEAD-001` (shipped — unblocked) | **Status:** ⏳ Planned
-- **Description (verbatim):** "As a provider, I want simple stats on how often I appear in search and how many
-  people viewed my contact info, so that I can tell whether my listing is actually working, without the
-  platform building brand-new tracking infrastructure just for this. This story reuses the Search Event Log and
-  Contact Views that already exist for other purposes, presenting them as a lightweight analytics view —
-  consistent with the product's 'reuse, don't rebuild' principle. Scope boundary: does not include admin-facing
-  platform-wide analytics (`ADM-002`) — this is the single-provider visibility view only."
-- **Acceptance Criteria (verbatim):**
-  1. Visibility Analytics screen shows two headline stats — search appearances and contact views — each with a
-     short trend indicator.
-  2. A 30-day trend chart is shown, sourced from `search_event_log` and `contact_views`, not a new tracking
-     table.
-  3. Data shown is scoped strictly to the authenticated provider's own listing (ownership enforced).
-  4. The screen degrades gracefully (a clear "not enough data yet" state) for a newly-onboarded provider with
-     little or no history.
-  5. Automated tests cover the ownership boundary and correct aggregation of the two headline stats over the
-     30-day window.
-
-This is the last story in Sprint 10/Milestone ML10 — shipping it completes both in full. **Do NOT start
-`LEAD-002` (or plan it) without the CTO's explicit "Start X" instruction.**
+**The next sprint/milestone's first story has NOT yet been identified.** A fresh lookup in
+`docs/AI/Project_Tracker.xlsx` is required to find it — do not assume, guess, or carry forward any prior
+session's speculation about what comes next. **Do NOT start or plan any story without the CTO's explicit
+"Start X" instruction**, and do not perform the tracker lookup itself without being asked to (per this
+project's standing process, that lookup happens as a distinct step, separate from story planning).
 
 ## 3. Standing process (do not skip steps)
 
@@ -279,6 +295,22 @@ well-precedented, not a reason to expect it every time.
   absence reasons, both collapsing to one honest fallback (never a fabricated substitute like the provider's own
   category label), with each dead-end tested as its own separately-named case rather than assumed identical by
   inspection.
+- **When a story's primary data ownership splits ~50/50 between two modules (no single dominant owner), use
+  dependency-direction symmetry as the tiebreaker** (ADR-056, `LEAD-002`) — extend whichever module already
+  holds a one-directional, precedented edge toward the other module's schema, rather than inventing a
+  brand-new, opposite-direction edge with no precedent. Apply in order: schema ownership (`ADR-051`) → single
+  dominant owner (`ADR-054`) → dependency-direction symmetry (`ADR-056`) → only then consider a new standalone
+  module.
+- **Two derived views of the same underlying data (a summary stat and a detail series) must share one window-
+  boundary computation, never two independently "reasonable" ones** (ADR-057, `LEAD-002`) — the real lesson from
+  a genuine bug `tester` found: `LEAD-002`'s headline 30-day total and its 30-day chart series each computed
+  their own window start (an exact-instant anchor vs. a calendar-day anchor), which could disagree near a day
+  boundary. Fixed by deriving both from one shared boundary. Generalize this beyond dates: whenever two outputs
+  must stay consistent with each other, compute the shared boundary/filter once, not twice.
+- **Any `date_trunc`/day-bucketing SQL query must pin UTC explicitly**, never rely on the DB session's implicit
+  timezone GUC (ADR-057, `LEAD-002`) — established at this codebase's first such query, after `architect`'s
+  review found the fix above's new queries hadn't pinned UTC, a latent risk of reintroducing the same divergence
+  via a future session/config difference.
 
 ## 5. Tracker editing method (raw XML — never openpyxl `.save()`)
 
@@ -334,19 +366,22 @@ the full resolution.
 
 ## 7. ADR numbering
 
-Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-055** (ADR-054/055, both recorded at `LEAD-001`'s closeout —
-Leads module placement, generalizing `ADR-051` from the opposite direction; the two-independent-dead-end
-honest-null category-resolution pattern, extending `ADR-038`). Next new ADR starts at **ADR-056**.
+Current last ADR in `docs/AI/09_DECISIONS.md`: **ADR-057** (ADR-056/057, both recorded at `LEAD-002`'s closeout —
+the dependency-direction-symmetry module-placement tiebreaker, extending `ADR-054` to the "no single owner"
+case; the shared-window-boundary principle for two derived views of the same data, plus explicit UTC-pinning
+for `date_trunc`/day-bucketing SQL, both prompted by a real tester-found bug and a real architect-found
+follow-on gap). Prior: ADR-054/055, recorded at `LEAD-001`'s closeout. Next new ADR starts at **ADR-058**.
 
 ## 8. Environment notes
 
-- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `LEAD-001`'s closeout, independently
-  re-run/re-confirmed by `tester`: **783/783 backend tests passing** (752 baseline before `LEAD-001`, +31 new,
-  zero regressions). `ruff check .` clean. `mypy` is configured in `pyproject.toml` but is **not installed** in
-  this sandbox's venv — cannot be run here; this is a known, pre-existing environment gap, not a regression to
+- Backend: FastAPI/SQLAlchemy async, Postgres, Redis. Full test suite as of `LEAD-002`'s closeout, independently
+  re-run/re-confirmed by `tester` across two fix-and-recheck rounds (a real anchoring-divergence bug, then a
+  real UTC-pin hardening finding): **821/821 backend tests passing** (783 baseline before `LEAD-002`, +38 net
+  new, zero regressions). `ruff check .` clean. `mypy` is configured in `pyproject.toml` but is **not installed**
+  in this sandbox's venv — cannot be run here; this is a known, pre-existing environment gap, not a regression to
   chase.
-- Mobile: Flutter/Riverpod. **257 mobile tests passing** as of `LEAD-001`'s closeout (233 baseline before
-  `LEAD-001`, +24 new, zero regressions). `flutter analyze` clean. Flutter SDK is not preinstalled in a fresh
+- Mobile: Flutter/Riverpod. **280 mobile tests passing** as of `LEAD-002`'s closeout (257 baseline before
+  `LEAD-002`, +23 new, zero regressions). `flutter analyze` clean. Flutter SDK is not preinstalled in a fresh
   container — a prior session cloned `flutter/stable` to `/root/.flutter_sdk` to run `flutter
   analyze`/`flutter test`/`gen-l10n`; this is outside the repo and won't persist across containers, so a fresh
   session may need to redo this setup step once, before running any mobile agent.
@@ -356,8 +391,9 @@ honest-null category-resolution pattern, extending `ADR-038`). Next new ADR star
   spreadsheet themselves (this was a repeated, avoidable source of wasted planning rounds in Sprints 6–7).
 ---
 
-**End of handoff. Sprint 10 / Milestone ML10 is now 1 of 2 stories done — `LEAD-001` has shipped, been signed
-off, and its tracker sync is done and verified (Dashboard/rollup numbers in Section 1 are current). `LEAD-002`
-("understand my listing visibility") is next and final for Sprint 10/Milestone ML10 — its full verbatim
-description and 5 ACs are recorded in Section 2. When resuming: read this file, confirm the CTO wants to
-proceed with `LEAD-002`, then follow Section 3's cycle starting with `tech-lead`.**
+**End of handoff. Sprint 10 / Milestone ML10 is now fully complete — 2 of 2 stories done: `LEAD-001` and
+`LEAD-002` have both shipped and been signed off. Tracker sync for BOTH stories has NOT yet been performed** —
+see Section 5; the Dashboard/rollup numbers in Section 1 remain stale until that happens. **The next
+sprint/milestone's first story has not yet been identified — a fresh `Project_Tracker.xlsx` lookup is required
+before any further planning begins.** When resuming: read this file, perform (or request) that fresh tracker
+lookup, confirm with the CTO what to start next, then follow Section 3's cycle starting with `tech-lead`.**
