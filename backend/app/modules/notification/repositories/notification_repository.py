@@ -66,30 +66,30 @@ class NotificationRepository(BaseRepository[Notification]):
     ) -> Notification | None:
         """
         Ownership-scoped `UPDATE ... WHERE id = :id AND user_id =
-        :user_id AND read_at IS NULL RETURNING` -- idempotent: marking
-        an already-read row read again is a harmless no-op. Returns the
-        row (fetched via a follow-up `get_by_id`) whether this call set
-        `read_at` or found it already set, or `None` if no row exists
-        for `notification_id` at all, or it exists but belongs to a
-        different user (the caller maps that to a 404, never a 403,
-        `ADR-015`).
+        :user_id AND read_at IS NULL RETURNING` -- purely mechanical,
+        no ownership/business-rule branching here (`08_CODING_STANDARDS
+        .md`'s "repositories never contain business rules"). Returns
+        `None` whenever the `WHERE` clause matches zero rows -- which
+        covers both "no row is currently unread for this id+user" and
+        "the id doesn't exist/belongs to someone else." The caller
+        (`NotificationService.mark_read`) is responsible for
+        distinguishing "already read" (idempotent no-op, re-fetch and
+        return as-is) from "not owned/doesn't exist" (404, via
+        `ensure_owner_or_not_found`).
         """
-        existing = await self.get_by_id(notification_id)
-        if existing is None or existing.user_id != user_id:
-            return None
-
-        if existing.read_at is None:
-            stmt = (
-                update(Notification)
-                .where(
-                    Notification.id == notification_id,
-                    Notification.user_id == user_id,
-                    Notification.read_at.is_(None),
-                )
-                .values(read_at=datetime.now(UTC))
+        stmt = (
+            update(Notification)
+            .where(
+                Notification.id == notification_id,
+                Notification.user_id == user_id,
+                Notification.read_at.is_(None),
             )
-            await self.session.execute(stmt)
-            await self.session.flush()
-            await self.session.refresh(existing)
-
-        return existing
+            .values(read_at=datetime.now(UTC))
+            .returning(Notification.id)
+        )
+        result = await self.session.execute(stmt)
+        await self.session.flush()
+        updated_id = result.scalar_one_or_none()
+        if updated_id is None:
+            return None
+        return await self.get_by_id(updated_id)

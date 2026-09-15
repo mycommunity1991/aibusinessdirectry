@@ -35,6 +35,7 @@ preference (Decision 6).
 
 import uuid
 
+from app.core.authorization import ensure_owner_or_not_found
 from app.core.constants import ROLE_ADMIN
 from app.core.exceptions import NotificationNotFoundError
 from app.modules.identity.repositories.role_repository import RoleRepository
@@ -294,15 +295,32 @@ class NotificationService:
     ) -> Notification:
         """
         `ENG-001`, AC6, Decision 10 -- backs `PATCH /notifications/
-        {id}/read`. Raises `NotificationNotFoundError` (404, never a
-        403 -- `ADR-015`) if `notification_id` doesn't exist at all, or
-        exists but isn't owned by `user_id`; both cases are collapsed
-        into the same non-revealing 404.
+        {id}/read`. `NotificationRepository.mark_read` is a plain,
+        ownership-scoped `UPDATE ... RETURNING` with no business logic
+        of its own -- it returns `None` both when the row is already
+        read (idempotent no-op) and when `notification_id` doesn't
+        exist at all or isn't owned by `user_id`. On that `None`, this
+        method re-fetches via a plain, ownership-agnostic `get_by_id`
+        and calls `ensure_owner_or_not_found` (mirroring `SavedAddress
+        Service.update_address`/`delete_address`'s identical shape) to
+        tell those two cases apart: an already-read row owned by
+        `user_id` is returned as-is (idempotent), while a missing/not-
+        owned row raises `NotificationNotFoundError` (404, never a 403
+        -- `ADR-015`) -- both of *those* sub-cases collapsed into the
+        same non-revealing 404 by `ensure_owner_or_not_found` itself.
         """
         notification = await self.repository.mark_read(notification_id, user_id)
-        if notification is None:
-            raise NotificationNotFoundError()
-        return notification
+        if notification is not None:
+            return notification
+
+        existing = await self.repository.get_by_id(notification_id)
+        ensure_owner_or_not_found(
+            existing.user_id if existing is not None else None,
+            user_id,
+            not_found_exc=NotificationNotFoundError(),
+        )
+        assert existing is not None  # narrows for type-checkers; guaranteed above
+        return existing
 
     async def _dispatch_if_channel_enabled(self, notification: Notification) -> None:
         """

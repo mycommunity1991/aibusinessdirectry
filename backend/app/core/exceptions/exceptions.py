@@ -825,13 +825,14 @@ class UnmatchedQueryReportInvalidTransitionError(BusinessException):
 
 class NotificationNotFoundError(BusinessException):
     """
-    Raised by `NotificationService`/the `PATCH /notifications/{id}/read`
-    route (`ENG-001`, Decision 10, `Plan_S12_ENG-001.md`) when the
-    target notification either doesn't exist at all, or exists but is
-    not owned by the calling user -- collapses both cases into the same
-    404, mirroring `ContactViewNotFoundError`'s identical non-revealing-
-    404 design (`ADR-015`), via the same `ensure_owner_or_not_found`
-    helper. Deliberately a 404, never a 403.
+    Raised by `NotificationService.mark_read`/the `PATCH /notifications/
+    {id}/read` route (`ENG-001`, Decision 10, `Plan_S12_ENG-001.md`) when
+    the target notification either doesn't exist at all, or exists but
+    is not owned by the calling user -- collapses both cases into the
+    same 404, mirroring `ContactViewNotFoundError`'s identical non-
+    revealing-404 design (`ADR-015`), via the same
+    `ensure_owner_or_not_found` helper called directly by
+    `NotificationService.mark_read`. Deliberately a 404, never a 403.
     """
 
     def __init__(self, message: str = "Notification not found."):
