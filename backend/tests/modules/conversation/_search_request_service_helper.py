@@ -38,6 +38,7 @@ from app.modules.administration.services.unmatched_query_report_service import (
     UnmatchedQueryReportService,
 )
 from app.modules.conversation.repositories.message_repository import MessageRepository
+from app.modules.customer.models import NotificationChannel
 from app.modules.customer.repositories.customer_preferences_repository import (
     CustomerPreferencesRepository,
 )
@@ -49,6 +50,28 @@ from app.modules.customer.repositories.saved_address_repository import (
 )
 from app.modules.customer.services.customer_service import CustomerService
 from app.modules.customer.services.saved_address_service import SavedAddressService
+from app.modules.identity.repositories.role_repository import RoleRepository
+from app.modules.notification.repositories.notification_delivery_repository import (
+    NotificationDeliveryRepository,
+)
+from app.modules.notification.repositories.notification_preference_repository import (
+    NotificationPreferenceRepository,
+)
+from app.modules.notification.repositories.notification_repository import (
+    NotificationRepository,
+)
+from app.modules.notification.services.notification_delivery_service import (
+    NotificationDeliveryService,
+)
+from app.modules.notification.services.notification_preference_service import (
+    NotificationPreferenceService,
+)
+from app.modules.notification.services.notification_sender import (
+    StubEmailSender,
+    StubSmsSender,
+    StubWhatsAppSender,
+)
+from app.modules.notification.services.notification_service import NotificationService
 from app.modules.provider.repositories.business_profile_repository import (
     BusinessProfileRepository,
 )
@@ -100,6 +123,29 @@ def _make_provider_service(db_session) -> ProviderService:
     )
 
 
+def make_notification_service(db_session) -> NotificationService:
+    """Builds a real, fully-wired `NotificationService` (`ENG-001`,
+    `Plan_S12_ENG-001.md`) -- mirrors `tests/modules/contact/_helpers.
+    py`'s identical builder."""
+    return NotificationService(
+        repository=NotificationRepository(db_session),
+        preference_service=NotificationPreferenceService(
+            NotificationPreferenceRepository(db_session),
+            CustomerProfileRepository(db_session),
+            CustomerPreferencesRepository(db_session),
+        ),
+        delivery_service=NotificationDeliveryService(
+            NotificationDeliveryRepository(db_session),
+            {
+                NotificationChannel.WHATSAPP: StubWhatsAppSender(),
+                NotificationChannel.SMS: StubSmsSender(),
+                NotificationChannel.EMAIL: StubEmailSender(),
+            },
+        ),
+        role_repository=RoleRepository(db_session),
+    )
+
+
 def make_search_request_service(db_session) -> SearchRequestService:
     """Builds a real `SearchRequestService`, fully wired against the
     given (real Postgres) `db_session` -- every dependency is the real
@@ -117,7 +163,9 @@ def make_search_request_service(db_session) -> SearchRequestService:
         customer_service=customer_service,
     )
     manual_match_assignment_service = ManualMatchAssignmentService(
-        ManualMatchAssignmentRepository(db_session), admin_action_log_service
+        ManualMatchAssignmentRepository(db_session),
+        admin_action_log_service,
+        make_notification_service(db_session),
     )
     unmatched_query_report_service = UnmatchedQueryReportService(
         UnmatchedQueryReportRepository(db_session),

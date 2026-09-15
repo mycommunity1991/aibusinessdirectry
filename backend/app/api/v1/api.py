@@ -15,6 +15,7 @@ from app.modules.contact.provider_visibility_api import (
 from app.modules.conversation.api import router as conversation_router
 from app.modules.customer.api import router as customer_router
 from app.modules.identity.api import router as auth_router
+from app.modules.notification.api import router as notification_router
 from app.modules.provider.admin_claim_api import router as admin_claim_router
 from app.modules.provider.api import router as provider_router
 from app.modules.provider.claim_api import router as claim_router
@@ -53,6 +54,7 @@ v1_router.include_router(
     admin_unmatched_query_report_router, prefix="/admin/unmatched-query-reports"
 )
 v1_router.include_router(admin_dashboard_router, prefix="/admin")
+v1_router.include_router(notification_router, prefix="/notifications")
 v1_router.include_router(contact_router, prefix="/contact-views")
 v1_router.include_router(review_router, prefix="/contact-views")
 # CON-001, Decision 2: registered *after* `provider_router` so `/me`,

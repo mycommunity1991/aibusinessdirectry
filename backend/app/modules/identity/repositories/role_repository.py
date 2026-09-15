@@ -34,3 +34,23 @@ class RoleRepository(BaseRepository[Role]):
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_user_ids_for_role(self, role_name: str) -> list[uuid.UUID]:
+        """
+        Retrieve every user id currently holding `role_name` (`ENG-001`,
+        Decision 9, `Plan_S12_ENG-001.md`) -- the reverse of
+        `get_role_names_for_user`, an identically-shaped `SELECT ...
+        JOIN user_roles ... WHERE roles.name = :role_name` query. Used
+        by `NotificationService.notify_manual_match_assignment_created`
+        to broadcast an in-app-only notification to every `ROLE_ADMIN`
+        account, without ever inventing a new "admin team" recipient
+        concept. Returns an empty list if no account currently holds
+        `role_name`.
+        """
+        stmt = (
+            select(UserRole.user_id)
+            .join(Role, UserRole.role_id == Role.id)
+            .where(Role.name == role_name)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

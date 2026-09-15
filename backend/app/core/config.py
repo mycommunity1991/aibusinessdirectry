@@ -200,6 +200,11 @@ class Settings(BaseSettings):
     # SIZE`/`CLAIM_SEARCH_MAX_PAGE_SIZE`/`LEADS_MAX_PAGE_SIZE`).
     UNMATCHED_QUERY_REPORT_MAX_PAGE_SIZE: int = 50
 
+    # Notifications Inbox (`ENG-001`, Backend Proposed Changes item 15,
+    # `Plan_S12_ENG-001.md`) -- the sixth instance of this codebase's
+    # established per-domain page-size-cap pattern.
+    NOTIFICATION_MAX_PAGE_SIZE: int = 50
+
     # Config dict to support loading from parent .env or current .env
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),

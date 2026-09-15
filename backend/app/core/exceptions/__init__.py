@@ -29,6 +29,7 @@ from app.core.exceptions.exceptions import (
     InvalidTokenError,
     ManualMatchAssignmentAlreadyResolvedError,
     ManualMatchAssignmentNotFoundError,
+    NotificationNotFoundError,
     OtpLockedError,
     OutcomeTagAlreadyExistsError,
     PortfolioLimitExceededError,
@@ -106,4 +107,5 @@ __all__ = [
     "UnmatchedQueryReportInvalidTransitionError",
     "FeatureFlagNotFoundError",
     "SystemSettingNotFoundError",
+    "NotificationNotFoundError",
 ]

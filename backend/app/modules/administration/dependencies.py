@@ -12,6 +12,14 @@ outgoing cross-module edge, `administration -> verification.
 VerificationRecordRepository` (see `_get_verification_record_repository_
 for_administration`'s own docstring for the identical circular-import
 rationale, mirrored from the edge above).
+
+`ENG-001` (`Plan_S12_ENG-001.md`, Decision 9) adds this module's third
+outgoing cross-module edge, `administration -> notification.
+NotificationService` -- imported directly from `notification.
+dependencies.get_notification_service` (unlike the two edges above,
+this one imports the *other* module's own `dependencies.py`, since
+`notification/dependencies.py` has no edge back into `administration`
+at all -- confirmed no circular import, `ADR-060`).
 """
 
 from typing import Annotated
@@ -55,6 +63,8 @@ from app.modules.administration.services.system_setting_service import (
 from app.modules.administration.services.unmatched_query_report_service import (
     UnmatchedQueryReportService,
 )
+from app.modules.notification.dependencies import get_notification_service
+from app.modules.notification.services.notification_service import NotificationService
 from app.modules.search.repositories.search_event_log_repository import (
     SearchEventLogRepository,
 )
@@ -120,6 +130,9 @@ def get_manual_match_assignment_service(
     admin_action_log_service: Annotated[
         AdminActionLogService, Depends(get_admin_action_log_service)
     ],
+    notification_service: Annotated[
+        NotificationService, Depends(get_notification_service)
+    ],
 ) -> ManualMatchAssignmentService:
     """Provides a `ManualMatchAssignmentService` bound to the
     request-scoped DB session -- imported into `search/dependencies.py`
@@ -127,9 +140,15 @@ def get_manual_match_assignment_service(
     by `provider/dependencies.py`. Gained `admin_action_log_service`
     (ADM-002, Decision 6, `Plan_S11_ADM-002.md`) -- a trivial,
     intra-module constructor-injection addition, closing the real gap
-    where `resolve` previously wrote no `admin_action_log` row (AC3)."""
+    where `resolve` previously wrote no `admin_action_log` row (AC3).
+    Gained `notification_service` (`ENG-001`, Decision 9,
+    `Plan_S12_ENG-001.md`) -- `administration`'s third outgoing
+    cross-module edge, so `create` can broadcast an in-app notification
+    to every `ROLE_ADMIN` account (AC3)."""
     return ManualMatchAssignmentService(
-        manual_match_assignment_repository, admin_action_log_service
+        manual_match_assignment_repository,
+        admin_action_log_service,
+        notification_service,
     )
 
 

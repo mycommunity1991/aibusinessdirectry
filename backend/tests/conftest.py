@@ -183,7 +183,11 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         User,
         UserRole,
     )
-    from app.modules.notification.models import Notification
+    from app.modules.notification.models import (
+        Notification,
+        NotificationDelivery,
+        NotificationPreference,
+    )
     from app.modules.provider.models import (
         BusinessProfile,
         FreelancerProfile,
@@ -213,7 +217,9 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
             FeatureFlag,
             SystemSetting,
             ManualMatchAssignment,
+            NotificationDelivery,
             Notification,
+            NotificationPreference,
             Review,
             ProviderRatingSummary,
             OutcomeTag,

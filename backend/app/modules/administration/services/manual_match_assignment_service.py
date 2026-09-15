@@ -33,6 +33,7 @@ from app.modules.administration.repositories.manual_match_assignment_repository 
 from app.modules.administration.services.admin_action_log_service import (
     AdminActionLogService,
 )
+from app.modules.notification.services.notification_service import NotificationService
 
 _STATUS_PENDING = "pending"
 
@@ -44,6 +45,7 @@ class ManualMatchAssignmentService:
         self,
         repository: ManualMatchAssignmentRepository,
         admin_action_log_service: AdminActionLogService,
+        notification_service: NotificationService,
     ) -> None:
         self.repository = repository
         # ADM-002, Decision 6 (`Plan_S11_ADM-002.md`): a trivial,
@@ -51,6 +53,11 @@ class ManualMatchAssignmentService:
         # gap where `resolve` previously wrote no `admin_action_log` row
         # at all, despite AC3's literal "every... queue action" wording.
         self.admin_action_log_service = admin_action_log_service
+        # `ENG-001`, Decision 9 (`Plan_S12_ENG-001.md`): this module's
+        # first outgoing `administration -> notification` edge --
+        # `create` broadcasts an in-app-only notification to every
+        # `ROLE_ADMIN` account once the new assignment row exists.
+        self.notification_service = notification_service
 
     async def create(
         self,
@@ -61,15 +68,22 @@ class ManualMatchAssignmentService:
         """
         Creates a new `status=pending`, `assigned_admin_id=NULL` row
         (AC2, Decision 2a) -- one row per low-confidence session routed
-        to the admin queue.
+        to the admin queue. Unconditionally notifies every `ROLE_ADMIN`
+        account afterward (`ENG-001`, AC3, Decision 9) -- a flagged,
+        additive touch-point on this already-shipped method, mirroring
+        `ADR-050`'s identical shape.
         """
-        return await self.repository.create(
+        assignment = await self.repository.create(
             {
                 "conversation_session_id": conversation_session_id,
                 "search_request_id": search_request_id,
                 "status": _STATUS_PENDING,
             }
         )
+        await self.notification_service.notify_manual_match_assignment_created(
+            assignment.id
+        )
+        return assignment
 
     async def list_pending(
         self, *, page: int, page_size: int

@@ -15,6 +15,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
+from app.core.constants import ROLE_ADMIN
 from app.core.exceptions import (
     ManualMatchAssignmentAlreadyResolvedError,
     ManualMatchAssignmentNotFoundError,
@@ -34,8 +35,41 @@ from app.modules.administration.services.manual_match_assignment_service import 
 )
 from app.modules.category.models import Category
 from app.modules.conversation.models import ConversationSession
-from app.modules.customer.models import CustomerProfile
+from app.modules.customer.models import CustomerProfile, NotificationChannel
+from app.modules.customer.repositories.customer_preferences_repository import (
+    CustomerPreferencesRepository,
+)
+from app.modules.customer.repositories.customer_profile_repository import (
+    CustomerProfileRepository,
+)
 from app.modules.identity.models import AuthProvider, User
+from app.modules.identity.repositories.role_repository import RoleRepository
+from app.modules.identity.services.role_assignment_service import (
+    RoleAssignmentService,
+)
+from app.modules.identity.services.seed_data import seed_roles
+from app.modules.notification.models import Notification
+from app.modules.notification.repositories.notification_delivery_repository import (
+    NotificationDeliveryRepository,
+)
+from app.modules.notification.repositories.notification_preference_repository import (
+    NotificationPreferenceRepository,
+)
+from app.modules.notification.repositories.notification_repository import (
+    NotificationRepository,
+)
+from app.modules.notification.services.notification_delivery_service import (
+    NotificationDeliveryService,
+)
+from app.modules.notification.services.notification_preference_service import (
+    NotificationPreferenceService,
+)
+from app.modules.notification.services.notification_sender import (
+    StubEmailSender,
+    StubSmsSender,
+    StubWhatsAppSender,
+)
+from app.modules.notification.services.notification_service import NotificationService
 
 
 async def _make_user(db_session, phone_number: str) -> User:
@@ -74,10 +108,34 @@ async def _make_conversation_session(db_session, customer_id: uuid.UUID):
     return session
 
 
+def _notification_service(db_session) -> NotificationService:
+    """Builds a real, fully-wired `NotificationService` (`ENG-001`,
+    `Plan_S12_ENG-001.md`) -- mirrors `tests/modules/contact/_helpers.
+    py`'s identical builder."""
+    return NotificationService(
+        repository=NotificationRepository(db_session),
+        preference_service=NotificationPreferenceService(
+            NotificationPreferenceRepository(db_session),
+            CustomerProfileRepository(db_session),
+            CustomerPreferencesRepository(db_session),
+        ),
+        delivery_service=NotificationDeliveryService(
+            NotificationDeliveryRepository(db_session),
+            {
+                NotificationChannel.WHATSAPP: StubWhatsAppSender(),
+                NotificationChannel.SMS: StubSmsSender(),
+                NotificationChannel.EMAIL: StubEmailSender(),
+            },
+        ),
+        role_repository=RoleRepository(db_session),
+    )
+
+
 def _service(db_session) -> ManualMatchAssignmentService:
     return ManualMatchAssignmentService(
         ManualMatchAssignmentRepository(db_session),
         AdminActionLogService(AdminActionLogRepository(db_session)),
+        _notification_service(db_session),
     )
 
 
@@ -104,6 +162,40 @@ class TestCreate:
         assert assignment.search_request_id is None
         assert assignment.assigned_admin_id is None
         assert assignment.completed_at is None
+
+    async def test_create_notifies_every_seeded_admin_account_exactly_once(
+        self, db_session
+    ) -> None:
+        """`ENG-001`, AC3, Decision 9, `Plan_S12_ENG-001.md` -- a
+        successful creation triggers `notify_manual_match_assignment_
+        created` exactly once with the new assignment's id, verified
+        via a real DB assertion of the resulting `notifications` rows
+        (one per seeded admin account)."""
+        await seed_roles(db_session)
+        admin = await _make_user(db_session, "910000020")
+        await RoleAssignmentService(RoleRepository(db_session)).ensure_role_assigned(
+            admin.id, ROLE_ADMIN
+        )
+        user = await _make_user(db_session, "910000021")
+        profile = await _make_customer_profile(db_session, user)
+        session = await _make_conversation_session(db_session, profile.id)
+        service = _service(db_session)
+
+        assignment = await service.create(
+            conversation_session_id=session.id, search_request_id=None
+        )
+        await db_session.commit()
+
+        result = await db_session.execute(
+            select(Notification).where(
+                Notification.type == "manual_match_assignment_created"
+            )
+        )
+        notifications = result.scalars().all()
+        assert len(notifications) == 1
+        assert notifications[0].user_id == admin.id
+        assert notifications[0].related_entity_type == "manual_match_assignment"
+        assert notifications[0].related_entity_id == assignment.id
 
 
 class TestListPending:
@@ -329,6 +421,7 @@ class TestTryResolveAtomicity:
                 attempt_service = ManualMatchAssignmentService(
                     ManualMatchAssignmentRepository(attempt_session),
                     AdminActionLogService(AdminActionLogRepository(attempt_session)),
+                    _notification_service(attempt_session),
                 )
                 try:
                     await attempt_service.resolve(

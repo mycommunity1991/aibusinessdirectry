@@ -27,14 +27,38 @@ from app.modules.administration.repositories.admin_action_log_repository import 
 from app.modules.administration.services.admin_action_log_service import (
     AdminActionLogService,
 )
+from app.modules.customer.models import NotificationChannel
+from app.modules.customer.repositories.customer_preferences_repository import (
+    CustomerPreferencesRepository,
+)
+from app.modules.customer.repositories.customer_profile_repository import (
+    CustomerProfileRepository,
+)
 from app.modules.identity.models import AuthProvider, User
 from app.modules.identity.repositories.role_repository import RoleRepository
 from app.modules.identity.services.role_assignment_service import (
     RoleAssignmentService,
 )
 from app.modules.notification.models import Notification
+from app.modules.notification.repositories.notification_delivery_repository import (
+    NotificationDeliveryRepository,
+)
+from app.modules.notification.repositories.notification_preference_repository import (
+    NotificationPreferenceRepository,
+)
 from app.modules.notification.repositories.notification_repository import (
     NotificationRepository,
+)
+from app.modules.notification.services.notification_delivery_service import (
+    NotificationDeliveryService,
+)
+from app.modules.notification.services.notification_preference_service import (
+    NotificationPreferenceService,
+)
+from app.modules.notification.services.notification_sender import (
+    StubEmailSender,
+    StubSmsSender,
+    StubWhatsAppSender,
 )
 from app.modules.notification.services.notification_service import NotificationService
 from app.modules.provider.models import (
@@ -139,6 +163,29 @@ def _provider_service(db_session) -> ProviderService:
     )
 
 
+def _notification_service(db_session) -> NotificationService:
+    """Builds a real, fully-wired `NotificationService` (`ENG-001`,
+    `Plan_S12_ENG-001.md`) -- mirrors `tests/modules/contact/_helpers.
+    py`'s identical builder."""
+    return NotificationService(
+        repository=NotificationRepository(db_session),
+        preference_service=NotificationPreferenceService(
+            NotificationPreferenceRepository(db_session),
+            CustomerProfileRepository(db_session),
+            CustomerPreferencesRepository(db_session),
+        ),
+        delivery_service=NotificationDeliveryService(
+            NotificationDeliveryRepository(db_session),
+            {
+                NotificationChannel.WHATSAPP: StubWhatsAppSender(),
+                NotificationChannel.SMS: StubSmsSender(),
+                NotificationChannel.EMAIL: StubEmailSender(),
+            },
+        ),
+        role_repository=RoleRepository(db_session),
+    )
+
+
 def _admin_verification_service(
     db_session, upload_dir: Path
 ) -> AdminVerificationService:
@@ -149,7 +196,7 @@ def _admin_verification_service(
         admin_action_log_service=AdminActionLogService(
             AdminActionLogRepository(db_session)
         ),
-        notification_service=NotificationService(NotificationRepository(db_session)),
+        notification_service=_notification_service(db_session),
         verification_file_storage=LocalFileStorage(
             base_directory=str(upload_dir), public_url_prefix=None
         ),
